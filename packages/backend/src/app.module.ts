@@ -13,6 +13,8 @@ import {
   TransformationRun,
   Organization,
   User,
+  FdwServer,
+  SavedCrossQuery,
 } from './database/entities';
 import { EncryptionModule } from './modules/encryption/encryption.module';
 import { ConnectionsModule } from './modules/connections/connections.module';
@@ -20,6 +22,7 @@ import { SchemaModule } from './modules/schema/schema.module';
 import { QueriesModule } from './modules/queries/queries.module';
 import { TransformationsModule } from './modules/transformations/transformations.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CrossQueryModule } from './modules/cross-query/cross-query.module';
 
 @Module({
   imports: [
@@ -47,6 +50,8 @@ import { AuthModule } from './modules/auth/auth.module';
           TransformationRun,
           Organization,
           User,
+          FdwServer,
+          SavedCrossQuery,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -76,6 +81,7 @@ import { AuthModule } from './modules/auth/auth.module';
     SchemaModule,
     QueriesModule,
     TransformationsModule,
+    CrossQueryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

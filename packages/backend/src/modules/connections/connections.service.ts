@@ -137,6 +137,24 @@ export class ConnectionsService {
     return driver;
   }
 
+  /**
+   * Get full connection config (including credentials) for internal use only
+   * Do NOT expose this through the API - use toResponseDto for API responses
+   */
+  async getConnectionConfig(id: string, organizationId: string): Promise<{ connection: Connection; config: ConnectionConfig }> {
+    const connection = await this.connectionsRepository.findOne({
+      where: { id, organizationId },
+    });
+
+    if (!connection) {
+      throw new NotFoundException(`Connection with ID ${id} not found`);
+    }
+
+    const config = this.encryptionService.decryptObject<ConnectionConfig>(connection.config);
+
+    return { connection, config };
+  }
+
   private async testConnectionConfig(dto: CreateConnectionDto): Promise<void> {
     const config: ConnectionConfig = {
       host: dto.host,

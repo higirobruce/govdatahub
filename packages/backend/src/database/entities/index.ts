@@ -6,3 +6,5 @@ export { TransformationRun } from './transformation-run.entity';
 export { Organization } from './organization.entity';
 export { User } from './user.entity';
 export { UserRole } from './user-role.enum';
+export { FdwServer } from './fdw-server.entity';
+export { SavedCrossQuery } from './saved-cross-query.entity';
