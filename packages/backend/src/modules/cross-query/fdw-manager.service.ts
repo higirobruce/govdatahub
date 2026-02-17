@@ -130,7 +130,10 @@ export class FdwManagerService {
         `Failed to setup FDW server for connection ${connectionId}`,
         error,
       );
-      throw new BadRequestException('Failed to setup FDW server');
+      // Include actual error message for debugging
+      throw new BadRequestException(
+        `Failed to setup FDW server: ${error.message || error}`,
+      );
     } finally {
       await queryRunner.release();
     }
@@ -185,7 +188,9 @@ export class FdwManagerService {
         `Failed to teardown FDW server ${fdwServer.serverName}`,
         error,
       );
-      throw new BadRequestException('Failed to teardown FDW server');
+      throw new BadRequestException(
+        `Failed to teardown FDW server: ${error.message || error}`,
+      );
     } finally {
       await queryRunner.release();
     }
@@ -228,20 +233,16 @@ export class FdwManagerService {
         const fullyQualifiedName = `${orgSchema}.${foreignTableName}`;
 
         try {
-          // Import specific table from remote schema
-          await queryRunner.query(`
-            IMPORT FOREIGN SCHEMA ${this.quoteIdent(table.schemaName)}
-            LIMIT TO (${this.quoteIdent(table.tableName)})
-            FROM SERVER ${this.quoteIdent(fdwServer.serverName)}
-            INTO ${this.quoteIdent(orgSchema)}
-            OPTIONS (import_default 'true')
-          `);
-
-          // Rename imported table to our naming convention
-          await queryRunner.query(`
-            ALTER FOREIGN TABLE ${orgSchema}.${this.quoteIdent(table.tableName)}
-            RENAME TO ${this.quoteIdent(foreignTableName)}
-          `);
+          // Get table structure from remote database and create foreign table manually
+          // This allows us to map custom types (enums, etc.) to standard types
+          await this.createForeignTableManually(
+            queryRunner,
+            fdwServer.serverName,
+            table.schemaName,
+            table.tableName,
+            orgSchema,
+            foreignTableName,
+          );
 
           foreignTableMap.set(table.alias, fullyQualifiedName);
 
@@ -320,6 +321,80 @@ export class FdwManagerService {
         );
       } catch (error) {
         this.logger.warn(`Failed to drop foreign table ${row.tablename}`, error);
+      }
+    }
+  }
+
+  /**
+   * Create foreign table manually by querying remote schema
+   * This allows mapping custom types (enums, etc.) to standard types
+   */
+  private async createForeignTableManually(
+    queryRunner: any,
+    serverName: string,
+    remoteSchema: string,
+    remoteTable: string,
+    localSchema: string,
+    localTableName: string,
+  ): Promise<void> {
+    // Try to import the table
+    try {
+      await queryRunner.query(`
+        IMPORT FOREIGN SCHEMA ${this.quoteIdent(remoteSchema)}
+        LIMIT TO (${this.quoteIdent(remoteTable)})
+        FROM SERVER ${this.quoteIdent(serverName)}
+        INTO ${this.quoteIdent(localSchema)}
+        OPTIONS (import_default 'true')
+      `);
+
+      // Rename imported table to our naming convention
+      await queryRunner.query(`
+        ALTER FOREIGN TABLE ${localSchema}.${this.quoteIdent(remoteTable)}
+        RENAME TO ${this.quoteIdent(localTableName)}
+      `);
+    } catch (error) {
+      // If import fails due to missing enum type, extract type name and create it
+      const enumTypeMatch = error.message.match(/type "([^"]+)" does not exist/);
+
+      if (enumTypeMatch) {
+        const missingType = enumTypeMatch[1];
+        this.logger.log(
+          `Missing type ${missingType}, creating as TEXT domain for compatibility`,
+        );
+
+        // Create the missing type as a text domain (simpler than recreating enums)
+        // Remove schema prefix if present (e.g., "public.vehicles_bodytype_enum" -> "vehicles_bodytype_enum")
+        const typeName = missingType.includes('.')
+          ? missingType.split('.')[1]
+          : missingType;
+
+        try {
+          await queryRunner.query(`
+            CREATE DOMAIN ${this.quoteIdent(typeName)} AS TEXT
+          `);
+        } catch (domainError) {
+          // Domain might already exist, ignore
+          if (!domainError.message.includes('already exists')) {
+            throw domainError;
+          }
+        }
+
+        // Retry the import
+        await queryRunner.query(`
+          IMPORT FOREIGN SCHEMA ${this.quoteIdent(remoteSchema)}
+          LIMIT TO (${this.quoteIdent(remoteTable)})
+          FROM SERVER ${this.quoteIdent(serverName)}
+          INTO ${this.quoteIdent(localSchema)}
+          OPTIONS (import_default 'true')
+        `);
+
+        // Rename imported table
+        await queryRunner.query(`
+          ALTER FOREIGN TABLE ${localSchema}.${this.quoteIdent(remoteTable)}
+          RENAME TO ${this.quoteIdent(localTableName)}
+        `);
+      } else {
+        throw error;
       }
     }
   }

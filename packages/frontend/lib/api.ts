@@ -195,6 +195,37 @@ export const api = {
     getRunDetails: (runId: string) => request(`/transformations/runs/${runId}`),
     getRunResults: (runId: string) => request(`/transformations/runs/${runId}/results`),
   },
+
+  // Cross-Query
+  crossQuery: {
+    validate: (data: any) =>
+      request('/cross-query/validate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    execute: (data: any) =>
+      request('/cross-query/execute', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    getTablesMetadata: (connectionIds: string[]) =>
+      request('/cross-query/metadata/tables', {
+        method: 'POST',
+        body: JSON.stringify({ connectionIds }),
+      }),
+    // Saved queries
+    saveQuery: (data: any) =>
+      request('/cross-query/saved', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    listSaved: () => request('/cross-query/saved'),
+    getSaved: (id: string) => request(`/cross-query/saved/${id}`),
+    deleteSaved: (id: string) =>
+      request(`/cross-query/saved/${id}`, {
+        method: 'DELETE',
+      }),
+  },
 };
 
 export { ApiError };
