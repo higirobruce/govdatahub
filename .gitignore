@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.swc/
+.webpack/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Misc
+.turbo/
+*.tsbuildinfo
+*.cache
+.eslintcache
+
+# Docker
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+tmp/
+temp/
+*.bak
+*.backup
+
+# Database files (for local development)
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal

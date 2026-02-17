@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # Metadata database for GovDataHub
+  postgres:
+    image: postgres:15-alpine
+    container_name: govdatahub-postgres
+    environment:
+      POSTGRES_DB: govdatahub
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d govdatahub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - govdatahub-network
+
+  # Sample MySQL database for testing connections
+  mysql:
+    image: mysql:8.0
+    container_name: govdatahub-mysql-sample
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: sampledb
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - govdatahub-network
+
+volumes:
+  postgres-data:
+    driver: local
+  mysql-data:
+    driver: local
+
+networks:
+  govdatahub-network:
+    driver: bridge
