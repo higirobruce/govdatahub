@@ -21,6 +21,7 @@ export class QueryBuilderService {
 
     // SELECT clause
     const selectColumns = queryDef.columns.map((col) => {
+      // Validate that the table alias exists
       const foreignTable = foreignTableMap.get(col.table);
       if (!foreignTable) {
         throw new BadRequestException(
@@ -28,7 +29,8 @@ export class QueryBuilderService {
         );
       }
 
-      const columnRef = `${foreignTable}.${this.quoteIdent(col.column)}`;
+      // Use table alias, not the full foreign table name
+      const columnRef = `${this.quoteIdent(col.table)}.${this.quoteIdent(col.column)}`;
       return col.alias
         ? `${columnRef} AS ${this.quoteIdent(col.alias)}`
         : columnRef;

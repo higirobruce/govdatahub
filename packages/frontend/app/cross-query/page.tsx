@@ -104,76 +104,7 @@ export default function CrossQueryPage() {
               />
             </Card>
           )}
-        </div>
 
-        {/* Center - Query Configuration */}
-        <div className="col-span-6 space-y-4">
-          {/* Visual Join Editor */}
-          {queryDefinition.tables.length > 0 && (
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">
-                Table Relationships
-                {queryDefinition.tables.length > 1 && (
-                  <span className="text-sm font-normal text-muted-foreground ml-2">
-                    Drag between columns to create joins
-                  </span>
-                )}
-              </h2>
-              <VisualJoinEditor
-                queryDefinition={queryDefinition}
-                onQueryChange={setQueryDefinition}
-              />
-            </Card>
-          )}
-
-          {/* Column Selection */}
-          {queryDefinition.tables.length > 0 && (
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">Select Columns</h2>
-              <ColumnSelector
-                queryDefinition={queryDefinition}
-                onQueryChange={setQueryDefinition}
-              />
-            </Card>
-          )}
-
-          {/* Query Preview */}
-          {queryDefinition.tables.length > 0 && queryDefinition.columns.length > 0 && (
-            <Card className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Query Preview</h2>
-                <Button
-                  onClick={handleExecute}
-                  disabled={!canExecute || isExecuting}
-                  className="gap-2"
-                >
-                  {isExecuting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Executing...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4" />
-                      Execute Query
-                    </>
-                  )}
-                </Button>
-              </div>
-              <QueryPreview queryDefinition={queryDefinition} />
-            </Card>
-          )}
-
-          {/* Results */}
-          {result && (
-            <Card className="p-4">
-              <ResultsViewer result={result} />
-            </Card>
-          )}
-        </div>
-
-        {/* Right Sidebar - Configuration (future: joins, filters) */}
-        <div className="col-span-3">
           <Card className="p-4">
             <h2 className="text-lg font-semibold mb-4">Query Options</h2>
             <div className="space-y-4">
@@ -245,6 +176,74 @@ export default function CrossQueryPage() {
             </div>
           </Card>
         </div>
+
+        {/* Center - Query Configuration */}
+        <div className="col-span-9 space-y-4">
+          {/* Visual Join Editor */}
+          {queryDefinition.tables.length > 0 && (
+            <Card className="p-4">
+              <h2 className="text-lg font-semibold mb-4">
+                Table Relationships
+                {queryDefinition.tables.length > 1 && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    Drag between columns to create joins
+                  </span>
+                )}
+              </h2>
+              <VisualJoinEditor
+                queryDefinition={queryDefinition}
+                onQueryChange={setQueryDefinition}
+              />
+            </Card>
+          )}
+
+          {/* Column Selection */}
+          {queryDefinition.tables.length > 0 && (
+            <Card className="p-4">
+              <h2 className="text-lg font-semibold mb-4">Select Columns</h2>
+              <ColumnSelector
+                queryDefinition={queryDefinition}
+                onQueryChange={setQueryDefinition}
+              />
+            </Card>
+          )}
+
+          {/* Query Preview */}
+          {queryDefinition.tables.length > 0 && queryDefinition.columns.length > 0 && (
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Query Preview</h2>
+                <Button
+                  onClick={handleExecute}
+                  disabled={!canExecute || isExecuting}
+                  className="gap-2"
+                >
+                  {isExecuting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Executing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" />
+                      Execute Query
+                    </>
+                  )}
+                </Button>
+              </div>
+              <QueryPreview queryDefinition={queryDefinition} />
+            </Card>
+          )}
+
+          {/* Results */}
+          {result && (
+            <Card className="p-4">
+              <ResultsViewer result={result} />
+            </Card>
+          )}
+        </div>
+
+        
       </div>
     </div>
   );

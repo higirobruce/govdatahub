@@ -337,49 +337,13 @@ export class FdwManagerService {
     localSchema: string,
     localTableName: string,
   ): Promise<void> {
-    // Try to import the table
-    try {
-      await queryRunner.query(`
-        IMPORT FOREIGN SCHEMA ${this.quoteIdent(remoteSchema)}
-        LIMIT TO (${this.quoteIdent(remoteTable)})
-        FROM SERVER ${this.quoteIdent(serverName)}
-        INTO ${this.quoteIdent(localSchema)}
-        OPTIONS (import_default 'true')
-      `);
+    const maxRetries = 10; // Prevent infinite loops
+    let attempt = 0;
+    let lastError: any = null;
 
-      // Rename imported table to our naming convention
-      await queryRunner.query(`
-        ALTER FOREIGN TABLE ${localSchema}.${this.quoteIdent(remoteTable)}
-        RENAME TO ${this.quoteIdent(localTableName)}
-      `);
-    } catch (error) {
-      // If import fails due to missing enum type, extract type name and create it
-      const enumTypeMatch = error.message.match(/type "([^"]+)" does not exist/);
-
-      if (enumTypeMatch) {
-        const missingType = enumTypeMatch[1];
-        this.logger.log(
-          `Missing type ${missingType}, creating as TEXT domain for compatibility`,
-        );
-
-        // Create the missing type as a text domain (simpler than recreating enums)
-        // Remove schema prefix if present (e.g., "public.vehicles_bodytype_enum" -> "vehicles_bodytype_enum")
-        const typeName = missingType.includes('.')
-          ? missingType.split('.')[1]
-          : missingType;
-
-        try {
-          await queryRunner.query(`
-            CREATE DOMAIN ${this.quoteIdent(typeName)} AS TEXT
-          `);
-        } catch (domainError) {
-          // Domain might already exist, ignore
-          if (!domainError.message.includes('already exists')) {
-            throw domainError;
-          }
-        }
-
-        // Retry the import
+    // Keep retrying until all missing types are created
+    while (attempt < maxRetries) {
+      try {
         await queryRunner.query(`
           IMPORT FOREIGN SCHEMA ${this.quoteIdent(remoteSchema)}
           LIMIT TO (${this.quoteIdent(remoteTable)})
@@ -388,15 +352,58 @@ export class FdwManagerService {
           OPTIONS (import_default 'true')
         `);
 
-        // Rename imported table
+        // Rename imported table to our naming convention
         await queryRunner.query(`
           ALTER FOREIGN TABLE ${localSchema}.${this.quoteIdent(remoteTable)}
           RENAME TO ${this.quoteIdent(localTableName)}
         `);
-      } else {
-        throw error;
+
+        // Success! Exit the loop
+        return;
+      } catch (error) {
+        lastError = error;
+
+        // If import fails due to missing type, extract type name and create it
+        const typeMatch = error.message.match(/type "([^"]+)" does not exist/);
+
+        if (typeMatch) {
+          const missingType = typeMatch[1];
+          this.logger.log(
+            `Missing type ${missingType}, creating as TEXT domain for compatibility`,
+          );
+
+          // Create the missing type as a text domain (simpler than recreating enums)
+          // Remove schema prefix if present (e.g., "public.vehicles_bodytype_enum" -> "vehicles_bodytype_enum")
+          const typeName = missingType.includes('.')
+            ? missingType.split('.')[1]
+            : missingType;
+
+          try {
+            await queryRunner.query(`
+              CREATE DOMAIN ${this.quoteIdent(typeName)} AS TEXT
+            `);
+            this.logger.log(`Created domain type: ${typeName}`);
+          } catch (domainError) {
+            // Domain might already exist, ignore
+            if (!domainError.message.includes('already exists')) {
+              throw domainError;
+            }
+          }
+
+          // Increment attempt and retry
+          attempt++;
+        } else {
+          // Different error - not a missing type issue
+          throw error;
+        }
       }
     }
+
+    // If we exhausted all retries, throw the last error
+    throw new Error(
+      `Failed to import table ${remoteTable} after ${maxRetries} attempts. ` +
+      `Last error: ${lastError.message}`,
+    );
   }
 
   /**

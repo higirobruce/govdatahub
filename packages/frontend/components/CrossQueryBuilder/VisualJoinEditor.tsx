@@ -245,7 +245,7 @@ export function VisualJoinEditor({ queryDefinition, onQueryChange }: VisualJoinE
 
   return (
     <div className="relative">
-      <div className="h-[500px] border rounded-lg bg-muted/20">
+      <div className="h-[800px] border rounded-lg bg-muted/20">
         <ReactFlow
           nodes={nodes}
           edges={edges}
