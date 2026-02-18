@@ -65,29 +65,29 @@ export default function CrossQueryPage() {
     (queryDefinition.tables.length === 1 || queryDefinition.joins.length > 0);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Cross-Database Query Builder</h1>
-        <p className="text-muted-foreground mt-2">
+    <div className="container mx-auto px-4 py-6 max-w-full h-screen flex flex-col">
+      {/* Header - Compact */}
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold">Cross-Database Query Builder</h1>
+        <p className="text-sm text-muted-foreground">
           Join data from multiple databases using a visual query builder
         </p>
       </div>
 
       {/* Error Alert */}
       {error && (
-        <Alert variant="destructive" className="mb-6">
+        <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* Main Content */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* Left Sidebar - Connection & Table Selection */}
-        <div className="col-span-3 space-y-4">
-          <Card className="p-4">
-            <h2 className="text-lg font-semibold mb-4">Connections</h2>
+      {/* Main Content - Fill remaining height */}
+      <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
+        {/* Left Sidebar - Narrower */}
+        <div className="col-span-2 space-y-3 overflow-y-auto">
+          <Card className="p-3">
+            <h2 className="text-sm font-semibold mb-3">Connections</h2>
             <ConnectionSelector
               selectedConnections={selectedConnections}
               onSelectionChange={setSelectedConnections}
@@ -95,8 +95,8 @@ export default function CrossQueryPage() {
           </Card>
 
           {selectedConnections.length > 0 && (
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">Tables</h2>
+            <Card className="p-3">
+              <h2 className="text-sm font-semibold mb-3">Tables</h2>
               <TableBrowser
                 connectionIds={selectedConnections}
                 queryDefinition={queryDefinition}
@@ -105,11 +105,11 @@ export default function CrossQueryPage() {
             </Card>
           )}
 
-          <Card className="p-4">
-            <h2 className="text-lg font-semibold mb-4">Query Options</h2>
-            <div className="space-y-4">
+          <Card className="p-3">
+            <h2 className="text-sm font-semibold mb-3">Query Options</h2>
+            <div className="space-y-3 text-xs">
               <div>
-                <label className="text-sm font-medium">Result Limit</label>
+                <label className="text-xs font-medium">Result Limit</label>
                 <input
                   type="number"
                   value={queryDefinition.limit || 100}
@@ -119,41 +119,35 @@ export default function CrossQueryPage() {
                       limit: parseInt(e.target.value) || 100,
                     })
                   }
-                  className="w-full px-3 py-2 border rounded-md mt-1"
+                  className="w-full px-2 py-1 border rounded text-xs mt-1"
                   min="1"
                   max="10000"
                 />
               </div>
 
               {queryDefinition.tables.length > 0 && (
-                <div className="space-y-4">
-                  <div className="text-sm text-muted-foreground space-y-2">
-                    <div>
-                      <strong>Tables:</strong> {queryDefinition.tables.length}
-                    </div>
-                    <div>
-                      <strong>Joins:</strong> {queryDefinition.joins.length}
-                    </div>
-                    <div>
-                      <strong>Columns:</strong> {queryDefinition.columns.length}
-                    </div>
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>Tables: {queryDefinition.tables.length}</div>
+                    <div>Joins: {queryDefinition.joins.length}</div>
+                    <div>Columns: {queryDefinition.columns.length}</div>
                   </div>
 
-                  {/* Join List */}
+                  {/* Join List - Compact */}
                   {queryDefinition.joins.length > 0 && (
-                    <div className="pt-4 border-t">
-                      <h3 className="text-sm font-semibold mb-2">Configured Joins</h3>
-                      <div className="space-y-2">
+                    <div className="pt-2 border-t">
+                      <h3 className="text-xs font-semibold mb-1">Joins</h3>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
                         {queryDefinition.joins.map((join, index) => (
                           <div
                             key={index}
-                            className="text-xs bg-muted p-2 rounded-md space-y-1"
+                            className="text-xs bg-muted p-1.5 rounded space-y-0.5"
                           >
-                            <div className="font-medium">
+                            <div className="font-medium truncate">
                               {join.leftTable} {join.type} {join.rightTable}
                             </div>
                             {join.conditions.map((cond, condIndex) => (
-                              <div key={condIndex} className="text-muted-foreground">
+                              <div key={condIndex} className="text-muted-foreground truncate">
                                 {cond.leftColumn} {cond.operator} {cond.rightColumn}
                               </div>
                             ))}
@@ -177,67 +171,75 @@ export default function CrossQueryPage() {
           </Card>
         </div>
 
-        {/* Center - Query Configuration */}
-        <div className="col-span-9 space-y-4">
-          {/* Visual Join Editor */}
+        {/* Center - Query Configuration - Wider */}
+        <div className="col-span-10 flex flex-col space-y-3 min-h-0">
+          {/* Visual Join Editor - Takes most space */}
           {queryDefinition.tables.length > 0 && (
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">
-                Table Relationships
-                {queryDefinition.tables.length > 1 && (
-                  <span className="text-sm font-normal text-muted-foreground ml-2">
-                    Drag between columns to create joins
-                  </span>
-                )}
-              </h2>
-              <VisualJoinEditor
-                queryDefinition={queryDefinition}
-                onQueryChange={setQueryDefinition}
-              />
-            </Card>
-          )}
-
-          {/* Column Selection */}
-          {queryDefinition.tables.length > 0 && (
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">Select Columns</h2>
-              <ColumnSelector
-                queryDefinition={queryDefinition}
-                onQueryChange={setQueryDefinition}
-              />
-            </Card>
-          )}
-
-          {/* Query Preview */}
-          {queryDefinition.tables.length > 0 && queryDefinition.columns.length > 0 && (
-            <Card className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Query Preview</h2>
-                <Button
-                  onClick={handleExecute}
-                  disabled={!canExecute || isExecuting}
-                  className="gap-2"
-                >
-                  {isExecuting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Executing...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4" />
-                      Execute Query
-                    </>
+            <Card className="p-3 flex-1 flex flex-col min-h-0">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold">
+                  Table Relationships
+                  {queryDefinition.tables.length > 1 && (
+                    <span className="text-xs font-normal text-muted-foreground ml-2">
+                      Drag between columns to create joins
+                    </span>
                   )}
-                </Button>
+                </h2>
+                {queryDefinition.columns.length > 0 && (
+                  <Button
+                    onClick={handleExecute}
+                    disabled={!canExecute || isExecuting}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    {isExecuting ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Executing...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-3 w-3" />
+                        Execute Query
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
-              <QueryPreview queryDefinition={queryDefinition} />
+              <div className="flex-1 min-h-0">
+                <VisualJoinEditor
+                  queryDefinition={queryDefinition}
+                  onQueryChange={setQueryDefinition}
+                />
+              </div>
             </Card>
           )}
 
-          {/* Results */}
+          {/* Bottom Section - Compact */}
+          <div className="grid grid-cols-2 gap-3 max-h-[calc(50vh-120px)]">
+            {/* Column Selection - Compact */}
+            {queryDefinition.tables.length > 0 && (
+              <Card className="p-3 overflow-y-auto">
+                <h2 className="text-sm font-semibold mb-2">Select Columns</h2>
+                <ColumnSelector
+                  queryDefinition={queryDefinition}
+                  onQueryChange={setQueryDefinition}
+                />
+              </Card>
+            )}
+
+            {/* Query Preview - Compact */}
+            {queryDefinition.tables.length > 0 && queryDefinition.columns.length > 0 && (
+              <Card className="p-3 overflow-y-auto">
+                <h2 className="text-sm font-semibold mb-2">Query Preview</h2>
+                <QueryPreview queryDefinition={queryDefinition} />
+              </Card>
+            )}
+          </div>
+
+          {/* Results - Full width when visible */}
           {result && (
-            <Card className="p-4">
+            <Card className="p-3 max-h-64 overflow-hidden flex flex-col">
               <ResultsViewer result={result} />
             </Card>
           )}

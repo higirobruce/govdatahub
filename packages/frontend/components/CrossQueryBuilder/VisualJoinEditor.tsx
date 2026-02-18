@@ -229,7 +229,7 @@ export function VisualJoinEditor({ queryDefinition, onQueryChange }: VisualJoinE
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[500px]">
+      <div className="flex items-center justify-center h-full min-h-[300px]">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
@@ -244,8 +244,8 @@ export function VisualJoinEditor({ queryDefinition, onQueryChange }: VisualJoinE
   }
 
   return (
-    <div className="relative">
-      <div className="h-[800px] border rounded-lg bg-muted/20">
+    <div className="relative h-full">
+      <div className="h-full border rounded-lg bg-muted/20">
         <ReactFlow
           nodes={nodes}
           edges={edges}

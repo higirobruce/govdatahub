@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { QueryDefinition, TableReference } from '@/types/cross-query';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Plus, Table as TableIcon, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Table as TableIcon, AlertCircle, CheckCheckIcon, CheckIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface TableInfo {
@@ -129,7 +129,7 @@ export function TableBrowser({
     <div className="space-y-4 max-h-[500px] overflow-y-auto">
       {tablesByConnection.map((conn) => (
         <div key={conn.connectionId} className="space-y-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">
+          <h3 className="text-xs font-semibold text-muted-foreground">
             {conn.connectionName}
           </h3>
           <div className="space-y-1">
@@ -145,7 +145,7 @@ export function TableBrowser({
                   >
                     <div className="flex items-center gap-2 flex-1">
                       <TableIcon className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">
+                      <span className="text-xs">
                         {table.schema}.{table.name}
                       </span>
                     </div>
@@ -159,11 +159,11 @@ export function TableBrowser({
                       className="h-7"
                     >
                       {added ? (
-                        'Added'
+                        <CheckIcon className="h-4 w-4 text-green-500" />
                       ) : (
                         <>
                           <Plus className="h-3 w-3 mr-1" />
-                          Add
+                          
                         </>
                       )}
                     </Button>

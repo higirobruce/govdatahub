@@ -5,8 +5,20 @@ import { QueryDefinition, ColumnSelection, ColumnMetadata } from '@/types/cross-
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Columns, AlertCircle } from 'lucide-react';
+import { Loader2, Columns, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
+
+// Color palette for tables
+const TABLE_COLORS = [
+  'bg-blue-100 border-blue-300 text-blue-900',
+  'bg-green-100 border-green-300 text-green-900',
+  'bg-purple-100 border-purple-300 text-purple-900',
+  'bg-orange-100 border-orange-300 text-orange-900',
+  'bg-pink-100 border-pink-300 text-pink-900',
+  'bg-cyan-100 border-cyan-300 text-cyan-900',
+  'bg-yellow-100 border-yellow-300 text-yellow-900',
+  'bg-red-100 border-red-300 text-red-900',
+];
 
 interface TableColumns {
   alias: string;
@@ -26,6 +38,21 @@ export function ColumnSelector({
   const [tableColumns, setTableColumns] = useState<TableColumns[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [collapsedTables, setCollapsedTables] = useState<Set<string>>(new Set());
+
+  const toggleTableCollapse = (tableAlias: string) => {
+    const newCollapsed = new Set(collapsedTables);
+    if (newCollapsed.has(tableAlias)) {
+      newCollapsed.delete(tableAlias);
+    } else {
+      newCollapsed.add(tableAlias);
+    }
+    setCollapsedTables(newCollapsed);
+  };
+
+  const getTableColor = (index: number) => {
+    return TABLE_COLORS[index % TABLE_COLORS.length];
+  };
 
   useEffect(() => {
     loadColumns();
@@ -143,54 +170,83 @@ export function ColumnSelector({
   }
 
   return (
-    <div className="space-y-6 max-h-[400px] overflow-y-auto">
-      {tableColumns.map((tableCol) => {
+    <div className="space-y-2">
+      {tableColumns.map((tableCol, index) => {
         const allSelected = tableCol.columns.every((col) =>
           isColumnSelected(tableCol.alias, col.name)
         );
+        const isCollapsed = collapsedTables.has(tableCol.alias);
+        const colorClass = getTableColor(index);
+        const selectedCount = tableCol.columns.filter((col) =>
+          isColumnSelected(tableCol.alias, col.name)
+        ).length;
 
         return (
-          <div key={tableCol.alias} className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Columns className="h-4 w-4" />
-                {tableCol.alias} ({tableCol.tableName})
-              </h3>
+          <div key={tableCol.alias} className={`border rounded-md ${colorClass}`}>
+            {/* Table Header - Collapsible */}
+            <div
+              className="flex items-center justify-between p-2 cursor-pointer hover:opacity-80"
+              onClick={() => toggleTableCollapse(tableCol.alias)}
+            >
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {isCollapsed ? (
+                  <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                )}
+                <Columns className="h-3 w-3 flex-shrink-0" />
+                <h3 className="text-xs font-semibold truncate">
+                  {tableCol.alias}
+                  <span className="font-normal text-xs ml-1">
+                    ({selectedCount}/{tableCol.columns.length})
+                  </span>
+                </h3>
+              </div>
               <button
-                onClick={() => selectAllFromTable(tableCol.alias, tableCol.columns)}
-                className="text-xs text-primary hover:underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  selectAllFromTable(tableCol.alias, tableCol.columns);
+                }}
+                className="text-xs hover:underline flex-shrink-0"
               >
-                {allSelected ? 'Deselect All' : 'Select All'}
+                {allSelected ? 'Clear' : 'All'}
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pl-4">
-              {tableCol.columns.map((column) => (
-                <div
-                  key={column.name}
-                  className="flex items-center space-x-2 p-2 rounded-md hover:bg-accent"
-                >
-                  <Checkbox
-                    id={`${tableCol.alias}.${column.name}`}
-                    checked={isColumnSelected(tableCol.alias, column.name)}
-                    onCheckedChange={() => toggleColumn(tableCol.alias, column.name)}
-                  />
-                  <Label
-                    htmlFor={`${tableCol.alias}.${column.name}`}
-                    className="text-sm cursor-pointer flex-1"
-                  >
-                    <div>{column.name}</div>
-                    <div className="text-xs text-muted-foreground">{column.type}</div>
-                  </Label>
+            {/* Columns List - Collapsible */}
+            {!isCollapsed && (
+              <div className="border-t border-current/20 p-2 bg-white/50">
+                <div className="space-y-1">
+                  {tableCol.columns.map((column) => (
+                    <div
+                      key={column.name}
+                      className="flex items-center space-x-2 p-1 rounded hover:bg-white/80"
+                    >
+                      <Checkbox
+                        id={`${tableCol.alias}.${column.name}`}
+                        checked={isColumnSelected(tableCol.alias, column.name)}
+                        onCheckedChange={() => toggleColumn(tableCol.alias, column.name)}
+                      />
+                      <Label
+                        htmlFor={`${tableCol.alias}.${column.name}`}
+                        className="text-xs cursor-pointer flex-1 min-w-0"
+                      >
+                        <div className="truncate font-medium">{column.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {column.type}
+                        </div>
+                      </Label>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         );
       })}
 
       {queryDefinition.columns.length > 0 && (
-        <p className="text-xs text-muted-foreground mt-4">
+        <p className="text-xs text-muted-foreground pt-2 border-t mt-2">
           {queryDefinition.columns.length} column(s) selected
         </p>
       )}
