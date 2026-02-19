@@ -69,3 +69,73 @@ export interface QueryHistory {
   status: string;
   errorMessage?: string;
 }
+
+// Cross-Query Types
+export interface TableReference {
+  connectionId: string;
+  schemaName: string;
+  tableName: string;
+  alias: string;
+  columns?: ColumnInfo[];
+}
+
+export interface JoinCondition {
+  leftColumn: string;
+  operator: '=' | '!=' | '>' | '<' | '>=' | '<=';
+  rightColumn: string;
+}
+
+export interface JoinDefinition {
+  type: 'INNER' | 'LEFT' | 'RIGHT' | 'FULL';
+  leftTable: string;
+  rightTable: string;
+  conditions: JoinCondition[];
+}
+
+export interface ColumnSelection {
+  table: string;
+  column: string;
+  alias?: string;
+}
+
+export interface FilterCondition {
+  table: string;
+  column: string;
+  operator: '=' | '!=' | '>' | '<' | '>=' | '<=' | 'LIKE' | 'IN' | 'IS NULL' | 'IS NOT NULL';
+  value?: any;
+}
+
+export interface OrderByClause {
+  table: string;
+  column: string;
+  direction: 'ASC' | 'DESC';
+}
+
+export interface QueryDefinition {
+  tables: TableReference[];
+  joins: JoinDefinition[];
+  columns: ColumnSelection[];
+  filters?: FilterCondition[];
+  orderBy?: OrderByClause[];
+  limit?: number;
+}
+
+export interface CrossQueryResult {
+  rows: any[];
+  rowCount: number;
+  fields: Array<{ name: string; type: string }>;
+  executionTimeMs: number;
+  generatedSql: string;
+}
+
+export interface SavedCrossQuery {
+  id: string;
+  name: string;
+  description?: string;
+  queryDefinition: QueryDefinition;
+  generatedSql: string;
+  organizationId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}

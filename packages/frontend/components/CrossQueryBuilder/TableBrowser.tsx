@@ -1,28 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { QueryDefinition, TableReference } from '@/types/cross-query';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Plus, Table as TableIcon, AlertCircle, CheckCheckIcon, CheckIcon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import useSWR from 'swr';
 import { api } from '@/lib/api';
-
-interface TableInfo {
-  schema: string;
-  name: string;
-  type: string;
-}
-
-interface ConnectionTables {
-  connectionId: string;
-  connectionName: string;
-  tables: TableInfo[];
-}
+import { Connection, TableInfo, ColumnInfo, QueryDefinition } from '@/types';
 
 interface TableBrowserProps {
   connectionIds: string[];
   queryDefinition: QueryDefinition;
-  onQueryChange: (query: QueryDefinition) => void;
+  onQueryChange: (definition: QueryDefinition) => void;
 }
 
 export function TableBrowser({
@@ -30,59 +16,45 @@ export function TableBrowser({
   queryDefinition,
   onQueryChange,
 }: TableBrowserProps) {
-  const [tablesByConnection, setTablesByConnection] = useState<ConnectionTables[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadTables();
-  }, [connectionIds]);
-
-  const loadTables = async () => {
-    if (connectionIds.length === 0) {
-      setTablesByConnection([]);
-      setLoading(false);
-      return;
+  const [expandedConnection, setExpandedConnection] = useState<string | null>(null);
+  
+  // Fetch connections
+  const { data: allConnections } = useSWR<Connection[]>(
+    '/connections',
+    async () => {
+      const result = await api.connections.list();
+      return result as Connection[];
     }
+  );
 
-    setLoading(true);
-    try {
-      // Load tables for each connection
-      const promises = connectionIds.map(async (connId) => {
-        const [connData, tablesData] = await Promise.all([
-          api.connections.get(connId),
-          api.schema.getTables(connId),
-        ]);
+  const connections = allConnections?.filter((c) =>
+    connectionIds.includes(c.id)
+  );
 
-        return {
-          connectionId: connId,
-          connectionName: (connData as any).name,
-          tables: tablesData as TableInfo[],
-        };
-      });
+  // Fetch tables for expanded connection
+  const { data: tables, error: tablesError } = useSWR<TableInfo[]>(
+    expandedConnection ? `/connections/${expandedConnection}/tables` : null,
+    expandedConnection
+      ? async () => {
+          const result = await api.schema.getTables(expandedConnection);
+          return result as TableInfo[];
+        }
+      : null
+  );
 
-      const results = await Promise.all(promises);
-      setTablesByConnection(results);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load tables');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addTable = (connectionId: string, connectionName: string, table: TableInfo) => {
-    // Generate alias from table name (t1, t2, etc. or actual table name)
-    const existingAliases = queryDefinition.tables.map((t) => t.alias);
-    let alias = table.name;
+  const handleAddTable = (connection: Connection, table: TableInfo) => {
+    // Generate a unique alias
+    const baseAlias = table.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    let alias = baseAlias;
     let counter = 1;
-    while (existingAliases.includes(alias)) {
-      alias = `${table.name}_${counter}`;
+    
+    while (queryDefinition.tables.some((t) => t.alias === alias)) {
+      alias = `${baseAlias}_${counter}`;
       counter++;
     }
 
-    const newTable: TableReference = {
-      connectionId,
+    const newTable = {
+      connectionId: connection.id,
       schemaName: table.schema,
       tableName: table.name,
       alias,
@@ -100,78 +72,97 @@ export function TableBrowser({
     );
   };
 
-  if (loading) {
+  if (!connections || connections.length === 0) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="text-sm text-gray-500">
+        No connections selected. Select connections above to browse tables.
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (tablesByConnection.length === 0) {
-    return (
-      <Alert>
-        <AlertDescription>Select connections to browse tables</AlertDescription>
-      </Alert>
-    );
-  }
-
   return (
-    <div className="space-y-4 max-h-[500px] overflow-y-auto">
-      {tablesByConnection.map((conn) => (
-        <div key={conn.connectionId} className="space-y-2">
-          <h3 className="text-xs font-semibold text-muted-foreground">
-            {conn.connectionName}
-          </h3>
-          <div className="space-y-1">
-            {conn.tables.length === 0 ? (
-              <p className="text-xs text-muted-foreground pl-4">No tables found</p>
-            ) : (
-              conn.tables.map((table) => {
-                const added = isTableAdded(conn.connectionId, table.name);
-                return (
-                  <div
-                    key={`${table.schema}.${table.name}`}
-                    className="flex items-center justify-between p-2 rounded-md hover:bg-accent"
-                  >
-                    <div className="flex items-center gap-2 flex-1">
-                      <TableIcon className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs">
-                        {table.schema}.{table.name}
-                      </span>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={added ? 'secondary' : 'ghost'}
-                      onClick={() =>
-                        !added && addTable(conn.connectionId, conn.connectionName, table)
-                      }
-                      disabled={added}
-                      className="h-7"
+    <div className="space-y-2">
+      {connections.map((connection) => (
+        <div key={connection.id} className="border border-gray-200 rounded-md overflow-hidden">
+          {/* Connection Header */}
+          <button
+            onClick={() =>
+              setExpandedConnection(expandedConnection === connection.id ? null : connection.id)
+            }
+            className="w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 text-left flex items-center justify-between transition-colors"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-gray-900 truncate">
+                {connection.name}
+              </div>
+              <div className="text-xs text-gray-500 truncate">
+                {connection.type}
+              </div>
+            </div>
+            <svg
+              className={`w-4 h-4 text-gray-400 transition-transform ${
+                expandedConnection === connection.id ? 'transform rotate-90' : ''
+              }`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </button>
+
+          {/* Tables List */}
+          {expandedConnection === connection.id && (
+            <div className="bg-white">
+              {tablesError && (
+                <div className="px-3 py-2 text-xs text-red-600">
+                  Failed to load tables
+                </div>
+              )}
+              {!tables && !tablesError && (
+                <div className="px-3 py-2 text-xs text-gray-500">
+                  Loading tables...
+                </div>
+              )}
+              {tables && tables.length === 0 && (
+                <div className="px-3 py-2 text-xs text-gray-500">
+                  No tables found
+                </div>
+              )}
+              {tables && tables.length > 0 && (
+                <div className="max-h-60 overflow-y-auto">
+                  {tables.map((table) => (
+                    <div
+                      key={`${table.schema}.${table.name}`}
+                      className="px-3 py-2 hover:bg-gray-50 flex items-center justify-between border-t border-gray-100"
                     >
-                      {added ? (
-                        <CheckIcon className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <>
-                          <Plus className="h-3 w-3 mr-1" />
-                          
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                );
-              })
-            )}
-          </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-mono text-gray-900 truncate">
+                          {table.schema}.{table.name}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleAddTable(connection, table)}
+                        disabled={isTableAdded(connection.id, table.name)}
+                        className={`text-xs px-2 py-1 rounded ${
+                          isTableAdded(connection.id, table.name)
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        }`}
+                      >
+                        {isTableAdded(connection.id, table.name) ? 'Added' : 'Add'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ))}
     </div>

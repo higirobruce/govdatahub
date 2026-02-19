@@ -1,108 +1,89 @@
 'use client';
 
-import { QueryDefinition } from '@/types/cross-query';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Code } from 'lucide-react';
+import { QueryDefinition } from '@/types';
 
 interface QueryPreviewProps {
   queryDefinition: QueryDefinition;
 }
 
 export function QueryPreview({ queryDefinition }: QueryPreviewProps) {
-  const generatePreviewSql = (): string => {
-    try {
-      const { tables, joins, columns, filters, orderBy, limit } = queryDefinition;
-
-      if (tables.length === 0 || columns.length === 0) {
-        return '-- No query to preview';
-      }
-
-      let sql = 'SELECT\n  ';
-
-      // Columns
-      sql += columns
-        .map((col) => {
-          const ref = `${col.table}.${col.column}`;
-          return col.alias ? `${ref} AS ${col.alias}` : ref;
-        })
-        .join(',\n  ');
-
-      // FROM clause
-      sql += `\nFROM ${tables[0].alias}`;
-
-      // JOINs
-      if (joins && joins.length > 0) {
-        joins.forEach((join) => {
-          sql += `\n${join.type} JOIN ${join.rightTable}`;
-          sql += `\n  ON ${join.conditions
-            .map(
-              (cond) =>
-                `${join.leftTable}.${cond.leftColumn} ${cond.operator} ${join.rightTable}.${cond.rightColumn}`
-            )
-            .join(' AND ')}`;
-        });
-      }
-
-      // WHERE clause
-      if (filters && filters.length > 0) {
-        sql += '\nWHERE\n  ';
-        sql += filters
-          .map((filter) => {
-            const column = `${filter.table}.${filter.column}`;
-            if (filter.operator === 'IS NULL' || filter.operator === 'IS NOT NULL') {
-              return `${column} ${filter.operator}`;
-            }
-            const value =
-              typeof filter.value === 'string' ? `'${filter.value}'` : filter.value;
-            return `${column} ${filter.operator} ${value}`;
-          })
-          .join('\n  AND ');
-      }
-
-      // ORDER BY clause
-      if (orderBy && orderBy.length > 0) {
-        sql += '\nORDER BY\n  ';
-        sql += orderBy
-          .map((order) => `${order.table}.${order.column} ${order.direction}`)
-          .join(',\n  ');
-      }
-
-      // LIMIT clause
-      if (limit) {
-        sql += `\nLIMIT ${limit}`;
-      }
-
-      return sql;
-    } catch (error) {
-      return '-- Error generating preview';
+  // Generate SQL preview (simplified version - actual SQL generation happens on backend)
+  const generatePreviewSQL = (): string => {
+    if (queryDefinition.tables.length === 0) {
+      return '-- Add tables to see SQL preview';
     }
+
+    if (queryDefinition.columns.length === 0) {
+      return '-- Select columns to see SQL preview';
+    }
+
+    const lines: string[] = [];
+
+    // SELECT clause
+    const columnList = queryDefinition.columns.map((col) => {
+      return col.alias
+        ? `${col.table}.${col.column} AS ${col.alias}`
+        : `${col.table}.${col.column}`;
+    });
+    lines.push(`SELECT ${columnList.join(', ')}`);
+
+    // FROM clause
+    const firstTable = queryDefinition.tables[0];
+    lines.push(`FROM ${firstTable.schemaName}.${firstTable.tableName} AS ${firstTable.alias}`);
+
+    // JOIN clauses
+    queryDefinition.joins.forEach((join) => {
+      const conditions = join.conditions
+        .map((c) => `${join.leftTable}.${c.leftColumn} ${c.operator} ${join.rightTable}.${c.rightColumn}`)
+        .join(' AND ');
+
+      const rightTable = queryDefinition.tables.find((t) => t.alias === join.rightTable);
+      if (rightTable) {
+        lines.push(
+          `${join.type} JOIN ${rightTable.schemaName}.${rightTable.tableName} AS ${rightTable.alias} ON ${conditions}`
+        );
+      }
+    });
+
+    // WHERE clause
+    if (queryDefinition.filters && queryDefinition.filters.length > 0) {
+      const conditions = queryDefinition.filters.map((f) => {
+        if (f.operator === 'IS NULL' || f.operator === 'IS NOT NULL') {
+          return `${f.table}.${f.column} ${f.operator}`;
+        }
+        return `${f.table}.${f.column} ${f.operator} '${f.value}'`;
+      });
+      lines.push(`WHERE ${conditions.join(' AND ')}`);
+    }
+
+    // ORDER BY clause
+    if (queryDefinition.orderBy && queryDefinition.orderBy.length > 0) {
+      const orderClauses = queryDefinition.orderBy.map(
+        (o) => `${o.table}.${o.column} ${o.direction}`
+      );
+      lines.push(`ORDER BY ${orderClauses.join(', ')}`);
+    }
+
+    // LIMIT clause
+    if (queryDefinition.limit) {
+      lines.push(`LIMIT ${queryDefinition.limit}`);
+    }
+
+    return lines.join('\n');
   };
 
-  const sql = generatePreviewSql();
-
-  if (sql === '-- No query to preview') {
-    return (
-      <Alert>
-        <AlertDescription>
-          Select tables and columns to see the query preview
-        </AlertDescription>
-      </Alert>
-    );
-  }
+  const sql = generatePreviewSQL();
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Code className="h-4 w-4" />
-        <span>Generated SQL Preview</span>
+    <div className="h-full flex flex-col">
+      <div className="flex-1 overflow-auto">
+        <pre className="text-xs font-mono bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto">
+          {sql}
+        </pre>
       </div>
-      <div className="bg-muted rounded-md p-4 overflow-x-auto">
-        <pre className="text-sm font-mono whitespace-pre">{sql}</pre>
+      <div className="mt-2 text-xs text-gray-500">
+        Preview only - actual SQL may differ based on database type
       </div>
-      <p className="text-xs text-muted-foreground">
-        Note: This is a simplified preview. The actual SQL will include foreign table
-        references.
-      </p>
     </div>
   );
 }

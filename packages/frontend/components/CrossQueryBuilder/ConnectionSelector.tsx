@@ -1,25 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { Loader2, Database, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import { api } from '@/lib/api';
-
-interface Connection {
-  id: string;
-  name: string;
-  type: string;
-  host: string;
-  database: string;
-}
+import { Connection } from '@/types';
 
 interface ConnectionSelectorProps {
   selectedConnections: string[];
@@ -30,27 +14,15 @@ export function ConnectionSelector({
   selectedConnections,
   onSelectionChange,
 }: ConnectionSelectorProps) {
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadConnections();
-  }, []);
-
-  const loadConnections = async () => {
-    try {
-      const data = await api.connections.list();
-      setConnections(data as Connection[]);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load connections');
-    } finally {
-      setLoading(false);
+  const { data: connections, error } = useSWR<Connection[]>(
+    '/connections',
+    async () => {
+      const result = await api.connections.list();
+      return result as Connection[];
     }
-  };
+  );
 
-  const toggleConnection = (connectionId: string) => {
+  const handleToggleConnection = (connectionId: string) => {
     if (selectedConnections.includes(connectionId)) {
       onSelectionChange(selectedConnections.filter((id) => id !== connectionId));
     } else {
@@ -58,77 +30,98 @@ export function ConnectionSelector({
     }
   };
 
-  if (loading) {
+  const handleSelectAll = () => {
+    if (connections) {
+      onSelectionChange(connections.map((c) => c.id));
+    }
+  };
+
+  const handleClearAll = () => {
+    onSelectionChange([]);
+  };
+
+  if (error) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="text-sm text-red-600">
+        Failed to load connections: {error.message}
       </div>
     );
   }
 
-  if (error) {
+  if (!connections) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="text-sm text-gray-500">Loading connections...</div>
     );
   }
 
   if (connections.length === 0) {
     return (
-      <Alert>
-        <AlertDescription>
-          No connections found. Please add a connection first.
-        </AlertDescription>
-      </Alert>
+      <div className="text-sm text-gray-500">
+        <p>No connections available.</p>
+        <a
+          href="/connections"
+          className="text-indigo-600 hover:text-indigo-500 mt-2 inline-block"
+        >
+          Create a connection →
+        </a>
+      </div>
     );
   }
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="space-y-1">
-        {connections.map((connection) => (
-          <Tooltip key={connection.id}>
-            <TooltipTrigger asChild>
-              <div className="flex items-center space-x-2 p-2 rounded hover:bg-accent">
-                <Checkbox
-                  id={connection.id}
-                  checked={selectedConnections.includes(connection.id)}
-                  onCheckedChange={() => toggleConnection(connection.id)}
-                />
-                <Label
-                  htmlFor={connection.id}
-                  className="text-xs font-medium cursor-pointer flex items-center gap-1.5 flex-1 truncate"
-                >
-                  <Database className="h-3 w-3 flex-shrink-0" />
-                  <span className="truncate">{connection.name}</span>
-                </Label>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-xs">
-              <div className="space-y-1">
-                <div className="font-semibold">{connection.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  Type: {connection.type}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Host: {connection.host}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Database: {connection.database}
-                </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        ))}
-
-        {selectedConnections.length > 0 && (
-          <p className="text-xs text-muted-foreground pt-2 border-t mt-2">
-            {selectedConnections.length} selected
-          </p>
-        )}
+    <div className="space-y-3">
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleSelectAll}
+          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+          disabled={selectedConnections.length === connections.length}
+        >
+          Select All
+        </button>
+        <button
+          onClick={handleClearAll}
+          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+          disabled={selectedConnections.length === 0}
+        >
+          Clear
+        </button>
       </div>
-    </TooltipProvider>
+
+      {/* Connection List */}
+      <div className="space-y-2 max-h-60 overflow-y-auto">
+        {connections.map((connection) => (
+          <label
+            key={connection.id}
+            className="flex items-start gap-2 p-2 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer transition-colors"
+          >
+            <input
+              type="checkbox"
+              checked={selectedConnections.includes(connection.id)}
+              onChange={() => handleToggleConnection(connection.id)}
+              className="mt-0.5"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm text-gray-900 truncate">
+                {connection.name}
+              </div>
+              <div className="text-xs text-gray-500 truncate">
+                {connection.type} - {connection.database}
+              </div>
+              <div className="text-xs text-gray-400 truncate">
+                {connection.host}:{connection.port}
+              </div>
+            </div>
+          </label>
+        ))}
+      </div>
+
+      {/* Summary */}
+      {selectedConnections.length > 0 && (
+        <div className="text-xs text-gray-600 pt-2 border-t">
+          {selectedConnections.length} connection{selectedConnections.length !== 1 ? 's' : ''} selected
+        </div>
+      )}
+    </div>
   );
 }

@@ -4,164 +4,81 @@ import { useCallback, useEffect, useState } from 'react';
 import ReactFlow, {
   Node,
   Edge,
-  Connection,
-  addEdge,
-  useNodesState,
-  useEdgesState,
   Controls,
   Background,
-  BackgroundVariant,
-  ConnectionLineType,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  Connection,
+  ConnectionMode,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-
-import { QueryDefinition, JoinDefinition } from '@/types/cross-query';
-import { TableNode, TableNodeData } from './TableNode';
+import { QueryDefinition, JoinDefinition } from '@/types';
+import { TableNode } from './TableNode';
 import { JoinConfigDialog } from './JoinConfigDialog';
-import { api } from '@/lib/api';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
 
 const nodeTypes = {
-  tableNode: TableNode,
+  table: TableNode,
 };
 
 interface VisualJoinEditorProps {
   queryDefinition: QueryDefinition;
-  onQueryChange: (query: QueryDefinition) => void;
+  onQueryChange: (definition: QueryDefinition) => void;
 }
 
-interface PendingJoin {
-  leftTable: string;
-  leftColumn: string;
-  rightTable: string;
-  rightColumn: string;
-  edgeId: string;
-}
-
-export function VisualJoinEditor({ queryDefinition, onQueryChange }: VisualJoinEditorProps) {
+export function VisualJoinEditor({
+  queryDefinition,
+  onQueryChange,
+}: VisualJoinEditorProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [tableColumns, setTableColumns] = useState<Map<string, any[]>>(new Map());
-  const [loading, setLoading] = useState(true);
-  const [pendingJoin, setPendingJoin] = useState<PendingJoin | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
 
-  // Load columns for all tables
+  // Convert query definition tables to nodes
   useEffect(() => {
-    loadTableColumns();
-  }, [queryDefinition.tables]);
-
-  // Update nodes when tables change
-  useEffect(() => {
-    if (tableColumns.size > 0) {
-      updateNodes();
-    }
-  }, [queryDefinition.tables, tableColumns]);
-
-  // Update edges when joins change
-  useEffect(() => {
-    updateEdges();
-  }, [queryDefinition.joins]);
-
-  const loadTableColumns = async () => {
-    if (queryDefinition.tables.length === 0) {
-      setTableColumns(new Map());
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const columnsMap = new Map();
-
-      for (const table of queryDefinition.tables) {
-        const columns = await api.schema.getColumns(
-          table.connectionId,
-          table.tableName,
-          table.schemaName
-        );
-        columnsMap.set(table.alias, columns);
-      }
-
-      setTableColumns(columnsMap);
-    } catch (error) {
-      console.error('Failed to load columns:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateNodes = () => {
-    const newNodes: Node<TableNodeData>[] = queryDefinition.tables.map((table, index) => {
-      const columns = tableColumns.get(table.alias) || [];
-
-      return {
-        id: table.alias,
-        type: 'tableNode',
-        position: calculateNodePosition(index, queryDefinition.tables.length),
-        data: {
-          alias: table.alias,
-          tableName: table.tableName,
-          schemaName: table.schemaName,
-          columns: columns.map((col: any) => ({
-            name: col.name,
-            type: col.type,
-          })),
-          onRemove: () => removeTable(table.alias),
-        },
-      };
-    });
+    const newNodes: Node[] = queryDefinition.tables.map((table, index) => ({
+      id: table.alias,
+      type: 'table',
+      position: {
+        x: 50 + (index % 3) * 300,
+        y: 50 + Math.floor(index / 3) * 250,
+      },
+      data: {
+        table,
+        onRemove: () => handleRemoveTable(table.alias),
+      },
+    }));
 
     setNodes(newNodes);
-  };
+  }, [queryDefinition.tables]);
 
-  const calculateNodePosition = (index: number, total: number): { x: number; y: number } => {
-    // Simple horizontal layout with some vertical offset
-    const spacing = 400;
-    const row = Math.floor(index / 3);
-    const col = index % 3;
-
-    return {
-      x: col * spacing + 50,
-      y: row * 300 + 50,
-    };
-  };
-
-  const updateEdges = () => {
-    const newEdges: Edge[] = queryDefinition.joins.map((join, index) => {
-      // For simplicity, use the first condition's columns
-      const condition = join.conditions[0];
-
-      return {
-        id: `join-${index}`,
-        source: join.leftTable,
-        target: join.rightTable,
-        sourceHandle: `${join.leftTable}-${condition.leftColumn}-source`,
-        targetHandle: `${join.rightTable}-${condition.rightColumn}-target`,
-        label: join.type,
-        type: 'smoothstep',
-        animated: true,
-        style: { stroke: '#3b82f6', strokeWidth: 2 },
-        labelStyle: { fill: '#3b82f6', fontWeight: 600 },
-        data: { join },
-      };
-    });
+  // Convert query definition joins to edges
+  useEffect(() => {
+    const newEdges: Edge[] = queryDefinition.joins.map((join, index) => ({
+      id: `join-${index}`,
+      source: join.leftTable,
+      target: join.rightTable,
+      label: `${join.type} JOIN`,
+      animated: true,
+      style: { stroke: '#6366f1', strokeWidth: 2 },
+    }));
 
     setEdges(newEdges);
-  };
+  }, [queryDefinition.joins]);
 
-  const removeTable = (alias: string) => {
+  const handleRemoveTable = (alias: string) => {
     // Remove table
     const newTables = queryDefinition.tables.filter((t) => t.alias !== alias);
-
-    // Remove related joins
+    
+    // Remove joins involving this table
     const newJoins = queryDefinition.joins.filter(
       (j) => j.leftTable !== alias && j.rightTable !== alias
     );
-
+    
     // Remove columns from this table
     const newColumns = queryDefinition.columns.filter((c) => c.table !== alias);
-
+    
     onQueryChange({
       ...queryDefinition,
       tables: newTables,
@@ -172,108 +89,139 @@ export function VisualJoinEditor({ queryDefinition, onQueryChange }: VisualJoinE
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) {
-        return;
-      }
-
-      // Parse source and target handles to extract table and column names
-      // Format: "tablealias-columnname-source" or "tablealias-columnname-target"
-      const sourceTable = connection.source;
-      const targetTable = connection.target;
-
-      const sourceColumn = connection.sourceHandle.replace(`${sourceTable}-`, '').replace('-source', '');
-      const targetColumn = connection.targetHandle.replace(`${targetTable}-`, '').replace('-target', '');
+      if (!connection.source || !connection.target) return;
 
       // Check if join already exists
-      const existingJoin = queryDefinition.joins.find(
+      const joinExists = queryDefinition.joins.some(
         (j) =>
-          (j.leftTable === sourceTable && j.rightTable === targetTable) ||
-          (j.leftTable === targetTable && j.rightTable === sourceTable)
+          (j.leftTable === connection.source && j.rightTable === connection.target) ||
+          (j.leftTable === connection.target && j.rightTable === connection.source)
       );
 
-      if (existingJoin) {
-        // Update existing join
-        alert('Join already exists between these tables. Edit it in the join list.');
+      if (joinExists) {
+        alert('A join already exists between these tables');
         return;
       }
 
-      // Create a temporary edge ID
-      const tempEdgeId = `temp-${Date.now()}`;
+      // Create a default join
+      const newJoin: JoinDefinition = {
+        type: 'INNER',
+        leftTable: connection.source,
+        rightTable: connection.target,
+        conditions: [
+          {
+            leftColumn: 'id', // Default - user can edit
+            operator: '=',
+            rightColumn: 'id', // Default - user can edit
+          },
+        ],
+      };
 
-      // Show join config dialog
-      setPendingJoin({
-        leftTable: sourceTable,
-        leftColumn: sourceColumn,
-        rightTable: targetTable,
-        rightColumn: targetColumn,
-        edgeId: tempEdgeId,
+      onQueryChange({
+        ...queryDefinition,
+        joins: [...queryDefinition.joins, newJoin],
       });
+
+      // Open dialog to configure the join
+      setTimeout(() => {
+        setSelectedEdge(`join-${queryDefinition.joins.length}`);
+        setJoinDialogOpen(true);
+      }, 100);
     },
-    [queryDefinition.joins]
+    [queryDefinition, onQueryChange]
   );
 
-  const handleSaveJoin = (join: JoinDefinition) => {
-    const newJoins = [...queryDefinition.joins, join];
+  const handleEdgeClick = (event: React.MouseEvent, edge: Edge) => {
+    event.preventDefault();
+    setSelectedEdge(edge.id);
+    setJoinDialogOpen(true);
+  };
 
+  const handleUpdateJoin = (joinIndex: number, updatedJoin: JoinDefinition) => {
+    const newJoins = [...queryDefinition.joins];
+    newJoins[joinIndex] = updatedJoin;
+    
     onQueryChange({
       ...queryDefinition,
       joins: newJoins,
     });
-
-    setPendingJoin(null);
+    
+    setJoinDialogOpen(false);
+    setSelectedEdge(null);
   };
 
-  const handleCancelJoin = () => {
-    setPendingJoin(null);
+  const handleDeleteJoin = (joinIndex: number) => {
+    const newJoins = queryDefinition.joins.filter((_, index) => index !== joinIndex);
+    
+    onQueryChange({
+      ...queryDefinition,
+      joins: newJoins,
+    });
+    
+    setJoinDialogOpen(false);
+    setSelectedEdge(null);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full min-h-[300px]">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  const selectedJoinIndex = selectedEdge
+    ? parseInt(selectedEdge.replace('join-', ''))
+    : -1;
 
   if (queryDefinition.tables.length === 0) {
     return (
-      <Alert>
-        <AlertDescription>Add tables to start building joins</AlertDescription>
-      </Alert>
+      <div className="h-full flex items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg">
+        <div className="text-center text-gray-500">
+          <svg
+            className="mx-auto h-12 w-12 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+            />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium">No tables selected</h3>
+          <p className="mt-1 text-sm">
+            Add tables from the sidebar to start building your query
+          </p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="relative h-full">
-      <div className="h-full border rounded-lg bg-muted/20">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          fitView
-          minZoom={0.5}
-          maxZoom={1.5}
-        >
-          <Background variant={BackgroundVariant.Dots} />
-          <Controls />
-        </ReactFlow>
-      </div>
+    <>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onEdgeClick={handleEdgeClick}
+        nodeTypes={nodeTypes}
+        connectionMode={ConnectionMode.Loose}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+      >
+        <Background />
+        <Controls />
+      </ReactFlow>
 
-      {/* Join Config Dialog */}
-      {pendingJoin && (
+      {joinDialogOpen && selectedJoinIndex >= 0 && (
         <JoinConfigDialog
-          leftTable={pendingJoin.leftTable}
-          leftColumn={pendingJoin.leftColumn}
-          rightTable={pendingJoin.rightTable}
-          rightColumn={pendingJoin.rightColumn}
-          onSave={handleSaveJoin}
-          onCancel={handleCancelJoin}
+          join={queryDefinition.joins[selectedJoinIndex]}
+          tables={queryDefinition.tables}
+          onSave={(updatedJoin) => handleUpdateJoin(selectedJoinIndex, updatedJoin)}
+          onDelete={() => handleDeleteJoin(selectedJoinIndex)}
+          onClose={() => {
+            setJoinDialogOpen(false);
+            setSelectedEdge(null);
+          }}
         />
       )}
-    </div>
+    </>
   );
 }
