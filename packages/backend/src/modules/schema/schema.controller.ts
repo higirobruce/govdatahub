@@ -121,3 +121,57 @@ export class SchemaController {
     return this.schemaService.getColumns(connectionId, user.organizationId, table, schema);
   }
 }
+
+@ApiTags('schema')
+@Controller('schema/staging')
+@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@ApiBearerAuth()
+export class StagingSchemaController {
+  constructor(private readonly schemaService: SchemaService) {}
+
+  @Get('tables')
+  @ApiOperation({
+    summary: 'List staging tables',
+    description: 'Retrieve all tables in the staging schema for the organization',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of staging tables',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  getStagingTables(@CurrentUser() user: User): Promise<TableInfo[]> {
+    return this.schemaService.getStagingTables(user.organizationId);
+  }
+
+  @Get('tables/:table/columns')
+  @ApiOperation({
+    summary: 'Get staging table columns',
+    description: 'Retrieve column metadata for a specific staging table',
+  })
+  @ApiParam({
+    name: 'table',
+    description: 'Table name',
+    example: 'users_abc123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of columns',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Table not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  getStagingColumns(
+    @Param('table') table: string,
+    @CurrentUser() user: User,
+  ): Promise<ColumnInfo[]> {
+    return this.schemaService.getStagingColumns(user.organizationId, table);
+  }
+}

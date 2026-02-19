@@ -239,7 +239,7 @@ export default function CrossQueryPage() {
 
           {/* Results - Full width when visible */}
           {result && (
-            <Card className="p-3 max-h-64 overflow-hidden flex flex-col">
+            <Card className="p-3 max-h-64 overflow-auto flex flex-col">
               <ResultsViewer result={result} />
             </Card>
           )}

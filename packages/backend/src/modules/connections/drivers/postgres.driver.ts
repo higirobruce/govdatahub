@@ -57,13 +57,15 @@ export class PostgresDriver implements DatabaseDriver {
     }
   }
 
-  async query(sql: string): Promise<QueryResult> {
+  async query(sql: string, params?: any[]): Promise<QueryResult> {
     if (!this.pool) {
       throw new Error('Not connected');
     }
 
     try {
-      const result: PgQueryResult = await this.pool.query(sql);
+      const result: PgQueryResult = params
+        ? await this.pool.query(sql, params)
+        : await this.pool.query(sql);
 
       return {
         rows: result.rows,

@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { QueryHistory, CachedResult } from '../../database/entities';
@@ -20,6 +20,7 @@ export class QueriesService {
     private cachedResultRepository: Repository<CachedResult>,
     private connectionsService: ConnectionsService,
     private configService: ConfigService,
+    private dataSource: DataSource,
   ) {
     this.queryTimeout = this.configService.get<number>('QUERY_TIMEOUT_MS', 30000);
     this.maxResultRows = this.configService.get<number>('MAX_RESULT_ROWS', 10000);
@@ -157,5 +158,104 @@ export class QueriesService {
     });
 
     await this.cachedResultRepository.save(cachedResult);
+  }
+
+  async executeStagingQuery(sqlQuery: string, organizationId: string): Promise<QueryResultDto> {
+    const queryId = uuidv4();
+    const startTime = Date.now();
+    const stagingSchema = `staging_${organizationId.replace(/-/g, '_')}`;
+
+    try {
+      // Validate that query only accesses staging schema
+      this.validateStagingQuery(sqlQuery, stagingSchema);
+
+      // Execute query with timeout
+      const result = await this.executeWithTimeout(
+        this.dataSource.query(sqlQuery),
+        this.queryTimeout,
+      );
+
+      const executionTime = Date.now() - startTime;
+
+      // Format result
+      const rows = Array.isArray(result) ? result : [];
+      const rowCount = rows.length;
+
+      // Limit result rows
+      const limitedRows = rows.slice(0, this.maxResultRows);
+
+      // Extract field names from first row
+      const fields = limitedRows.length > 0
+        ? Object.keys(limitedRows[0]).map(name => ({ name, type: 'unknown' }))
+        : [];
+
+      // Log to query history (use 'staging' as connectionId)
+      await this.logQuery({
+        id: queryId,
+        connectionId: 'staging',
+        organizationId,
+        sqlQuery,
+        executionTimeMs: executionTime,
+        rowCount,
+        status: 'success',
+      });
+
+      return {
+        id: queryId,
+        rows: limitedRows,
+        rowCount,
+        fields,
+        executionTimeMs: executionTime,
+        status: 'success',
+      };
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+
+      // Log failed query
+      await this.logQuery({
+        id: queryId,
+        connectionId: 'staging',
+        organizationId,
+        sqlQuery,
+        executionTimeMs: executionTime,
+        rowCount: 0,
+        status: 'error',
+        errorMessage: error.message,
+      });
+
+      throw new BadRequestException(`Staging query execution failed: ${error.message}`);
+    }
+  }
+
+  private validateStagingQuery(sqlQuery: string, stagingSchema: string): void {
+    const lowerQuery = sqlQuery.toLowerCase();
+
+    // Block dangerous operations
+    const dangerousPatterns = [
+      /\bdrop\s+/i,
+      /\bdelete\s+/i,
+      /\btruncate\s+/i,
+      /\bupdate\s+/i,
+      /\binsert\s+/i,
+      /\balter\s+/i,
+      /\bcreate\s+/i,
+      /\bgrant\s+/i,
+      /\brevoke\s+/i,
+    ];
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(lowerQuery)) {
+        throw new BadRequestException(
+          'Only SELECT queries are allowed on staging data'
+        );
+      }
+    }
+
+    // Ensure query references staging schema (basic validation)
+    if (!lowerQuery.includes(stagingSchema.toLowerCase())) {
+      throw new BadRequestException(
+        `Query must reference the staging schema: ${stagingSchema}`
+      );
+    }
   }
 }

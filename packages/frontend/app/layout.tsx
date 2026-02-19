@@ -81,6 +81,26 @@ function Navigation() {
               >
                 Cross-Query
               </Link>
+              <Link
+                href="/ingestion"
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
+                  isActive('/ingestion')
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                }`}
+              >
+                Ingestion
+              </Link>
+              <Link
+                href="/staged"
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
+                  isActive('/staged')
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                }`}
+              >
+                Staged Data
+              </Link>
             </nav>
           </div>
 

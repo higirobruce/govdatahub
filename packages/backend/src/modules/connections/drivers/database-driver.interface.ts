@@ -50,7 +50,7 @@ export interface DatabaseDriver {
   /**
    * Execute a SQL query
    */
-  query(sql: string): Promise<QueryResult>;
+  query(sql: string, params?: any[]): Promise<QueryResult>;
 
   /**
    * Get list of schemas/databases

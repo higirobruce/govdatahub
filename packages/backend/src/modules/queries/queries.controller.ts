@@ -131,4 +131,34 @@ export class QueriesController {
   getCachedResults(@Param('id') id: string, @CurrentUser() user: User): Promise<any> {
     return this.queriesService.getCachedResults(id, user.organizationId);
   }
+
+  @Post('staging')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @ApiOperation({
+    summary: 'Execute SQL query on staging data',
+    description: 'Execute a SQL query on staged datasets in the metadata database',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Query executed successfully',
+    type: QueryResultDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid query or execution failed',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Rate limit exceeded',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  executeStagingQuery(
+    @Body() body: { sqlQuery: string },
+    @CurrentUser() user: User,
+  ): Promise<QueryResultDto> {
+    return this.queriesService.executeStagingQuery(body.sqlQuery, user.organizationId);
+  }
 }

@@ -58,13 +58,15 @@ export class MySQLDriver implements DatabaseDriver {
     }
   }
 
-  async query(sql: string): Promise<QueryResult> {
+  async query(sql: string, params?: any[]): Promise<QueryResult> {
     if (!this.pool) {
       throw new Error('Not connected');
     }
 
     try {
-      const [rows, fields] = await this.pool.query(sql);
+      const [rows, fields] = params
+        ? await this.pool.query(sql, params)
+        : await this.pool.query(sql);
 
       // Handle different result types
       if (Array.isArray(rows)) {

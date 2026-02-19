@@ -8,3 +8,5 @@ export { User } from './user.entity';
 export { UserRole } from './user-role.enum';
 export { FdwServer } from './fdw-server.entity';
 export { SavedCrossQuery } from './saved-cross-query.entity';
+export { ImportJob, ImportJobStatus, ImportSourceType, ImportTargetType } from './import-job.entity';
+export { StagedData } from './staged-data.entity';

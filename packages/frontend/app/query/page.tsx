@@ -1,25 +1,50 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { api } from '@/lib/api';
 import { Connection, QueryResult } from '@/types';
 import SQLEditor from '@/components/QueryInterface/SQLEditor';
 import ResultsTable from '@/components/QueryInterface/ResultsTable';
+import StagingTableBrowser from '@/components/QueryInterface/StagingTableBrowser';
+
+type DataSource = 'connections' | 'staging';
 
 export default function QueryPage() {
+  const searchParams = useSearchParams();
+  const [dataSource, setDataSource] = useState<DataSource>('connections');
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
   const [sql, setSql] = useState('SELECT * FROM ');
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
-  const { data: connections } = useSWR<Connection[]>('/connections', () =>
-    api.connections.list()
-  );
+  const { data: connections } = useSWR<Connection[]>('/connections', async () => {
+    const result = await api.connections.list();
+    return result as Connection[];
+  });
+
+  // Handle URL parameters from catalog
+  useEffect(() => {
+    const staging = searchParams?.get('staging');
+    const table = searchParams?.get('table');
+    const connection = searchParams?.get('connection');
+
+    if (staging === 'true') {
+      setDataSource('staging');
+      if (table) {
+        setSql(`SELECT * FROM ${table} LIMIT 100;`);
+      }
+    } else if (connection && table) {
+      setDataSource('connections');
+      setSelectedConnectionId(connection);
+      setSql(`SELECT * FROM ${table} LIMIT 100;`);
+    }
+  }, [searchParams]);
 
   const handleExecute = async () => {
-    if (!selectedConnectionId) {
+    if (dataSource === 'connections' && !selectedConnectionId) {
       setError('Please select a connection');
       return;
     }
@@ -34,11 +59,16 @@ export default function QueryPage() {
     setQueryResult(null);
 
     try {
-      const result = await api.queries.execute({
-        connectionId: selectedConnectionId,
-        sql: sql.trim(),
-        cacheResults: false,
-      });
+      let result: QueryResult;
+      if (dataSource === 'staging') {
+        result = await api.queries.executeStaging(sql.trim()) as QueryResult;
+      } else {
+        result = await api.queries.execute({
+          connectionId: selectedConnectionId,
+          sql: sql.trim(),
+          cacheResults: false,
+        }) as QueryResult;
+      }
 
       setQueryResult(result);
       mutate('/query/history');
@@ -57,40 +87,78 @@ export default function QueryPage() {
     }
   };
 
+  const handleInsertTable = (tableName: string, schemaName: string) => {
+    const fullTableName = `${schemaName}."${tableName}"`;
+    setSql(`SELECT * FROM ${fullTableName} LIMIT 100;`);
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">SQL Query</h1>
         <p className="mt-2 text-gray-600">
-          Execute SQL queries on your connected databases
+          Execute SQL queries on your databases and staging data
         </p>
       </div>
 
-      {/* Connection Selector */}
-      <div className="bg-white shadow sm:rounded-lg p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Select Database Connection *
-        </label>
-        <select
-          value={selectedConnectionId}
-          onChange={(e) => setSelectedConnectionId(e.target.value)}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
-        >
-          <option value="">-- Select a connection --</option>
-          {connections?.map((conn) => (
-            <option key={conn.id} value={conn.id}>
-              {conn.name} ({conn.type} - {conn.database})
-            </option>
-          ))}
-        </select>
-        {!connections || connections.length === 0 && (
-          <p className="mt-2 text-sm text-gray-500">
-            No connections available.{' '}
-            <a href="/connections" className="text-indigo-600 hover:text-indigo-500">
-              Create one first
-            </a>
-          </p>
-        )}
+      {/* Data Source Selector */}
+      <div className="bg-white shadow sm:rounded-lg">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex" aria-label="Tabs">
+            <button
+              onClick={() => setDataSource('connections')}
+              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                dataSource === 'connections'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Database Connections
+            </button>
+            <button
+              onClick={() => setDataSource('staging')}
+              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                dataSource === 'staging'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Staging Data
+            </button>
+          </nav>
+        </div>
+
+        <div className="p-4">
+          {dataSource === 'connections' ? (
+            <>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Database Connection *
+              </label>
+              <select
+                value={selectedConnectionId}
+                onChange={(e) => setSelectedConnectionId(e.target.value)}
+                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+              >
+                <option value="">-- Select a connection --</option>
+                {connections?.map((conn) => (
+                  <option key={conn.id} value={conn.id}>
+                    {conn.name} ({conn.type} - {conn.database})
+                  </option>
+                ))}
+              </select>
+              {!connections || connections.length === 0 ? (
+                <p className="mt-2 text-sm text-gray-500">
+                  No connections available.{' '}
+                  <a href="/connections" className="text-indigo-600 hover:text-indigo-500">
+                    Create one first
+                  </a>
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <StagingTableBrowser onInsertTable={handleInsertTable} />
+          )}
+        </div>
       </div>
 
       {/* SQL Editor */}
@@ -102,7 +170,7 @@ export default function QueryPage() {
             </h3>
             <button
               onClick={handleExecute}
-              disabled={isExecuting || !selectedConnectionId}
+              disabled={isExecuting || (dataSource === 'connections' && !selectedConnectionId)}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isExecuting ? (

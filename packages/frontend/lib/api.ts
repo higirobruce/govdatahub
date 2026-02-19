@@ -24,9 +24,9 @@ async function request<T>(
   try {
     // Get token and add to headers
     const token = getAuthToken();
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options?.headers,
+      ...(options?.headers as Record<string, string>),
     };
 
     // Add Authorization header if token exists
@@ -132,6 +132,11 @@ export const api = {
         `/connections/${connectionId}/schema/tables/${encodeURIComponent(table)}/columns${params}`
       );
     },
+    // Staging schema endpoints
+    getStagingTables: (): Promise<any> =>
+      request('/schema/staging/tables'),
+    getStagingColumns: (table: string): Promise<any> =>
+      request(`/schema/staging/tables/${encodeURIComponent(table)}/columns`),
   },
 
   // Queries
@@ -140,6 +145,11 @@ export const api = {
       request('/query', {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+    executeStaging: (sqlQuery: string): Promise<any> =>
+      request('/query/staging', {
+        method: 'POST',
+        body: JSON.stringify({ sqlQuery }),
       }),
     getHistory: (limit?: number, offset?: number) => {
       const params = new URLSearchParams();
@@ -225,6 +235,114 @@ export const api = {
       request(`/cross-query/saved/${id}`, {
         method: 'DELETE',
       }),
+  },
+
+  // Data Ingestion
+  ingestion: {
+    preview: async (file: File, config?: any): Promise<any> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (config) {
+        formData.append('config', JSON.stringify(config));
+      }
+
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/ingestion/preview`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({
+          message: response.statusText,
+        }));
+        throw new ApiError(
+          error.message || 'Preview failed',
+          response.status,
+          error
+        );
+      }
+
+      return response.json();
+    },
+
+    upload: async (file: File, uploadDto: any): Promise<any> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('targetType', uploadDto.targetType);
+
+      if (uploadDto.targetTable) {
+        formData.append('targetTable', uploadDto.targetTable);
+      }
+      if (uploadDto.connectionId) {
+        formData.append('connectionId', uploadDto.connectionId);
+      }
+      if (uploadDto.config) {
+        formData.append('config', JSON.stringify(uploadDto.config));
+      }
+
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/ingestion/upload`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({
+          message: response.statusText,
+        }));
+        throw new ApiError(
+          error.message || 'Upload failed',
+          response.status,
+          error
+        );
+      }
+
+      return response.json();
+    },
+
+    getJob: (id: string): Promise<any> => request(`/ingestion/jobs/${id}`),
+
+    listJobs: (status?: string, limit?: number, offset?: number): Promise<any> => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (limit) params.set('limit', limit.toString());
+      if (offset) params.set('offset', offset.toString());
+      const query = params.toString();
+      return request(`/ingestion/jobs${query ? `?${query}` : ''}`);
+    },
+
+    deleteJob: (id: string): Promise<void> =>
+      request(`/ingestion/jobs/${id}`, {
+        method: 'DELETE',
+      }),
+
+    // Staged data endpoints
+    listStagedData: (limit?: number, offset?: number): Promise<any> => {
+      const params = new URLSearchParams();
+      if (limit) params.set('limit', limit.toString());
+      if (offset) params.set('offset', offset.toString());
+      const query = params.toString();
+      return request(`/ingestion/staged${query ? `?${query}` : ''}`);
+    },
+
+    getStagedData: (id: string): Promise<any> =>
+      request(`/ingestion/staged/${id}`),
+
+    getStagedDataByJobId: (jobId: string): Promise<any> =>
+      request(`/ingestion/jobs/${jobId}/staged`),
   },
 };
 

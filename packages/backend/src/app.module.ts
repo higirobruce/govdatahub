@@ -15,6 +15,8 @@ import {
   User,
   FdwServer,
   SavedCrossQuery,
+  ImportJob,
+  StagedData,
 } from './database/entities';
 import { EncryptionModule } from './modules/encryption/encryption.module';
 import { ConnectionsModule } from './modules/connections/connections.module';
@@ -23,6 +25,7 @@ import { QueriesModule } from './modules/queries/queries.module';
 import { TransformationsModule } from './modules/transformations/transformations.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CrossQueryModule } from './modules/cross-query/cross-query.module';
+import { IngestionModule } from './modules/ingestion/ingestion.module';
 
 @Module({
   imports: [
@@ -52,6 +55,8 @@ import { CrossQueryModule } from './modules/cross-query/cross-query.module';
           User,
           FdwServer,
           SavedCrossQuery,
+          ImportJob,
+          StagedData,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -82,6 +87,7 @@ import { CrossQueryModule } from './modules/cross-query/cross-query.module';
     QueriesModule,
     TransformationsModule,
     CrossQueryModule,
+    IngestionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
