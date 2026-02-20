@@ -277,6 +277,20 @@ export class IngestionController {
   }
 
   /**
+   * Delete staged dataset
+   */
+  @Delete('staged/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete staged dataset' })
+  async deleteStagedData(
+    @Param('id') id: string,
+    @CurrentUser() user?: User
+  ): Promise<void> {
+    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    await this.ingestionService.deleteStagedDataById(id, organizationId);
+  }
+
+  /**
    * Convert ImportJob entity to response DTO
    */
   private toResponseDto(importJob: any): ImportJobResponseDto {

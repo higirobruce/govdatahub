@@ -377,6 +377,33 @@ export class IngestionService {
   }
 
   /**
+   * Delete specific staged dataset by ID
+   */
+  async deleteStagedDataById(
+    stagedDataId: string,
+    organizationId: string
+  ): Promise<void> {
+    const stagedData = await this.getStagedData(stagedDataId, organizationId);
+
+    // Drop the staging table
+    try {
+      await this.stagingImporter['dataSource'].query(
+        `DROP TABLE IF EXISTS ${stagedData.tableName}`
+      );
+      this.logger.log(`Dropped staging table ${stagedData.tableName}`);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to drop staging table ${stagedData.tableName}: ${error.message}`
+      );
+      // Continue with deletion even if table drop fails
+    }
+
+    // Delete metadata record
+    await this.stagedDataRepository.delete({ id: stagedDataId, organizationId });
+    this.logger.log(`Deleted staged data ${stagedDataId}`);
+  }
+
+  /**
    * Get staged data by import job ID
    */
   async getStagedDataByJobId(

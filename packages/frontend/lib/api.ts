@@ -343,6 +343,11 @@ export const api = {
 
     getStagedDataByJobId: (jobId: string): Promise<any> =>
       request(`/ingestion/jobs/${jobId}/staged`),
+
+    deleteStagedData: (id: string): Promise<void> =>
+      request(`/ingestion/staged/${id}`, {
+        method: 'DELETE',
+      }),
   },
 };
 
