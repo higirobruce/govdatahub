@@ -20,8 +20,13 @@ function Navigation() {
 
   const isActive = (path: string) => pathname === path;
 
-  // Check if any data menu item is active
-  const isDataMenuActive = ['/query', '/cross-query', '/transformations', '/staged'].some(path =>
+  // Check if any data sources menu item is active
+  const isDataSourcesActive = ['/ingestion', '/connections'].some(path =>
+    pathname.startsWith(path)
+  );
+
+  // Check if any data operations menu item is active
+  const isDataOpsActive = ['/query', '/cross-query', '/transformations', '/staged'].some(path =>
     pathname === path
   );
 
@@ -47,29 +52,36 @@ function Navigation() {
               >
                 Dashboard
               </Link>
-              <Link
-                href="/ingestion"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/ingestion')
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-              >
-                Ingestion
-              </Link>
-              <Link
-                href="/connections"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/connections')
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-              >
-                Connections
-              </Link>
 
               <DropdownMenu
                 trigger={
                   <span className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
-                    isDataMenuActive
+                    isDataSourcesActive
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}>
+                    Data Sources
+                  </span>
+                }
+              >
+                <DropdownMenuItem
+                  onClick={() => router.push('/ingestion')}
+                  active={pathname.startsWith('/ingestion')}
+                >
+                  Ingestion
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push('/connections')}
+                  active={isActive('/connections')}
+                >
+                  Connections
+                </DropdownMenuItem>
+              </DropdownMenu>
+
+              <DropdownMenu
+                trigger={
+                  <span className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
+                    isDataOpsActive
                       ? 'bg-secondary text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   }`}>
