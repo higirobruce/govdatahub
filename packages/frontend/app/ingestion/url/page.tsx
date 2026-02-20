@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 type AuthType = 'none' | 'bearer' | 'basic' | 'api_key';
+type ImportTab = 'file' | 'database' | 'url';
 
 export default function UrlImportPage() {
   const router = useRouter();
@@ -21,6 +22,33 @@ export default function UrlImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [importJobId, setImportJobId] = useState<string | null>(null);
+
+  const handleTabChange = (tab: ImportTab) => {
+    if (tab === 'file') {
+      router.push('/ingestion');
+    } else if (tab === 'database') {
+      router.push('/ingestion/database');
+    }
+    // 'url' tab is current page, no navigation needed
+  };
+
+  const tabs = [
+    {
+      id: 'file' as ImportTab,
+      label: 'Import from File',
+      description: 'Upload CSV, Excel, or JSON files',
+    },
+    {
+      id: 'database' as ImportTab,
+      label: 'Import from Database',
+      description: 'Import data from connected databases',
+    },
+    {
+      id: 'url' as ImportTab,
+      label: 'Import from URL',
+      description: 'Download and import from URL',
+    },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,10 +129,37 @@ export default function UrlImportPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Import from URL</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Data Ingestion</h1>
         <p className="mt-2 text-gray-600">
-          Import CSV, JSON, or Excel files directly from a URL
+          Import data from multiple sources into your data hub
         </p>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="bg-white shadow sm:rounded-lg mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex" aria-label="Tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={`
+                  flex-1 py-4 px-1 text-center border-b-2 font-medium text-sm
+                  ${
+                    tab.id === 'url'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <div>
+                  <div className="font-semibold">{tab.label}</div>
+                  <div className="text-xs mt-1 opacity-75">{tab.description}</div>
+                </div>
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white shadow sm:rounded-lg">

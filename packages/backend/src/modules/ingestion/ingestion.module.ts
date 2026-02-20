@@ -10,6 +10,7 @@ import { JsonParserService } from './parsers/json-parser.service';
 import { StagingImporterService } from './importers/staging-importer.service';
 import { DatabaseImporterService } from './importers/database-importer.service';
 import { UrlImporterService } from './importers/url-importer.service';
+import { DatabaseSourceImporterService } from './importers/database-source-importer.service';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { UrlImporterService } from './importers/url-importer.service';
     StagingImporterService,
     DatabaseImporterService,
     UrlImporterService,
+    DatabaseSourceImporterService,
   ],
   exports: [IngestionService],
 })

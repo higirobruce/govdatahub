@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +25,7 @@ import { ImportProgress } from '@/components/DataIngestion/ImportProgress';
 import { api } from '@/lib/api';
 
 type Step = 'upload' | 'preview' | 'target' | 'mapping' | 'progress';
+type ImportTab = 'file' | 'database' | 'url';
 
 interface StepConfig {
   id: Step;
@@ -60,6 +62,7 @@ const steps: StepConfig[] = [
 ];
 
 export default function DataIngestionPage() {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
@@ -71,6 +74,33 @@ export default function DataIngestionPage() {
   const [importJobId, setImportJobId] = useState<string | null>(null);
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
+
+  const handleTabChange = (tab: ImportTab) => {
+    if (tab === 'database') {
+      router.push('/ingestion/database');
+    } else if (tab === 'url') {
+      router.push('/ingestion/url');
+    }
+    // 'file' tab is current page, no navigation needed
+  };
+
+  const tabs = [
+    {
+      id: 'file' as ImportTab,
+      label: 'Import from File',
+      description: 'Upload CSV, Excel, or JSON files',
+    },
+    {
+      id: 'database' as ImportTab,
+      label: 'Import from Database',
+      description: 'Import data from connected databases',
+    },
+    {
+      id: 'url' as ImportTab,
+      label: 'Import from URL',
+      description: 'Download and import from URL',
+    },
+  ];
 
   const handleFileSelect = async (file: UploadedFile) => {
     setUploadedFile(file);
@@ -175,19 +205,38 @@ export default function DataIngestionPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Data Ingestion</h1>
-          <p className="text-muted-foreground mt-2">
-            Import data from CSV, Excel, or JSON files
-          </p>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Data Ingestion</h1>
+        <p className="mt-2 text-gray-600">
+          Import data from multiple sources into your data hub
+        </p>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="bg-white shadow sm:rounded-lg mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex" aria-label="Tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={`
+                  flex-1 py-4 px-1 text-center border-b-2 font-medium text-sm
+                  ${
+                    tab.id === 'file'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <div>
+                  <div className="font-semibold">{tab.label}</div>
+                  <div className="text-xs mt-1 opacity-75">{tab.description}</div>
+                </div>
+              </button>
+            ))}
+          </nav>
         </div>
-        <a
-          href="/ingestion/url"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
-        >
-          Import from URL
-        </a>
       </div>
 
       {/* Stepper */}

@@ -33,71 +33,65 @@ function Navigation() {
             <nav className="flex items-center space-x-1">
               <Link
                 href="/"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
-                  isActive('/')
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/')
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
+                  }`}
               >
                 Dashboard
               </Link>
               <Link
-                href="/connections"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
-                  isActive('/connections')
+                href="/ingestion"
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/ingestion')
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
+                  }`}
+              >
+                Ingestion
+              </Link>
+              <Link
+                href="/connections"
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/connections')
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}
               >
                 Connections
               </Link>
               <Link
                 href="/query"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
-                  isActive('/query')
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/query')
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
+                  }`}
               >
                 Query
               </Link>
               <Link
                 href="/catalog"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
-                  isActive('/catalog')
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/catalog')
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
+                  }`}
               >
                 Catalog
               </Link>
               <Link
                 href="/cross-query"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
-                  isActive('/cross-query')
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/cross-query')
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
+                  }`}
               >
                 Cross-Query
               </Link>
-              <Link
-                href="/ingestion"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
-                  isActive('/ingestion')
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
-              >
-                Ingestion
-              </Link>
+
               <Link
                 href="/staged"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
-                  isActive('/staged')
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/staged')
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
+                  }`}
               >
                 Staged Data
               </Link>

@@ -19,6 +19,7 @@ import { JsonParserService } from './parsers/json-parser.service';
 import { StagingImporterService } from './importers/staging-importer.service';
 import { DatabaseImporterService } from './importers/database-importer.service';
 import { UrlImporterService, UrlImportConfig } from './importers/url-importer.service';
+import { DatabaseSourceImporterService, DatabaseImportConfig } from './importers/database-source-importer.service';
 import { v4 as uuidv4 } from 'uuid';
 import { PreviewResponseDto, UploadFileDto } from './dto';
 
@@ -47,6 +48,7 @@ export class IngestionService {
     private readonly stagingImporter: StagingImporterService,
     private readonly databaseImporter: DatabaseImporterService,
     private readonly urlImporter: UrlImporterService,
+    private readonly databaseSourceImporter: DatabaseSourceImporterService,
   ) {}
 
   /**
@@ -554,6 +556,120 @@ export class IngestionService {
       return importJob;
     } catch (error) {
       this.logger.error(`Failed to start URL import: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Import data from database connection to staging
+   */
+  async importFromDatabase(
+    connectionId: string,
+    organizationId: string,
+    config: DatabaseImportConfig
+  ): Promise<ImportJob> {
+    this.logger.log(
+      `Starting database import from connection ${connectionId}: ${config.schema}.${config.table}`
+    );
+
+    // Create import job
+    const importJobId = uuidv4();
+    const importJob = this.importJobRepository.create({
+      id: importJobId,
+      organizationId,
+      fileName: `${config.schema}.${config.table}`,
+      fileSize: 0, // Unknown until query executes
+      sourceType: ImportSourceType.DATABASE,
+      sourceConnectionId: connectionId,
+      sourceTable: `${config.schema}.${config.table}`,
+      sourceConfig: {
+        query: config.whereClause,
+        columns: config.columns,
+      },
+      targetType: ImportTargetType.STAGING,
+      targetTable: config.targetTable,
+      status: ImportJobStatus.PENDING,
+      rowsProcessed: 0,
+      rowsSucceeded: 0,
+      rowsFailed: 0,
+      errors: [],
+      importMethod: 'manual',
+    });
+
+    await this.importJobRepository.save(importJob);
+
+    this.logger.log(`Created import job ${importJobId} for database import`);
+
+    // Start async import
+    this.processDatabaseImport(importJobId, connectionId, organizationId, config).catch(
+      (error) => {
+        this.logger.error(
+          `Database import job ${importJobId} failed: ${error.message}`,
+          error.stack
+        );
+      }
+    );
+
+    return importJob;
+  }
+
+  /**
+   * Process database import asynchronously
+   */
+  private async processDatabaseImport(
+    importJobId: string,
+    connectionId: string,
+    organizationId: string,
+    config: DatabaseImportConfig
+  ): Promise<void> {
+    const importJob = await this.importJobRepository.findOne({
+      where: { id: importJobId },
+    });
+
+    if (!importJob) {
+      throw new NotFoundException('Import job not found');
+    }
+
+    try {
+      // Update status to processing
+      importJob.status = ImportJobStatus.PROCESSING;
+      await this.importJobRepository.save(importJob);
+
+      // Execute database import
+      const result = await this.databaseSourceImporter.importFromDatabase(
+        connectionId,
+        organizationId,
+        config,
+        importJobId
+      );
+
+      // Update job to completed
+      importJob.status = ImportJobStatus.COMPLETED;
+      importJob.rowsProcessed = result.rowCount;
+      importJob.rowsSucceeded = result.rowCount;
+      importJob.rowsFailed = 0;
+      importJob.completedAt = new Date();
+
+      await this.importJobRepository.save(importJob);
+
+      this.logger.log(
+        `Database import job ${importJobId} completed: ${result.rowCount} rows`
+      );
+    } catch (error) {
+      // Update job status to failed
+      importJob.status = ImportJobStatus.FAILED;
+      importJob.errors = [
+        {
+          row: 0,
+          column: '*',
+          value: null,
+          error: error.message || String(error),
+          type: 'SYSTEM_ERROR',
+          severity: 'error',
+        },
+      ];
+      await this.importJobRepository.save(importJob);
+
       throw error;
     }
   }

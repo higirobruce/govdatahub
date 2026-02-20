@@ -261,6 +261,21 @@ export const api = {
       });
     },
 
+    importFromDatabase: async (data: {
+      connectionId: string;
+      schema: string;
+      table: string;
+      columns?: string[];
+      whereClause?: string;
+      rowLimit?: number;
+      targetTable?: string;
+    }): Promise<any> => {
+      return request('/ingestion/import/database', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
     preview: async (file: File, config?: any): Promise<any> => {
       const formData = new FormData();
       formData.append('file', file);

@@ -17,7 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IngestionService } from './ingestion.service';
-import { UploadFileDto, ImportJobResponseDto, PreviewResponseDto, ImportFromUrlDto } from './dto';
+import { UploadFileDto, ImportJobResponseDto, PreviewResponseDto, ImportFromUrlDto, ImportFromDatabaseDto } from './dto';
 import { ImportJobStatus, ImportTargetType } from '../../database/entities';
 
 // Note: Replace with actual auth guards when authentication is implemented
@@ -195,6 +195,34 @@ export class IngestionController {
       dto.url,
       organizationId,
       { ...uploadDto, auth: dto.auth, headers: dto.headers }
+    );
+
+    return this.toResponseDto(importJob);
+  }
+
+  /**
+   * Import data from database connection
+   */
+  @Post('import/database')
+  @ApiOperation({ summary: 'Import data from database connection to staging' })
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  async importFromDatabase(
+    @Body() dto: ImportFromDatabaseDto,
+    @CurrentUser() user?: User
+  ): Promise<ImportJobResponseDto> {
+    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+
+    const importJob = await this.ingestionService.importFromDatabase(
+      dto.connectionId,
+      organizationId,
+      {
+        schema: dto.schema,
+        table: dto.table,
+        columns: dto.columns,
+        whereClause: dto.whereClause,
+        rowLimit: dto.rowLimit,
+        targetTable: dto.targetTable,
+      }
     );
 
     return this.toResponseDto(importJob);
