@@ -9,6 +9,7 @@ import { ExcelParserService } from './parsers/excel-parser.service';
 import { JsonParserService } from './parsers/json-parser.service';
 import { StagingImporterService } from './importers/staging-importer.service';
 import { DatabaseImporterService } from './importers/database-importer.service';
+import { UrlImporterService } from './importers/url-importer.service';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { DatabaseImporterService } from './importers/database-importer.service';
     JsonParserService,
     StagingImporterService,
     DatabaseImporterService,
+    UrlImporterService,
   ],
   exports: [IngestionService],
 })

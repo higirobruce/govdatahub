@@ -175,11 +175,19 @@ export default function DataIngestionPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Data Ingestion</h1>
-        <p className="text-muted-foreground mt-2">
-          Import data from CSV, Excel, or JSON files
-        </p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Data Ingestion</h1>
+          <p className="text-muted-foreground mt-2">
+            Import data from CSV, Excel, or JSON files
+          </p>
+        </div>
+        <a
+          href="/ingestion/url"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+        >
+          Import from URL
+        </a>
       </div>
 
       {/* Stepper */}

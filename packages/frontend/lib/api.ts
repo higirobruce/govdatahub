@@ -239,6 +239,28 @@ export const api = {
 
   // Data Ingestion
   ingestion: {
+    importFromUrl: async (data: {
+      url: string;
+      targetType?: 'staging' | 'database';
+      targetTable?: string;
+      connectionId?: string;
+      auth?: {
+        type: 'none' | 'bearer' | 'basic' | 'api_key';
+        token?: string;
+        username?: string;
+        password?: string;
+        apiKey?: string;
+        apiKeyHeader?: string;
+      };
+      headers?: Record<string, string>;
+      config?: any;
+    }): Promise<any> => {
+      return request('/ingestion/import/url', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
     preview: async (file: File, config?: any): Promise<any> => {
       const formData = new FormData();
       formData.append('file', file);

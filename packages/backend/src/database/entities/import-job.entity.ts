@@ -23,6 +23,10 @@ export enum ImportSourceType {
   JSON = 'json',
   PARQUET = 'parquet',
   API = 'api',
+  URL = 'url',           // Import from URL
+  DATABASE = 'database',  // Import from database connection
+  FTP = 'ftp',           // Import from FTP
+  SFTP = 'sftp',         // Import from SFTP
 }
 
 export enum ImportTargetType {
@@ -99,6 +103,40 @@ export class ImportJob {
     columnMapping?: Record<string, string>; // Source -> Target column mapping
     skipEmptyRows?: boolean;
     trimWhitespace?: boolean;
+  };
+
+  // New fields for extended import sources
+  @Column('text', { nullable: true, name: 'source_url' })
+  sourceUrl?: string; // For URL, API imports
+
+  @Column('text', { nullable: true, name: 'source_connection_id' })
+  sourceConnectionId?: string; // For database imports
+
+  @Column('text', { nullable: true, name: 'source_table' })
+  sourceTable?: string; // For database imports
+
+  @Column('text', { nullable: true, name: 'import_method' })
+  importMethod?: 'manual' | 'scheduled' | 'api'; // How import was triggered
+
+  @Column('jsonb', { nullable: true, name: 'source_config' })
+  sourceConfig?: {
+    // URL/API auth config
+    auth?: {
+      type?: 'none' | 'bearer' | 'basic' | 'api_key';
+      token?: string;
+      username?: string;
+      password?: string;
+      apiKey?: string;
+    };
+    headers?: Record<string, string>;
+    // Database config
+    query?: string;
+    whereClause?: string;
+    columns?: string[];
+    // FTP config
+    host?: string;
+    port?: number;
+    path?: string;
   };
 
   @CreateDateColumn({ name: 'created_at' })

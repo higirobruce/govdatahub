@@ -18,6 +18,7 @@ import { ExcelParserService } from './parsers/excel-parser.service';
 import { JsonParserService } from './parsers/json-parser.service';
 import { StagingImporterService } from './importers/staging-importer.service';
 import { DatabaseImporterService } from './importers/database-importer.service';
+import { UrlImporterService, UrlImportConfig } from './importers/url-importer.service';
 import { v4 as uuidv4 } from 'uuid';
 import { PreviewResponseDto, UploadFileDto } from './dto';
 
@@ -45,6 +46,7 @@ export class IngestionService {
     private readonly jsonParser: JsonParserService,
     private readonly stagingImporter: StagingImporterService,
     private readonly databaseImporter: DatabaseImporterService,
+    private readonly urlImporter: UrlImporterService,
   ) {}
 
   /**
@@ -489,5 +491,70 @@ export class IngestionService {
     }
 
     return 'text';
+  }
+
+  /**
+   * Import file from URL
+   */
+  async importFromUrl(
+    url: string,
+    organizationId: string,
+    uploadDto: UploadFileDto & { auth?: UrlImportConfig['auth']; headers?: Record<string, string> }
+  ): Promise<ImportJob> {
+    this.logger.log(`Starting URL import from: ${url}`);
+
+    try {
+      // 1. Download file using UrlImporter
+      const downloadResult = await this.urlImporter.importFromUrl(url, {
+        auth: uploadDto.auth,
+        headers: uploadDto.headers,
+      });
+
+      // 2. Create import job
+      const importJobId = uuidv4();
+      const importJob = this.importJobRepository.create({
+        id: importJobId,
+        organizationId,
+        fileName: downloadResult.fileName,
+        fileSize: downloadResult.buffer.length,
+        sourceType: downloadResult.sourceType,
+        sourceUrl: url,
+        sourceConfig: uploadDto.auth || uploadDto.headers
+          ? {
+              auth: uploadDto.auth,
+              headers: uploadDto.headers,
+            }
+          : undefined,
+        targetType: uploadDto.targetType,
+        targetTable: uploadDto.targetTable,
+        connectionId: uploadDto.connectionId,
+        status: ImportJobStatus.PENDING,
+        rowsProcessed: 0,
+        rowsSucceeded: 0,
+        rowsFailed: 0,
+        errors: [],
+        config: uploadDto.config,
+        importMethod: 'manual',
+      });
+
+      await this.importJobRepository.save(importJob);
+
+      this.logger.log(`Created import job ${importJobId} for URL import`);
+
+      // 3. Process using existing pipeline (don't await)
+      this.processImport(importJobId, downloadResult.buffer, organizationId, uploadDto).catch(
+        (error) => {
+          this.logger.error(
+            `URL import job ${importJobId} failed: ${error.message}`,
+            error.stack
+          );
+        }
+      );
+
+      return importJob;
+    } catch (error) {
+      this.logger.error(`Failed to start URL import: ${error.message}`);
+      throw error;
+    }
   }
 }
