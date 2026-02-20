@@ -62,12 +62,13 @@ export class QueryBuilderService {
       }
 
       const conditions = join.conditions
-        .map(
-          (cond) =>
-            `${this.quoteIdent(join.leftTable)}.${this.quoteIdent(cond.leftColumn)} ` +
-            `${cond.operator} ` +
-            `${this.quoteIdent(join.rightTable)}.${this.quoteIdent(cond.rightColumn)}`,
-        )
+        .map((cond) => {
+          // Cast both columns to TEXT to handle type mismatches (UUID vs VARCHAR, etc.)
+          const leftColumn = `${this.quoteIdent(join.leftTable)}.${this.quoteIdent(cond.leftColumn)}::text`;
+          const rightColumn = `${this.quoteIdent(join.rightTable)}.${this.quoteIdent(cond.rightColumn)}::text`;
+
+          return `${leftColumn} ${cond.operator} ${rightColumn}`;
+        })
         .join(' AND ');
 
       sql += ` ${join.type} JOIN ${rightTable} AS ${this.quoteIdent(join.rightTable)} ON ${conditions}`;

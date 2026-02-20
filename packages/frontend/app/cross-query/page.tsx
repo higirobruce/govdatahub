@@ -6,12 +6,18 @@ import { ConnectionSelector } from '@/components/CrossQueryBuilder/ConnectionSel
 import { TableBrowser } from '@/components/CrossQueryBuilder/TableBrowser';
 import { VisualJoinEditor } from '@/components/CrossQueryBuilder/VisualJoinEditor';
 import { ColumnSelector } from '@/components/CrossQueryBuilder/ColumnSelector';
+import { FilterBuilder } from '@/components/CrossQueryBuilder/FilterBuilder';
+import { OrderByBuilder } from '@/components/CrossQueryBuilder/OrderByBuilder';
 import { QueryPreview } from '@/components/CrossQueryBuilder/QueryPreview';
 import { ResultsViewer } from '@/components/CrossQueryBuilder/ResultsViewer';
+import { SavedQueriesPanel } from '@/components/CrossQueryBuilder/SavedQueriesPanel';
 import { api } from '@/lib/api';
+
+type SidebarTab = 'connections' | 'filters' | 'sorting' | 'saved';
 
 export default function CrossQueryPage() {
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('connections');
   const [queryDefinition, setQueryDefinition] = useState<QueryDefinition>({
     tables: [],
     joins: [],
@@ -23,6 +29,8 @@ export default function CrossQueryPage() {
   const [result, setResult] = useState<CrossQueryResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSqlPreviewCollapsed, setIsSqlPreviewCollapsed] = useState(false);
+  const [isRightContentCollapsed, setIsRightContentCollapsed] = useState(false);
 
   // Load column metadata when tables are added
   useEffect(() => {
@@ -36,8 +44,8 @@ export default function CrossQueryPage() {
           try {
             const columns = await api.schema.getColumns(
               table.connectionId,
-              table.schemaName,
-              table.tableName
+              table.tableName,
+              table.schemaName
             );
             return { ...table, columns: columns as any[] };
           } catch (err) {
@@ -88,7 +96,14 @@ export default function CrossQueryPage() {
     setIsExecuting(true);
 
     try {
-      const response = await api.crossQuery.execute({ queryDefinition });
+      // Clean queryDefinition before sending - remove columns property from tables
+      // (columns are only for UI display, backend doesn't expect them)
+      const cleanedQueryDefinition = {
+        ...queryDefinition,
+        tables: queryDefinition.tables.map(({ columns, ...table }) => table),
+      };
+
+      const response = await api.crossQuery.execute({ queryDefinition: cleanedQueryDefinition });
       setResult(response as CrossQueryResult);
     } catch (err: any) {
       setError(err.message || 'Failed to execute query');
@@ -201,69 +216,185 @@ export default function CrossQueryPage() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
-        <div className="w-80 bg-white border-r overflow-y-auto">
-          <div className="p-4 space-y-4">
-            {/* Connection Selector */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                Select Connections
-              </h3>
-              <ConnectionSelector
-                selectedConnections={selectedConnections}
-                onSelectionChange={setSelectedConnections}
-              />
-            </div>
+        <div className={`bg-white border-r flex flex-col overflow-hidden transition-all ${isRightContentCollapsed ? 'flex-1' : 'w-[23rem]'}`}>
+          {/* Sidebar Tabs */}
+          <div className="border-b bg-gray-50">
+            <nav className="flex">
+              <button
+                onClick={() => setSidebarTab('connections')}
+                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
+                  sidebarTab === 'connections'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                📊 Data
+              </button>
+              <button
+                onClick={() => setSidebarTab('filters')}
+                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
+                  sidebarTab === 'filters'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                🔍 Filter
+              </button>
+              <button
+                onClick={() => setSidebarTab('sorting')}
+                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
+                  sidebarTab === 'sorting'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                ↕️ Sort
+              </button>
+              <button
+                onClick={() => setSidebarTab('saved')}
+                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
+                  sidebarTab === 'saved'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                💾 Saved
+              </button>
+            </nav>
+          </div>
 
-            {/* Table Browser */}
-            {selectedConnections.length > 0 && (
-              <div className="pt-4 border-t">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  Browse Tables
+          {/* Sidebar Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {/* Connections & Tables Tab */}
+            {sidebarTab === 'connections' && (
+              <div className="space-y-4">
+                {/* Connection Selector */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                    Select Connections
+                  </h3>
+                  <ConnectionSelector
+                    selectedConnections={selectedConnections}
+                    onSelectionChange={setSelectedConnections}
+                  />
+                </div>
+
+                {/* Table Browser */}
+                {selectedConnections.length > 0 && (
+                  <div className="pt-4 border-t">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                      Browse Tables
+                    </h3>
+                    <TableBrowser
+                      connectionIds={selectedConnections}
+                      queryDefinition={queryDefinition}
+                      onQueryChange={setQueryDefinition}
+                    />
+                  </div>
+                )}
+
+                {/* Query Settings */}
+                {queryDefinition.tables.length > 0 && (
+                  <div className="pt-4 border-t">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                      Query Settings
+                    </h3>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Result Limit
+                      </label>
+                      <input
+                        type="number"
+                        value={queryDefinition.limit || 100}
+                        onChange={(e) =>
+                          setQueryDefinition({
+                            ...queryDefinition,
+                            limit: parseInt(e.target.value) || 100,
+                          })
+                        }
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md"
+                        min="1"
+                        max="10000"
+                      />
+                    </div>
+                    <div className="mt-3 text-xs text-gray-600 space-y-1">
+                      <div>Tables: {queryDefinition.tables.length}</div>
+                      <div>Joins: {queryDefinition.joins.length}</div>
+                      <div>Columns: {queryDefinition.columns.length}</div>
+                      <div>Filters: {queryDefinition.filters?.length || 0}</div>
+                      <div>Sorting: {queryDefinition.orderBy?.length || 0} columns</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Filters Tab */}
+            {sidebarTab === 'filters' && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                  WHERE Filters
                 </h3>
-                <TableBrowser
-                  connectionIds={selectedConnections}
+                <FilterBuilder
                   queryDefinition={queryDefinition}
                   onQueryChange={setQueryDefinition}
                 />
               </div>
             )}
 
-            {/* Query Settings */}
-            {queryDefinition.tables.length > 0 && (
-              <div className="pt-4 border-t">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  Query Settings
+            {/* Sorting Tab */}
+            {sidebarTab === 'sorting' && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                  ORDER BY Sorting
                 </h3>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Result Limit
-                  </label>
-                  <input
-                    type="number"
-                    value={queryDefinition.limit || 100}
-                    onChange={(e) =>
-                      setQueryDefinition({
-                        ...queryDefinition,
-                        limit: parseInt(e.target.value) || 100,
-                      })
-                    }
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md"
-                    min="1"
-                    max="10000"
-                  />
-                </div>
-                <div className="mt-3 text-xs text-gray-600 space-y-1">
-                  <div>Tables: {queryDefinition.tables.length}</div>
-                  <div>Joins: {queryDefinition.joins.length}</div>
-                  <div>Columns: {queryDefinition.columns.length}</div>
-                </div>
+                <OrderByBuilder
+                  queryDefinition={queryDefinition}
+                  onQueryChange={setQueryDefinition}
+                />
+              </div>
+            )}
+
+            {/* Saved Queries Tab */}
+            {sidebarTab === 'saved' && (
+              <div>
+                <SavedQueriesPanel
+                  currentQuery={queryDefinition}
+                  onLoadQuery={(loadedQuery) => {
+                    setQueryDefinition(loadedQuery);
+                    setSidebarTab('connections');
+                  }}
+                />
               </div>
             )}
           </div>
         </div>
 
         {/* Center/Right Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className={`flex flex-col overflow-hidden transition-all ${isRightContentCollapsed ? 'w-[32rem]' : 'flex-1'}`}>
+          {/* Collapse/Expand Button Bar */}
+          <div className="bg-white border-b px-4 py-2 flex justify-end">
+            <button
+              onClick={() => setIsRightContentCollapsed(!isRightContentCollapsed)}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              title={isRightContentCollapsed ? 'Expand content area' : 'Collapse content area'}
+            >
+              <svg
+                className={`w-4 h-4 text-gray-600 transition-transform ${isRightContentCollapsed ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+          </div>
+
           {/* Visual Join Editor */}
           {queryDefinition.tables.length > 0 && (
             <div className="flex-1 bg-white border-b p-4 overflow-hidden">
@@ -276,9 +407,9 @@ export default function CrossQueryPage() {
 
           {/* Bottom Section - Column Selector and Preview */}
           {queryDefinition.tables.length > 0 && (
-            <div className="h-64 grid grid-cols-2 gap-4 p-4 bg-gray-50 overflow-hidden">
+            <div className={`h-64 flex gap-4 p-4 bg-gray-50 overflow-hidden ${isSqlPreviewCollapsed ? '' : ''}`}>
               {/* Column Selector */}
-              <div className="bg-white border rounded-lg p-4 overflow-y-auto">
+              <div className={`bg-white border rounded-lg p-4 overflow-y-auto ${isSqlPreviewCollapsed ? 'flex-1' : 'w-1/2'}`}>
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">
                   Select Columns
                 </h3>
@@ -290,11 +421,36 @@ export default function CrossQueryPage() {
 
               {/* Query Preview */}
               {queryDefinition.columns.length > 0 && (
-                <div className="bg-white border rounded-lg p-4 overflow-hidden">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">
-                    SQL Preview
-                  </h3>
-                  <QueryPreview queryDefinition={queryDefinition} />
+                <div className={`bg-white border rounded-lg overflow-hidden transition-all ${isSqlPreviewCollapsed ? 'w-12' : 'flex-1'}`}>
+                  <div className="flex items-center justify-between px-4 py-3 border-b">
+                    <h3 className={`text-sm font-semibold text-gray-900 ${isSqlPreviewCollapsed ? 'hidden' : ''}`}>
+                      SQL Preview
+                    </h3>
+                    <button
+                      onClick={() => setIsSqlPreviewCollapsed(!isSqlPreviewCollapsed)}
+                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      title={isSqlPreviewCollapsed ? 'Expand SQL Preview' : 'Collapse SQL Preview'}
+                    >
+                      <svg
+                        className={`w-4 h-4 text-gray-600 transition-transform ${isSqlPreviewCollapsed ? 'rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  {!isSqlPreviewCollapsed && (
+                    <div className="p-4 overflow-hidden">
+                      <QueryPreview queryDefinition={queryDefinition} />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

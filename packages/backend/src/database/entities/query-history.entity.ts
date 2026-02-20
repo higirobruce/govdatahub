@@ -6,7 +6,7 @@ export class QueryHistory {
   id: string;
 
   @Column('text', { nullable: true })
-  connectionId: string;
+  connectionId: string | null;
 
   @Column('text', { name: 'organization_id' })
   organizationId: string;

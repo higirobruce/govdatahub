@@ -137,7 +137,7 @@ export class QueriesService {
 
   private async logQuery(data: {
     id: string;
-    connectionId: string;
+    connectionId: string | null;
     organizationId: string;
     sqlQuery: string;
     executionTimeMs: number;
@@ -189,10 +189,10 @@ export class QueriesService {
         ? Object.keys(limitedRows[0]).map(name => ({ name, type: 'unknown' }))
         : [];
 
-      // Log to query history (use 'staging' as connectionId)
+      // Log to query history (use null as connectionId for staging queries)
       await this.logQuery({
         id: queryId,
-        connectionId: 'staging',
+        connectionId: null,
         organizationId,
         sqlQuery,
         executionTimeMs: executionTime,
@@ -214,7 +214,7 @@ export class QueriesService {
       // Log failed query
       await this.logQuery({
         id: queryId,
-        connectionId: 'staging',
+        connectionId: null,
         organizationId,
         sqlQuery,
         executionTimeMs: executionTime,
