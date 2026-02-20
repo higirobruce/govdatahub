@@ -86,6 +86,15 @@ export default function StagedDataPage() {
     return `${rowCount.toLocaleString()} rows`;
   };
 
+  const getDisplayName = (dataset: StagedDataset) => {
+    // Use the source file name without extension if available
+    if (dataset.importJob?.fileName) {
+      return dataset.importJob.fileName.replace(/\.(csv|xlsx?|json)$/i, '');
+    }
+    // Fallback to table name
+    return dataset.tableName;
+  };
+
   const handleDelete = async (id: string) => {
     try {
       setIsDeleting(true);
@@ -153,15 +162,14 @@ export default function StagedDataPage() {
                       selectedDataset?.id === dataset.id ? 'bg-indigo-50' : ''
                     }`}
                     onClick={() => loadDatasetDetail(dataset.id)}
+                    title={`Table: ${dataset.tableName}`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium truncate">{dataset.tableName}</h3>
-                        {dataset.importJob && (
-                          <p className="text-sm text-muted-foreground truncate">
-                            From: {dataset.importJob.fileName}
-                          </p>
-                        )}
+                        <h3 className="font-medium truncate">{getDisplayName(dataset)}</h3>
+                        <p className="text-sm text-muted-foreground truncate font-mono text-xs">
+                          {dataset.tableName}
+                        </p>
                         <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                           <span>{formatFileSize(dataset.rowCount)}</span>
                           <span>{formatDate(dataset.createdAt)}</span>
@@ -193,13 +201,19 @@ export default function StagedDataPage() {
               <div className="p-4 space-y-4">
                 {/* Metadata */}
                 <div className="space-y-2">
-                  <h3 className="font-semibold text-lg">{selectedDataset.tableName}</h3>
-                  {selectedDataset.importJob && (
-                    <div className="text-sm text-muted-foreground">
-                      <p>Source: {selectedDataset.importJob.fileName}</p>
+                  <h3 className="font-semibold text-lg">
+                    {selectedDataset.importJob?.fileName
+                      ? selectedDataset.importJob.fileName.replace(/\.(csv|xlsx?|json)$/i, '')
+                      : selectedDataset.tableName}
+                  </h3>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p className="font-mono text-xs truncate" title={selectedDataset.tableName}>
+                      Table: {selectedDataset.tableName}
+                    </p>
+                    {selectedDataset.importJob && (
                       <p>Status: {selectedDataset.importJob.status}</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                   <div className="flex gap-4 text-sm">
                     <span className="font-medium">Rows:</span>
                     <span>{selectedDataset.rowCount.toLocaleString()}</span>

@@ -42,11 +42,18 @@ export default function CrossQueryPage() {
           }
 
           try {
-            const columns = await api.schema.getColumns(
-              table.connectionId,
-              table.tableName,
-              table.schemaName
-            );
+            let columns;
+            if (table.connectionId === 'staging') {
+              // Use staging columns endpoint
+              columns = await api.schema.getStagingColumns(table.tableName);
+            } else {
+              // Use regular connection columns endpoint
+              columns = await api.schema.getColumns(
+                table.connectionId,
+                table.tableName,
+                table.schemaName
+              );
+            }
             return { ...table, columns: columns as any[] };
           } catch (err) {
             console.error(`Failed to load columns for ${table.tableName}:`, err);

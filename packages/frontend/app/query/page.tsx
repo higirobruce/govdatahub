@@ -208,10 +208,15 @@ export default function QueryPage() {
                 value={selectedStagingTable}
                 onChange={(e) => handleStagingTableChange(e.target.value)}
                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                title="Select a staging table"
               >
                 <option value="">-- Select a staging table --</option>
                 {stagingTables?.map((table) => (
-                  <option key={`${table.schema}.${table.name}`} value={`${table.schema}.${table.name}`}>
+                  <option
+                    key={`${table.schema}.${table.name}`}
+                    value={`${table.schema}.${table.name}`}
+                    title={`Full table name: ${table.schema}.${table.name}`}
+                  >
                     {table.name} ({formatBytes(table.sizeBytes)}{table.rowCount ? `, ${table.rowCount.toLocaleString()} rows` : ''})
                   </option>
                 ))}
