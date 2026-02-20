@@ -237,6 +237,50 @@ export const api = {
       }),
   },
 
+  // Dashboard
+  dashboard: {
+    getStats: (): Promise<any> => request('/dashboard/stats'),
+    getCatalog: (): Promise<any> => request('/dashboard/catalog'),
+
+    // Dataset sharing
+    getShares: (): Promise<any> => request('/dashboard/shares'),
+    getShare: (id: string): Promise<any> => request(`/dashboard/shares/${id}`),
+    createShare: (data: {
+      name: string;
+      description: string;
+      datasetType: 'staged' | 'connection' | 'transformation';
+      datasetId: string;
+      tableName?: string;
+      accessLevel: 'private' | 'organization' | 'public';
+      generateApiKey?: boolean;
+      generateShareToken?: boolean;
+    }): Promise<any> =>
+      request('/dashboard/shares', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    regenerateApiKey: (id: string): Promise<any> =>
+      request(`/dashboard/shares/${id}/regenerate-api-key`, {
+        method: 'POST',
+      }),
+    regenerateShareToken: (id: string): Promise<any> =>
+      request(`/dashboard/shares/${id}/regenerate-share-token`, {
+        method: 'POST',
+      }),
+    deleteShare: (id: string): Promise<void> =>
+      request(`/dashboard/shares/${id}`, {
+        method: 'DELETE',
+      }),
+  },
+
+  // Public datasets (no auth required)
+  publicDatasets: {
+    getByApiKey: (apiKey: string): Promise<any> =>
+      request(`/public/datasets/${apiKey}`),
+    getByShareToken: (shareToken: string): Promise<any> =>
+      request(`/public/shared/${shareToken}`),
+  },
+
   // Data Ingestion
   ingestion: {
     importFromUrl: async (data: {

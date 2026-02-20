@@ -17,6 +17,7 @@ import {
   SavedCrossQuery,
   ImportJob,
   StagedData,
+  DatasetShare,
 } from './database/entities';
 import { EncryptionModule } from './modules/encryption/encryption.module';
 import { ConnectionsModule } from './modules/connections/connections.module';
@@ -26,6 +27,7 @@ import { TransformationsModule } from './modules/transformations/transformations
 import { AuthModule } from './modules/auth/auth.module';
 import { CrossQueryModule } from './modules/cross-query/cross-query.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -57,6 +59,7 @@ import { IngestionModule } from './modules/ingestion/ingestion.module';
           SavedCrossQuery,
           ImportJob,
           StagedData,
+          DatasetShare,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -88,6 +91,7 @@ import { IngestionModule } from './modules/ingestion/ingestion.module';
     TransformationsModule,
     CrossQueryModule,
     IngestionModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

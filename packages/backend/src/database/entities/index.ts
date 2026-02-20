@@ -10,3 +10,5 @@ export { FdwServer } from './fdw-server.entity';
 export { SavedCrossQuery } from './saved-cross-query.entity';
 export { ImportJob, ImportJobStatus, ImportSourceType, ImportTargetType } from './import-job.entity';
 export { StagedData } from './staged-data.entity';
+export { DatasetShare } from './dataset-share.entity';
+export type { DatasetType, ShareAccessLevel } from './dataset-share.entity';
