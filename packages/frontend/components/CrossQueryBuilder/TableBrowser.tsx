@@ -11,13 +11,20 @@ interface TableBrowserProps {
   onQueryChange: (definition: QueryDefinition) => void;
 }
 
+interface StagingTable {
+  name: string;
+  schema: string;
+  rowCount: number | null;
+  sizeBytes: number;
+}
+
 export function TableBrowser({
   connectionIds,
   queryDefinition,
   onQueryChange,
 }: TableBrowserProps) {
   const [expandedConnection, setExpandedConnection] = useState<string | null>(null);
-  
+
   // Fetch connections
   const { data: allConnections } = useSWR<Connection[]>(
     '/connections',
@@ -31,10 +38,21 @@ export function TableBrowser({
     connectionIds.includes(c.id)
   );
 
+  const isStagingEnabled = connectionIds.includes('staging');
+
+  // Fetch staging tables if staging is enabled
+  const { data: stagingTables } = useSWR<StagingTable[]>(
+    isStagingEnabled && expandedConnection === 'staging' ? '/schema/staging/tables' : null,
+    async () => {
+      const result = await api.schema.getStagingTables();
+      return result as StagingTable[];
+    }
+  );
+
   // Fetch tables for expanded connection
   const { data: tables, error: tablesError } = useSWR<TableInfo[]>(
-    expandedConnection ? `/connections/${expandedConnection}/tables` : null,
-    expandedConnection
+    expandedConnection && expandedConnection !== 'staging' ? `/connections/${expandedConnection}/tables` : null,
+    expandedConnection && expandedConnection !== 'staging'
       ? async () => {
           const result = await api.schema.getTables(expandedConnection);
           return result as TableInfo[];
@@ -47,7 +65,7 @@ export function TableBrowser({
     const baseAlias = table.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
     let alias = baseAlias;
     let counter = 1;
-    
+
     while (queryDefinition.tables.some((t) => t.alias === alias)) {
       alias = `${baseAlias}_${counter}`;
       counter++;
@@ -55,6 +73,30 @@ export function TableBrowser({
 
     const newTable = {
       connectionId: connection.id,
+      schemaName: table.schema,
+      tableName: table.name,
+      alias,
+    };
+
+    onQueryChange({
+      ...queryDefinition,
+      tables: [...queryDefinition.tables, newTable],
+    });
+  };
+
+  const handleAddStagingTable = (table: StagingTable) => {
+    // Generate a unique alias
+    const baseAlias = table.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    let alias = baseAlias;
+    let counter = 1;
+
+    while (queryDefinition.tables.some((t) => t.alias === alias)) {
+      alias = `${baseAlias}_${counter}`;
+      counter++;
+    }
+
+    const newTable = {
+      connectionId: 'staging',
       schemaName: table.schema,
       tableName: table.name,
       alias,
@@ -82,6 +124,7 @@ export function TableBrowser({
 
   return (
     <div className="space-y-2">
+      {/* Regular Connections */}
       {connections.map((connection) => (
         <div key={connection.id} className="border border-gray-200 rounded-md overflow-hidden">
           {/* Connection Header */}
@@ -165,6 +208,89 @@ export function TableBrowser({
           )}
         </div>
       ))}
+
+      {/* Staging Data */}
+      {isStagingEnabled && (
+        <div className="border border-indigo-200 rounded-md overflow-hidden">
+          {/* Staging Header */}
+          <button
+            onClick={() =>
+              setExpandedConnection(expandedConnection === 'staging' ? null : 'staging')
+            }
+            className="w-full px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-left flex items-center justify-between transition-colors"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-indigo-900 truncate">
+                Staging Data
+              </div>
+              <div className="text-xs text-indigo-700 truncate">
+                Uploaded staging tables
+              </div>
+            </div>
+            <svg
+              className={`w-4 h-4 text-indigo-600 transition-transform ${
+                expandedConnection === 'staging' ? 'transform rotate-90' : ''
+              }`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </button>
+
+          {/* Staging Tables List */}
+          {expandedConnection === 'staging' && (
+            <div className="bg-white">
+              {!stagingTables && (
+                <div className="px-3 py-2 text-xs text-gray-500">
+                  Loading staging tables...
+                </div>
+              )}
+              {stagingTables && stagingTables.length === 0 && (
+                <div className="px-3 py-2 text-xs text-gray-500">
+                  No staging tables found. <a href="/ingestion" className="text-indigo-600 hover:text-indigo-500">Upload data →</a>
+                </div>
+              )}
+              {stagingTables && stagingTables.length > 0 && (
+                <div className="max-h-60 overflow-y-auto">
+                  {stagingTables.map((table) => (
+                    <div
+                      key={`${table.schema}.${table.name}`}
+                      className="px-3 py-2 hover:bg-gray-50 flex items-center justify-between border-t border-gray-100"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-mono text-gray-900 truncate">
+                          {table.schema}.{table.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {table.rowCount ? `${table.rowCount.toLocaleString()} rows` : ''}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleAddStagingTable(table)}
+                        disabled={isTableAdded('staging', table.name)}
+                        className={`text-xs px-2 py-1 rounded ${
+                          isTableAdded('staging', table.name)
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        }`}
+                      >
+                        {isTableAdded('staging', table.name) ? 'Added' : 'Add'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -8,12 +8,16 @@ import { Connection } from '@/types';
 interface ConnectionSelectorProps {
   selectedConnections: string[];
   onSelectionChange: (connectionIds: string[]) => void;
+  includeStagingToggle?: boolean;
 }
 
 export function ConnectionSelector({
   selectedConnections,
   onSelectionChange,
+  includeStagingToggle = true,
 }: ConnectionSelectorProps) {
+  const [stagingEnabled, setStagingEnabled] = useState(false);
+
   const { data: connections, error } = useSWR<Connection[]>(
     '/connections',
     async () => {
@@ -27,6 +31,21 @@ export function ConnectionSelector({
       onSelectionChange(selectedConnections.filter((id) => id !== connectionId));
     } else {
       onSelectionChange([...selectedConnections, connectionId]);
+    }
+  };
+
+  const handleToggleStaging = () => {
+    const newStagingEnabled = !stagingEnabled;
+    setStagingEnabled(newStagingEnabled);
+
+    if (newStagingEnabled) {
+      // Add 'staging' to selected connections
+      if (!selectedConnections.includes('staging')) {
+        onSelectionChange([...selectedConnections, 'staging']);
+      }
+    } else {
+      // Remove 'staging' from selected connections
+      onSelectionChange(selectedConnections.filter((id) => id !== 'staging'));
     }
   };
 
@@ -87,6 +106,26 @@ export function ConnectionSelector({
           Clear
         </button>
       </div>
+
+      {/* Staging Data Toggle */}
+      {includeStagingToggle && (
+        <label className="flex items-start gap-2 p-2 border border-indigo-200 rounded-md bg-indigo-50 hover:bg-indigo-100 cursor-pointer transition-colors">
+          <input
+            type="checkbox"
+            checked={stagingEnabled}
+            onChange={handleToggleStaging}
+            className="mt-0.5"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-sm text-indigo-900">
+              Staging Data
+            </div>
+            <div className="text-xs text-indigo-700">
+              Include uploaded staging tables
+            </div>
+          </div>
+        </label>
+      )}
 
       {/* Connection List */}
       <div className="space-y-2 max-h-60 overflow-y-auto">

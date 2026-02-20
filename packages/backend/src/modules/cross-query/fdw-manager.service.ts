@@ -216,6 +216,18 @@ export class FdwManagerService {
       );
 
       for (const table of queryDef.tables) {
+        // Check if this is a staging table (already in metadata database)
+        if (table.connectionId === 'staging') {
+          // Staging tables don't need FDW - they're already in the same database
+          const stagingTableName = `${this.quoteIdent(table.schemaName)}.${this.quoteIdent(table.tableName)}`;
+          foreignTableMap.set(table.alias, stagingTableName);
+
+          this.logger.log(
+            `Using staging table: ${stagingTableName} for ${table.alias}`,
+          );
+          continue;
+        }
+
         // Get or create FDW server for this connection
         let fdwServer = await this.fdwServerRepository.findOne({
           where: { connectionId: table.connectionId, organizationId },
