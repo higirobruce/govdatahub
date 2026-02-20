@@ -7,14 +7,21 @@ import { api } from '@/lib/api';
 import { Connection, QueryResult } from '@/types';
 import SQLEditor from '@/components/QueryInterface/SQLEditor';
 import ResultsTable from '@/components/QueryInterface/ResultsTable';
-import StagingTableBrowser from '@/components/QueryInterface/StagingTableBrowser';
 
 type DataSource = 'connections' | 'staging';
+
+interface StagingTable {
+  name: string;
+  schema: string;
+  rowCount: number | null;
+  sizeBytes: number;
+}
 
 export default function QueryPage() {
   const searchParams = useSearchParams();
   const [dataSource, setDataSource] = useState<DataSource>('connections');
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
+  const [selectedStagingTable, setSelectedStagingTable] = useState<string>('');
   const [sql, setSql] = useState('SELECT * FROM ');
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,15 +32,27 @@ export default function QueryPage() {
     return result as Connection[];
   });
 
+  const { data: stagingTables } = useSWR<StagingTable[]>(
+    dataSource === 'staging' ? '/schema/staging/tables' : null,
+    async () => {
+      const result = await api.schema.getStagingTables();
+      return result as StagingTable[];
+    }
+  );
+
   // Handle URL parameters from catalog
   useEffect(() => {
     const staging = searchParams?.get('staging');
     const table = searchParams?.get('table');
+    const schema = searchParams?.get('schema');
     const connection = searchParams?.get('connection');
 
     if (staging === 'true') {
       setDataSource('staging');
-      if (table) {
+      if (table && schema) {
+        setSelectedStagingTable(`${schema}.${table}`);
+        setSql(`SELECT * FROM ${schema}."${table}" LIMIT 100;`);
+      } else if (table) {
         setSql(`SELECT * FROM ${table} LIMIT 100;`);
       }
     } else if (connection && table) {
@@ -46,6 +65,11 @@ export default function QueryPage() {
   const handleExecute = async () => {
     if (dataSource === 'connections' && !selectedConnectionId) {
       setError('Please select a connection');
+      return;
+    }
+
+    if (dataSource === 'staging' && !selectedStagingTable) {
+      setError('Please select a staging table');
       return;
     }
 
@@ -87,9 +111,21 @@ export default function QueryPage() {
     }
   };
 
-  const handleInsertTable = (tableName: string, schemaName: string) => {
-    const fullTableName = `${schemaName}."${tableName}"`;
-    setSql(`SELECT * FROM ${fullTableName} LIMIT 100;`);
+  const handleStagingTableChange = (tableKey: string) => {
+    setSelectedStagingTable(tableKey);
+    if (tableKey) {
+      const [schemaName, tableName] = tableKey.split('.');
+      const fullTableName = `${schemaName}."${tableName}"`;
+      setSql(`SELECT * FROM ${fullTableName} LIMIT 100;`);
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${Math.round(bytes / Math.pow(k, i) * 100) / 100} ${sizes[i]}`;
   };
 
   return (
@@ -106,7 +142,11 @@ export default function QueryPage() {
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex" aria-label="Tabs">
             <button
-              onClick={() => setDataSource('connections')}
+              onClick={() => {
+                setDataSource('connections');
+                setSelectedStagingTable('');
+                setError(null);
+              }}
               className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                 dataSource === 'connections'
                   ? 'border-indigo-500 text-indigo-600'
@@ -116,7 +156,11 @@ export default function QueryPage() {
               Database Connections
             </button>
             <button
-              onClick={() => setDataSource('staging')}
+              onClick={() => {
+                setDataSource('staging');
+                setSelectedConnectionId('');
+                setError(null);
+              }}
               className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                 dataSource === 'staging'
                   ? 'border-indigo-500 text-indigo-600'
@@ -156,7 +200,31 @@ export default function QueryPage() {
               ) : null}
             </>
           ) : (
-            <StagingTableBrowser onInsertTable={handleInsertTable} />
+            <>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Staging Table *
+              </label>
+              <select
+                value={selectedStagingTable}
+                onChange={(e) => handleStagingTableChange(e.target.value)}
+                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+              >
+                <option value="">-- Select a staging table --</option>
+                {stagingTables?.map((table) => (
+                  <option key={`${table.schema}.${table.name}`} value={`${table.schema}.${table.name}`}>
+                    {table.name} ({formatBytes(table.sizeBytes)}{table.rowCount ? `, ${table.rowCount.toLocaleString()} rows` : ''})
+                  </option>
+                ))}
+              </select>
+              {!stagingTables || stagingTables.length === 0 ? (
+                <p className="mt-2 text-sm text-gray-500">
+                  No staging tables available.{' '}
+                  <a href="/ingestion" className="text-indigo-600 hover:text-indigo-500">
+                    Upload data to staging
+                  </a>
+                </p>
+              ) : null}
+            </>
           )}
         </div>
       </div>
@@ -170,7 +238,11 @@ export default function QueryPage() {
             </h3>
             <button
               onClick={handleExecute}
-              disabled={isExecuting || (dataSource === 'connections' && !selectedConnectionId)}
+              disabled={
+                isExecuting ||
+                (dataSource === 'connections' && !selectedConnectionId) ||
+                (dataSource === 'staging' && !selectedStagingTable)
+              }
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isExecuting ? (
