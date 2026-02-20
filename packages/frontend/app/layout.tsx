@@ -67,7 +67,7 @@ function Navigation() {
               >
                 Query
               </Link>
-              <Link
+              {/* <Link
                 href="/catalog"
                 className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/catalog')
                     ? 'bg-secondary text-foreground'
@@ -75,7 +75,7 @@ function Navigation() {
                   }`}
               >
                 Catalog
-              </Link>
+              </Link> */}
               <Link
                 href="/cross-query"
                 className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/cross-query')
@@ -84,6 +84,16 @@ function Navigation() {
                   }`}
               >
                 Cross-Query
+              </Link>
+
+              <Link
+                href="/transformations"
+                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/transformations')
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}
+              >
+                Transformations
               </Link>
 
               <Link

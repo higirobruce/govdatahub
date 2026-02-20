@@ -46,7 +46,7 @@ export function UserMenu() {
   return (
     <div className="flex items-center gap-3">
       <div className="hidden md:flex items-center gap-3">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border">
+        {/* <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border">
           <UserIcon className="h-4 w-4 text-muted-foreground" />
           <div className="flex flex-col">
             <span className="text-sm font-medium leading-none">
@@ -54,7 +54,7 @@ export function UserMenu() {
             </span>
             <span className="text-xs text-muted-foreground mt-0.5">{user.email}</span>
           </div>
-        </div>
+        </div> */}
         <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${getRoleBadgeColor()}`}>
           {getRoleIcon()}
           <span>{user.role.replace('_', ' ').toUpperCase()}</span>

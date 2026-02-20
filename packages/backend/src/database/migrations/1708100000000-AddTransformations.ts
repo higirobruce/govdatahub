@@ -11,12 +11,14 @@ export class AddTransformations1708100000000 implements MigrationInterface {
         name TEXT NOT NULL,
         description TEXT NOT NULL,
         source_connection_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL,
         sql_query TEXT NOT NULL,
         output_config TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_run_at TIMESTAMP,
-        FOREIGN KEY (source_connection_id) REFERENCES connections(id) ON DELETE CASCADE
+        FOREIGN KEY (source_connection_id) REFERENCES connections(id) ON DELETE CASCADE,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
       )
     `);
 
@@ -25,6 +27,7 @@ export class AddTransformations1708100000000 implements MigrationInterface {
       CREATE TABLE transformation_runs (
         id TEXT PRIMARY KEY,
         transformation_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL,
         trigger_type TEXT NOT NULL,
         started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP,
@@ -32,7 +35,8 @@ export class AddTransformations1708100000000 implements MigrationInterface {
         rows_processed INTEGER,
         status TEXT NOT NULL,
         error_message TEXT,
-        FOREIGN KEY (transformation_id) REFERENCES transformations(id) ON DELETE CASCADE
+        FOREIGN KEY (transformation_id) REFERENCES transformations(id) ON DELETE CASCADE,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
       )
     `);
 
@@ -46,8 +50,17 @@ export class AddTransformations1708100000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
+      CREATE INDEX idx_transformations_org ON transformations(organization_id)
+    `);
+
+    await queryRunner.query(`
       CREATE INDEX idx_transformation_runs_transformation_id
       ON transformation_runs(transformation_id)
+    `);
+
+    await queryRunner.query(`
+      CREATE INDEX idx_transformation_runs_org
+      ON transformation_runs(organization_id)
     `);
 
     await queryRunner.query(`

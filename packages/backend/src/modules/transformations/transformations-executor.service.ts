@@ -131,14 +131,14 @@ export class TransformationsExecutorService {
     runId: string,
     transformationId: string,
     organizationId: string,
-    triggerType: string,
+    triggerType: 'manual' | 'scheduled',
   ): Promise<TransformationRun> {
     const run = this.runsRepository.create({
       id: runId,
       transformationId,
       organizationId,
-      triggerType,
-      status: 'running',
+      triggerType: triggerType as 'manual' | 'scheduled',
+      status: 'running' as 'running' | 'success' | 'failed' | 'timeout',
     });
 
     return await this.runsRepository.save(run);
@@ -172,7 +172,7 @@ export class TransformationsExecutorService {
   private async completeRun(
     run: TransformationRun,
     updates: {
-      status: string;
+      status: 'running' | 'success' | 'failed' | 'timeout';
       executionTimeMs: number;
       rowsProcessed?: number;
       errorMessage?: string;
@@ -182,7 +182,7 @@ export class TransformationsExecutorService {
     run.completedAt = new Date();
     run.executionTimeMs = updates.executionTimeMs;
     run.rowsProcessed = updates.rowsProcessed || 0;
-    run.errorMessage = updates.errorMessage || "";
+    run.errorMessage = updates.errorMessage || null;
 
     await this.runsRepository.save(run);
   }
