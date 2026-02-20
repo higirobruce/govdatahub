@@ -1,15 +1,17 @@
 'use client';
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import './globals.css'
 import { AuthProvider, useAuth } from '@/lib/auth-context'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { UserMenu } from '@/components/UserMenu'
+import { DropdownMenu, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 
 function Navigation() {
   const { isAuthenticated } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
 
   // Don't show navigation if not authenticated
   if (!isAuthenticated) {
@@ -17,6 +19,11 @@ function Navigation() {
   }
 
   const isActive = (path: string) => pathname === path;
+
+  // Check if any data menu item is active
+  const isDataMenuActive = ['/query', '/cross-query', '/transformations', '/staged'].some(path =>
+    pathname === path
+  );
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
@@ -58,53 +65,43 @@ function Navigation() {
               >
                 Connections
               </Link>
-              <Link
-                href="/query"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/query')
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-              >
-                Query
-              </Link>
-              {/* <Link
-                href="/catalog"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/catalog')
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-              >
-                Catalog
-              </Link> */}
-              <Link
-                href="/cross-query"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/cross-query')
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-              >
-                Cross-Query
-              </Link>
 
-              <Link
-                href="/transformations"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/transformations')
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
+              <DropdownMenu
+                trigger={
+                  <span className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
+                    isDataMenuActive
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}>
+                    Data Operations
+                  </span>
+                }
               >
-                Transformations
-              </Link>
-
-              <Link
-                href="/staged"
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${isActive('/staged')
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-              >
-                Staged Data
-              </Link>
+                <DropdownMenuItem
+                  onClick={() => router.push('/query')}
+                  active={isActive('/query')}
+                >
+                  Query
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push('/cross-query')}
+                  active={isActive('/cross-query')}
+                >
+                  Cross-Query
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push('/transformations')}
+                  active={isActive('/transformations')}
+                >
+                  Transformations
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push('/staged')}
+                  active={isActive('/staged')}
+                >
+                  Staged Data
+                </DropdownMenuItem>
+              </DropdownMenu>
             </nav>
           </div>
 
