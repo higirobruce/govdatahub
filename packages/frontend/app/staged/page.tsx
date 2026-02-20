@@ -115,7 +115,7 @@ export default function StagedDataPage() {
                 <p className="mb-4">No staged datasets found</p>
                 <Link
                   href="/ingestion"
-                  className="text-blue-600 hover:text-blue-800 underline"
+                  className="text-indigo-600 hover:text-indigo-800 underline"
                 >
                   Upload a file to staging
                 </Link>
@@ -126,7 +126,7 @@ export default function StagedDataPage() {
                   <div
                     key={dataset.id}
                     className={`p-4 hover:bg-muted cursor-pointer transition-colors ${
-                      selectedDataset?.id === dataset.id ? 'bg-blue-50' : ''
+                      selectedDataset?.id === dataset.id ? 'bg-indigo-50' : ''
                     }`}
                     onClick={() => loadDatasetDetail(dataset.id)}
                   >
@@ -259,7 +259,7 @@ export default function StagedDataPage() {
                   </p>
                   <Link
                     href="/query"
-                    className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                    className="inline-block px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm"
                   >
                     Query This Data
                   </Link>
