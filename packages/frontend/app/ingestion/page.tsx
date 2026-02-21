@@ -23,6 +23,7 @@ import {
 } from '@/components/DataIngestion/ColumnMapping';
 import { ImportProgress } from '@/components/DataIngestion/ImportProgress';
 import { api } from '@/lib/api';
+import { PageHeader } from '@/components/ui/page-header';
 
 type Step = 'upload' | 'preview' | 'target' | 'mapping' | 'progress';
 type ImportTab = 'file' | 'database' | 'url';
@@ -204,28 +205,26 @@ export default function DataIngestionPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Data Ingestion</h1>
-        <p className="mt-2 text-gray-600">
-          Import data from multiple sources into your data hub
-        </p>
-      </div>
+    <div className="w-full">
+      <PageHeader
+        title="Data Ingestion"
+        subtitle="Import data from multiple sources into your data hub"
+      />
 
       {/* Tab Navigation */}
-      <div className="bg-white shadow sm:rounded-lg mb-6">
-        <div className="border-b border-gray-200">
+      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card mb-6">
+        <div className="border-b border-[#f0f0f0]">
           <nav className="-mb-px flex" aria-label="Tabs">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
                 className={`
-                  flex-1 py-4 px-1 text-center border-b-2 font-medium text-sm
+                  flex-1 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors
                   ${
                     tab.id === 'file'
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                      : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
                   }
                 `}
               >
@@ -249,10 +248,10 @@ export default function DataIngestionPage() {
                   <div
                     className={`flex h-10 w-10 items-center justify-center rounded-full border-2 font-semibold transition-colors ${
                       index < currentStepIndex
-                        ? 'bg-primary text-primary-foreground border-primary'
+                        ? 'bg-[#1a1a1a] text-white border-[#1a1a1a]'
                         : index === currentStepIndex
-                        ? 'border-primary text-primary'
-                        : 'border-border text-muted-foreground'
+                        ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                        : 'border-[#dddddd] text-[#aaaaaa]'
                     }`}
                   >
                     {index < currentStepIndex ? (
@@ -265,19 +264,19 @@ export default function DataIngestionPage() {
                     <p
                       className={`font-semibold text-sm ${
                         index <= currentStepIndex
-                          ? 'text-foreground'
-                          : 'text-muted-foreground'
+                          ? 'text-[#1a1a1a]'
+                          : 'text-[#aaaaaa]'
                       }`}
                     >
                       {step.label}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-[#aaaaaa]">
                       {step.description}
                     </p>
                   </div>
                 </div>
                 {index < steps.length - 1 && (
-                  <ChevronRight className="h-5 w-5 mx-4 text-muted-foreground flex-shrink-0" />
+                  <ChevronRight className="h-5 w-5 mx-4 text-[#aaaaaa] flex-shrink-0" />
                 )}
               </div>
             ))}

@@ -120,7 +120,7 @@ export function JoinConfigDialog({
                   type: e.target.value as JoinDefinition['type'],
                 })
               }
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#1a1a1a] focus:border-[#1a1a1a]"
             >
               <option value="INNER">INNER JOIN</option>
               <option value="LEFT">LEFT JOIN</option>
@@ -137,7 +137,7 @@ export function JoinConfigDialog({
               </label>
               <button
                 onClick={handleAddCondition}
-                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                className="text-sm text-[#1a1a1a] hover:text-[#2a2a2a] font-medium"
               >
                 + Add Condition
               </button>
@@ -240,7 +240,7 @@ export function JoinConfigDialog({
             </button>
             <button
               onClick={handleSave}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
+              className="px-4 py-2 text-sm font-medium text-white bg-[#1a1a1a] hover:bg-[#2a2a2a] rounded-md"
             >
               Save Join
             </button>

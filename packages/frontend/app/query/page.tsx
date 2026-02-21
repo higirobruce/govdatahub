@@ -7,6 +7,9 @@ import { api } from '@/lib/api';
 import { Connection, QueryResult } from '@/types';
 import SQLEditor from '@/components/QueryInterface/SQLEditor';
 import ResultsTable from '@/components/QueryInterface/ResultsTable';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Play, AlertCircle } from 'lucide-react';
 
 type DataSource = 'connections' | 'staging';
 
@@ -129,17 +132,15 @@ export default function QueryPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">SQL Query</h1>
-        <p className="mt-2 text-gray-600">
-          Execute SQL queries on your databases and staging data
-        </p>
-      </div>
+    <div className="w-full">
+      <PageHeader
+        title="SQL Query"
+        subtitle="Execute SQL queries on your databases and staging data"
+      />
 
       {/* Data Source Selector */}
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="border-b border-gray-200">
+      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
+        <div className="border-b border-[#f0f0f0]">
           <nav className="-mb-px flex" aria-label="Tabs">
             <button
               onClick={() => {
@@ -147,10 +148,10 @@ export default function QueryPage() {
                 setSelectedStagingTable('');
                 setError(null);
               }}
-              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${
                 dataSource === 'connections'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
               }`}
             >
               Database Connections
@@ -161,10 +162,10 @@ export default function QueryPage() {
                 setSelectedConnectionId('');
                 setError(null);
               }}
-              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${
                 dataSource === 'staging'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
               }`}
             >
               Staging Data
@@ -172,16 +173,16 @@ export default function QueryPage() {
           </nav>
         </div>
 
-        <div className="p-4">
+        <div className="p-6">
           {dataSource === 'connections' ? (
             <>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-[#555555] mb-2">
                 Select Database Connection *
               </label>
               <select
                 value={selectedConnectionId}
                 onChange={(e) => setSelectedConnectionId(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                className="block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
               >
                 <option value="">-- Select a connection --</option>
                 {connections?.map((conn) => (
@@ -191,9 +192,9 @@ export default function QueryPage() {
                 ))}
               </select>
               {!connections || connections.length === 0 ? (
-                <p className="mt-2 text-sm text-gray-500">
+                <p className="mt-2 text-sm text-[#aaaaaa]">
                   No connections available.{' '}
-                  <a href="/connections" className="text-indigo-600 hover:text-indigo-500">
+                  <a href="/connections" className="text-[#1a1a1a] hover:underline font-medium">
                     Create one first
                   </a>
                 </p>
@@ -201,13 +202,13 @@ export default function QueryPage() {
             </>
           ) : (
             <>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-[#555555] mb-2">
                 Select Staging Table *
               </label>
               <select
                 value={selectedStagingTable}
                 onChange={(e) => handleStagingTableChange(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                className="block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
                 title="Select a staging table"
               >
                 <option value="">-- Select a staging table --</option>
@@ -222,9 +223,9 @@ export default function QueryPage() {
                 ))}
               </select>
               {!stagingTables || stagingTables.length === 0 ? (
-                <p className="mt-2 text-sm text-gray-500">
+                <p className="mt-2 text-sm text-[#aaaaaa]">
                   No staging tables available.{' '}
-                  <a href="/ingestion" className="text-indigo-600 hover:text-indigo-500">
+                  <a href="/ingestion" className="text-[#1a1a1a] hover:underline font-medium">
                     Upload data to staging
                   </a>
                 </p>
@@ -235,25 +236,24 @@ export default function QueryPage() {
       </div>
 
       {/* SQL Editor */}
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
+      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
+        <div className="px-6 py-5">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
+            <h3 className="text-base font-semibold text-[#1a1a1a]">
               SQL Editor
             </h3>
-            <button
+            <Button
               onClick={handleExecute}
               disabled={
                 isExecuting ||
                 (dataSource === 'connections' && !selectedConnectionId) ||
                 (dataSource === 'staging' && !selectedStagingTable)
               }
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isExecuting ? (
                 <>
                   <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                    className="animate-spin -ml-1 mr-2 h-4 w-4"
                     fill="none"
                     viewBox="0 0 24 24"
                   >
@@ -274,9 +274,12 @@ export default function QueryPage() {
                   Executing...
                 </>
               ) : (
-                <>Execute (Ctrl+Enter)</>
+                <>
+                  <Play className="h-4 w-4" />
+                  Execute (Ctrl+Enter)
+                </>
               )}
-            </button>
+            </Button>
           </div>
 
           <SQLEditor
@@ -286,7 +289,7 @@ export default function QueryPage() {
             disabled={isExecuting}
           />
 
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-[#aaaaaa]">
             Tip: Press Ctrl+Enter (or Cmd+Enter on Mac) to execute the query
           </p>
         </div>
@@ -294,26 +297,14 @@ export default function QueryPage() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+        <div className="bg-[#fee2e2] border border-[#fca5a5] rounded-md p-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg
-                className="h-5 w-5 text-red-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+              <AlertCircle className="h-5 w-5 text-[#ef4444]" />
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Query Error</h3>
-              <div className="mt-2 text-sm text-red-700">{error}</div>
+              <h3 className="text-sm font-medium text-[#991b1b]">Query Error</h3>
+              <div className="mt-2 text-sm text-[#991b1b]">{error}</div>
             </div>
           </div>
         </div>
@@ -321,13 +312,13 @@ export default function QueryPage() {
 
       {/* Results */}
       {queryResult && (
-        <div className="bg-white shadow sm:rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
+        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
+          <div className="px-6 py-5">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
+              <h3 className="text-base font-semibold text-[#1a1a1a]">
                 Query Results
               </h3>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-[#aaaaaa]">
                 {queryResult.rowCount} rows in {queryResult.executionTimeMs}ms
               </div>
             </div>

@@ -222,7 +222,7 @@ export default function DatabaseImportPage() {
                   flex-1 py-4 px-1 text-center border-b-2 font-medium text-sm
                   ${
                     tab.id === 'database'
-                      ? 'border-indigo-500 text-indigo-600'
+                      ? 'border-[#1a1a1a] text-[#1a1a1a]'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }
                 `}
@@ -302,7 +302,7 @@ export default function DatabaseImportPage() {
               {!connections || connections.length === 0 ? (
                 <p className="text-sm text-gray-500">
                   No connections available.{' '}
-                  <a href="/connections" className="text-indigo-600 hover:text-indigo-500">
+                  <a href="/connections" className="text-[#1a1a1a] hover:text-[#1a1a1a]">
                     Create one first
                   </a>
                 </p>
@@ -312,7 +312,7 @@ export default function DatabaseImportPage() {
                     <button
                       key={conn.id}
                       onClick={() => handleSelectConnection(conn.id)}
-                      className="text-left p-4 border border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
+                      className="text-left p-4 border border-gray-200 rounded-lg hover:border-[#1a1a1a] hover:bg-[#f8f8f8] transition-colors"
                     >
                       <div className="font-medium text-gray-900">{conn.name}</div>
                       <div className="text-sm text-gray-500 mt-1">
@@ -342,7 +342,7 @@ export default function DatabaseImportPage() {
                     <button
                       key={`${table.schema}.${table.name}`}
                       onClick={() => handleSelectTable(table)}
-                      className="text-left p-3 border border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
+                      className="text-left p-3 border border-gray-200 rounded-lg hover:border-[#1a1a1a] hover:bg-[#f8f8f8] transition-colors"
                     >
                       <div className="font-medium text-gray-900 truncate">
                         {table.name}
@@ -420,7 +420,7 @@ export default function DatabaseImportPage() {
                 <button
                   onClick={() => setStep('config')}
                   disabled={selectedColumns.length === 0}
-                  className="ml-auto px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="ml-auto px-4 py-2 bg-[#1a1a1a] text-white rounded-md hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>
@@ -444,7 +444,7 @@ export default function DatabaseImportPage() {
                     value={targetTable}
                     onChange={(e) => setTargetTable(e.target.value)}
                     placeholder={`${selectedSchema}_${selectedTable}`}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#1a1a1a] focus:ring-[#1a1a1a] sm:text-sm px-3 py-2 border"
                   />
                 </div>
 
@@ -457,7 +457,7 @@ export default function DatabaseImportPage() {
                     value={whereClause}
                     onChange={(e) => setWhereClause(e.target.value)}
                     placeholder="e.g., status = 'active' AND created_at > '2024-01-01'"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#1a1a1a] focus:ring-[#1a1a1a] sm:text-sm px-3 py-2 border"
                   />
                   <p className="mt-1 text-xs text-gray-500">
                     Filter rows to import (SQL WHERE syntax)
@@ -474,7 +474,7 @@ export default function DatabaseImportPage() {
                     onChange={(e) => setRowLimit(parseInt(e.target.value) || 0)}
                     placeholder="10000"
                     min="1"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#1a1a1a] focus:ring-[#1a1a1a] sm:text-sm px-3 py-2 border"
                   />
                   <p className="mt-1 text-xs text-gray-500">
                     Maximum number of rows to import
@@ -534,7 +534,7 @@ export default function DatabaseImportPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={isImporting}
-                  className="ml-auto px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="ml-auto px-4 py-2 bg-[#1a1a1a] text-white rounded-md hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isImporting ? 'Starting Import...' : 'Start Import'}
                 </button>

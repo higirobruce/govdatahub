@@ -196,7 +196,7 @@ function TableNode({
             e.stopPropagation();
             onQueryTable(table.name, table.schema);
           }}
-          className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 text-indigo-600 hover:text-indigo-800"
+          className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 text-[#1a1a1a] hover:text-[#2a2a2a]"
         >
           Query
         </button>

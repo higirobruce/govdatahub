@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CreateConnectionDto } from '@/types';
+import { Button } from '@/components/ui/button';
 
 interface ConnectionFormProps {
   onSubmit: (data: CreateConnectionDto) => Promise<void>;
@@ -58,14 +59,14 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        <div className="bg-[#fee2e2] border border-[#fca5a5] text-[#991b1b] px-4 py-3 rounded">
           {error}
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-[#555555]">
             Connection Name *
           </label>
           <input
@@ -73,13 +74,13 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             required
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
             placeholder="My Database"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-[#555555]">
             Database Type *
           </label>
           <select
@@ -88,7 +89,7 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             onChange={(e) =>
               handleTypeChange(e.target.value as 'postgresql' | 'mysql')
             }
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
           >
             <option value="postgresql">PostgreSQL</option>
             <option value="mysql">MySQL</option>
@@ -96,7 +97,7 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-[#555555]">
             Host *
           </label>
           <input
@@ -104,13 +105,13 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             required
             value={formData.host}
             onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
             placeholder="localhost"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-[#555555]">
             Port *
           </label>
           <input
@@ -122,12 +123,12 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             onChange={(e) =>
               setFormData({ ...formData, port: parseInt(e.target.value, 10) })
             }
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-[#555555]">
             Username *
           </label>
           <input
@@ -137,13 +138,13 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             onChange={(e) =>
               setFormData({ ...formData, username: e.target.value })
             }
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
             placeholder="admin"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-[#555555]">
             Password *
           </label>
           <input
@@ -153,13 +154,13 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             onChange={(e) =>
               setFormData({ ...formData, password: e.target.value })
             }
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
             placeholder="••••••••"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-[#555555]">
             Database Name *
           </label>
           <input
@@ -169,7 +170,7 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             onChange={(e) =>
               setFormData({ ...formData, database: e.target.value })
             }
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
             placeholder="mydb"
           />
         </div>
@@ -182,22 +183,18 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             onChange={(e) =>
               setFormData({ ...formData, ssl: e.target.checked })
             }
-            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+            className="h-4 w-4 text-[#1a1a1a] focus:ring-[#1a1a1a] border-[#dddddd] rounded"
           />
-          <label htmlFor="ssl" className="ml-2 block text-sm text-gray-900">
+          <label htmlFor="ssl" className="ml-2 block text-sm text-[#555555]">
             Enable SSL
           </label>
         </div>
       </div>
 
       <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={loading}
-          className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+        <Button type="submit" disabled={loading}>
           {loading ? 'Creating...' : 'Create Connection'}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -157,7 +157,7 @@ export function ColumnSelector({
               <div className="flex gap-1">
                 <button
                   onClick={() => handleSelectAllFromTable(table.alias)}
-                  className="text-xs px-2 py-1 text-indigo-600 hover:text-indigo-700 font-medium"
+                  className="text-xs px-2 py-1 text-[#1a1a1a] hover:text-[#2a2a2a] font-medium"
                 >
                   All
                 </button>

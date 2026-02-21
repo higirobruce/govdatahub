@@ -79,7 +79,7 @@ export function ConnectionSelector({
         <p>No connections available.</p>
         <a
           href="/connections"
-          className="text-indigo-600 hover:text-indigo-500 mt-2 inline-block"
+          className="text-[#1a1a1a] hover:text-[#2a2a2a] mt-2 inline-block"
         >
           Create a connection →
         </a>
@@ -109,7 +109,7 @@ export function ConnectionSelector({
 
       {/* Staging Data Toggle */}
       {includeStagingToggle && (
-        <label className="flex items-start gap-2 p-2 border border-indigo-200 rounded-md bg-indigo-50 hover:bg-indigo-100 cursor-pointer transition-colors">
+        <label className="flex items-start gap-2 p-2 border border-[#e8e8e8] rounded-md bg-[#f8f8f8] hover:bg-[#f0f0f0] cursor-pointer transition-colors">
           <input
             type="checkbox"
             checked={stagingEnabled}
@@ -117,10 +117,10 @@ export function ConnectionSelector({
             className="mt-0.5"
           />
           <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm text-indigo-900">
+            <div className="font-medium text-sm text-[#1a1a1a]">
               Staging Data
             </div>
-            <div className="text-xs text-indigo-700">
+            <div className="text-xs text-[#555555]">
               Include uploaded staging tables
             </div>
           </div>

@@ -6,6 +6,9 @@ import { api } from '@/lib/api';
 import { Connection, CreateConnectionDto } from '@/types';
 import ConnectionForm from '@/components/ConnectionManager/ConnectionForm';
 import ConnectionList from '@/components/ConnectionManager/ConnectionList';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Plus, X } from 'lucide-react';
 
 export default function ConnectionsPage() {
   const [showForm, setShowForm] = useState(false);
@@ -79,29 +82,34 @@ export default function ConnectionsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Connections</h1>
-          <p className="mt-2 text-gray-600">
-            Manage your database connections
-          </p>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          {showForm ? 'Cancel' : 'Add Connection'}
-        </button>
-      </div>
+    <div className="w-full">
+      <PageHeader
+        title="Connections"
+        subtitle="Manage your database connections"
+        actions={
+          <Button onClick={() => setShowForm(!showForm)} variant={showForm ? 'outline' : 'default'}>
+            {showForm ? (
+              <>
+                <X className="h-4 w-4" />
+                Cancel
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                Add Connection
+              </>
+            )}
+          </Button>
+        }
+      />
 
       {/* Notification */}
       {notification && (
         <div
-          className={`rounded-md p-4 ${
+          className={`rounded-md p-4 border ${
             notification.type === 'success'
-              ? 'bg-green-50 text-green-800'
-              : 'bg-red-50 text-red-800'
+              ? 'bg-[#d1fae5] text-[#065f46] border-[#86efac]'
+              : 'bg-[#fee2e2] text-[#991b1b] border-[#fca5a5]'
           }`}
         >
           <p className="text-sm font-medium">{notification.message}</p>
@@ -110,9 +118,9 @@ export default function ConnectionsPage() {
 
       {/* Connection Form */}
       {showForm && (
-        <div className="bg-white shadow sm:rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
+          <div className="px-6 py-5">
+            <h3 className="text-base font-semibold text-[#1a1a1a] mb-4">
               New Database Connection
             </h3>
             <ConnectionForm onSubmit={handleCreate} />
@@ -121,18 +129,18 @@ export default function ConnectionsPage() {
       )}
 
       {/* Connection List */}
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
+        <div className="px-6 py-5">
+          <h3 className="text-base font-semibold text-[#1a1a1a] mb-4">
             Your Connections
           </h3>
           {error && (
-            <div className="text-red-600 text-sm mb-4">
+            <div className="text-[#ef4444] text-sm mb-4 bg-[#fee2e2] border border-[#fca5a5] rounded p-3">
               Failed to load connections: {error.message}
             </div>
           )}
           {!connections && !error && (
-            <div className="text-gray-500 text-sm">Loading connections...</div>
+            <div className="text-[#aaaaaa] text-sm">Loading connections...</div>
           )}
           {connections && (
             <ConnectionList

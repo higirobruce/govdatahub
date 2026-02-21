@@ -6,9 +6,6 @@ import { api } from '@/lib/api';
 import {
   Database,
   Share2,
-  Activity,
-  Key,
-  AlertTriangle,
   GitBranch,
   Globe,
   Lock,
@@ -16,6 +13,17 @@ import {
   Trash2,
   RefreshCw,
 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatCard } from '@/components/ui/stat-card';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface DashboardStats {
   totalDatasets: number;
@@ -125,7 +133,7 @@ export default function Dashboard() {
   const getAccessLevelBadge = (level: string, isShared: boolean) => {
     if (!isShared) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[#f0f0f0] text-[#555555]">
           <Lock className="h-3 w-3" />
           Private
         </span>
@@ -135,21 +143,21 @@ export default function Dashboard() {
     switch (level) {
       case 'organization':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[#dbeafe] text-[#1e40af]">
             <Eye className="h-3 w-3" />
             Organization
           </span>
         );
       case 'public':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[#d1fae5] text-[#065f46]">
             <Globe className="h-3 w-3" />
             Public
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[#f0f0f0] text-[#555555]">
             <Lock className="h-3 w-3" />
             Private
           </span>
@@ -158,268 +166,178 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-gray-600">
-          Overview of your datasets, sharing, and activity
-        </p>
-      </div>
+    <div className="w-full">
+      <PageHeader
+        title="Dashboard"
+        subtitle="Overview of your datasets, sharing, and activity"
+      />
 
       {/* Stats */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Database className="h-6 w-6 text-indigo-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Total Datasets
-                  </dt>
-                  <dd className="text-3xl font-semibold text-gray-900">
-                    {statsLoading ? '...' : stats?.totalDatasets || 0}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Activity className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Active Connections
-                  </dt>
-                  <dd className="text-3xl font-semibold text-gray-900">
-                    {statsLoading ? '...' : stats?.activeConnections || 0}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Share2 className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Queries Today
-                  </dt>
-                  <dd className="text-3xl font-semibold text-gray-900">
-                    {statsLoading ? '...' : stats?.queriesToday || 0}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Key className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Active API Endpoints
-                  </dt>
-                  <dd className="text-3xl font-semibold text-gray-900">
-                    {statsLoading ? '...' : stats?.activeApiEndpoints || 0}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <AlertTriangle className="h-6 w-6 text-red-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Failed Jobs
-                  </dt>
-                  <dd className="text-3xl font-semibold text-gray-900">
-                    {statsLoading ? '...' : stats?.failedJobs || 0}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <GitBranch className="h-6 w-6 text-orange-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Transformations
-                  </dt>
-                  <dd className="text-3xl font-semibold text-gray-900">
-                    {statsLoading ? '...' : stats?.totalTransformations || 0}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+        <StatCard
+          name="Total Datasets"
+          subtitle="Across all sources"
+          value={statsLoading ? '...' : String(stats?.totalDatasets || 0)}
+          progressPercent={75}
+          progressColor="blue"
+        />
+        <StatCard
+          name="Active Connections"
+          subtitle="Database connections"
+          value={statsLoading ? '...' : String(stats?.activeConnections || 0)}
+          progressPercent={85}
+          progressColor="green"
+        />
+        <StatCard
+          name="Queries Today"
+          subtitle="Executed queries"
+          value={statsLoading ? '...' : String(stats?.queriesToday || 0)}
+          progressPercent={60}
+          progressColor="blue"
+        />
+        <StatCard
+          name="API Endpoints"
+          subtitle="Active endpoints"
+          value={statsLoading ? '...' : String(stats?.activeApiEndpoints || 0)}
+          progressPercent={90}
+          progressColor="green"
+        />
+        <StatCard
+          name="Failed Jobs"
+          subtitle="Requires attention"
+          value={statsLoading ? '...' : String(stats?.failedJobs || 0)}
+          progressPercent={stats?.failedJobs ? 100 : 0}
+          progressColor="orange"
+        />
+        <StatCard
+          name="Transformations"
+          subtitle="Active pipelines"
+          value={statsLoading ? '...' : String(stats?.totalTransformations || 0)}
+          progressPercent={70}
+          progressColor="orange"
+        />
       </div>
 
       {/* Data Catalog */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-6 py-5 border-b border-gray-200">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
+      <div className="bg-white rounded-xl border border-[#e8e8e8] overflow-hidden">
+        <div className="px-6 py-5 border-b border-[#f0f0f0]">
+          <h3 className="text-base font-semibold text-[#1a1a1a]">
             Data Catalog
           </h3>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-[#aaaaaa]">
             All datasets available in your organization
           </p>
         </div>
         <div className="overflow-x-auto">
           {catalogLoading ? (
-            <div className="p-6 text-center text-gray-500">Loading...</div>
+            <div className="p-6 text-center text-[#aaaaaa]">Loading...</div>
           ) : !catalog || catalog.length === 0 ? (
-            <div className="p-6 text-center text-gray-500">
+            <div className="p-6 text-center text-[#aaaaaa]">
               No datasets found. Import data or connect to a database to get started.
             </div>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Dataset
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
-                    Table Name
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rows
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Source
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Access
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Updated
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Dataset</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="w-48">Table Name</TableHead>
+                  <TableHead>Rows</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Access</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {catalog.map((dataset) => (
-                  <tr key={dataset.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 max-w-[12rem]">
+                  <TableRow key={dataset.id}>
+                    <TableCell className="max-w-[12rem]">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="flex-shrink-0">
                           {getTypeIcon(dataset.type)}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div
-                            className="text-xs text-gray-900 font-mono block truncate"
+                            className="text-xs text-[#1a1a1a] font-mono block truncate"
                             title={dataset.name}
                           >
                             {dataset.name}
                           </div>
                           <div
-                            className="text-xs text-gray-500 truncate"
+                            className="text-xs text-[#aaaaaa] truncate"
                             title={dataset.description}
                           >
                             {dataset.description}
                           </div>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-700 capitalize">
+                    </TableCell>
+                    <TableCell>
+                      <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-[#f0f0f0] text-[#555555] capitalize">
                         {dataset.type}
                       </span>
-                    </td>
-                    <td className="px-3 py-3 max-w-[12rem]">
+                    </TableCell>
+                    <TableCell className="max-w-[12rem]">
                       <code
-                        className="text-xs text-gray-900 font-mono block truncate"
+                        className="text-xs text-[#1a1a1a] font-mono block truncate"
                         title={dataset.tableName}
                       >
                         {dataset.tableName}
                       </code>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                    </TableCell>
+                    <TableCell className="text-sm text-[#555555]">
                       {dataset.rowCount.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                    </TableCell>
+                    <TableCell className="text-sm text-[#555555]">
                       {dataset.source}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
+                    </TableCell>
+                    <TableCell>
                       {getAccessLevelBadge(dataset.accessLevel, dataset.isShared)}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500">
+                    </TableCell>
+                    <TableCell className="text-xs text-[#aaaaaa]">
                       {new Date(dataset.lastUpdated).toLocaleDateString()}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm">
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         {!dataset.isShared ? (
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleShareDataset(dataset)}
-                            className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-900 text-xs"
-                            title="Share this dataset"
+                            className="h-7 px-2"
                           >
-                            <Share2 className="h-3.5 w-3.5" />
+                            <Share2 className="h-3.5 w-3.5 mr-1" />
                             Share
-                          </button>
+                          </Button>
                         ) : (
                           <>
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleViewShare(dataset)}
-                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-900 text-xs"
+                              className="h-7 px-2"
                               title="View share details"
                             >
                               <Eye className="h-3.5 w-3.5" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleUnshare(dataset)}
-                              className="inline-flex items-center gap-1 text-red-600 hover:text-red-900 text-xs"
+                              className="h-7 px-2 text-[#ef4444] hover:text-[#dc2626]"
                               title="Stop sharing"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            </Button>
                           </>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
         </div>
       </div>
@@ -508,46 +426,46 @@ function ShareDatasetDialog({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Share Dataset</h2>
+    <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-[#f0f0f0]">
+          <h2 className="text-xl font-semibold text-[#1a1a1a]">Share Dataset</h2>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-[#555555]">
               Share Name
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-[#555555]">
               Description
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
               rows={3}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-[#555555]">
               Access Level
             </label>
             <select
               value={formData.accessLevel}
               onChange={(e) => setFormData({ ...formData, accessLevel: e.target.value as any })}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
             >
               <option value="private">Private (Not accessible)</option>
               <option value="organization">Organization (Your organization members)</option>
@@ -561,9 +479,9 @@ function ShareDatasetDialog({
                 type="checkbox"
                 checked={formData.generateApiKey}
                 onChange={(e) => setFormData({ ...formData, generateApiKey: e.target.checked })}
-                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-[#dddddd] text-[#1a1a1a] focus:ring-[#1a1a1a]"
               />
-              <span className="text-sm text-gray-700">Generate API Key for programmatic access</span>
+              <span className="text-sm text-[#555555]">Generate API Key for programmatic access</span>
             </label>
 
             <label className="flex items-center gap-2">
@@ -571,27 +489,28 @@ function ShareDatasetDialog({
                 type="checkbox"
                 checked={formData.generateShareToken}
                 onChange={(e) => setFormData({ ...formData, generateShareToken: e.target.checked })}
-                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-[#dddddd] text-[#1a1a1a] focus:ring-[#1a1a1a]"
               />
-              <span className="text-sm text-gray-700">Generate Share Token for external sharing</span>
+              <span className="text-sm text-[#555555]">Generate Share Token for external sharing</span>
             </label>
           </div>
 
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+              className="flex-1"
             >
               {isSubmitting ? 'Sharing...' : 'Share Dataset'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300"
+              variant="secondary"
+              className="flex-1"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -650,80 +569,86 @@ function ShareDetailsDialog({
     : null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Share Details</h2>
+    <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-[#f0f0f0]">
+          <h2 className="text-xl font-semibold text-[#1a1a1a]">Share Details</h2>
         </div>
         <div className="px-6 py-4 space-y-6">
           <div>
-            <h3 className="text-lg font-medium text-gray-900">{share.name}</h3>
-            <p className="text-sm text-gray-500 mt-1">{share.description}</p>
+            <h3 className="text-lg font-medium text-[#1a1a1a]">{share.name}</h3>
+            <p className="text-sm text-[#aaaaaa] mt-1">{share.description}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-sm text-gray-500">Dataset Type</div>
-              <div className="text-sm font-medium text-gray-900 capitalize">{share.datasetType}</div>
+              <div className="text-sm text-[#aaaaaa]">Dataset Type</div>
+              <div className="text-sm font-medium text-[#1a1a1a] capitalize">{share.datasetType}</div>
             </div>
             <div>
-              <div className="text-sm text-gray-500">Access Level</div>
-              <div className="text-sm font-medium text-gray-900 capitalize">{share.accessLevel}</div>
+              <div className="text-sm text-[#aaaaaa]">Access Level</div>
+              <div className="text-sm font-medium text-[#1a1a1a] capitalize">{share.accessLevel}</div>
             </div>
             <div>
-              <div className="text-sm text-gray-500">Access Count</div>
-              <div className="text-sm font-medium text-gray-900">{share.accessCount}</div>
+              <div className="text-sm text-[#aaaaaa]">Access Count</div>
+              <div className="text-sm font-medium text-[#1a1a1a]">{share.accessCount}</div>
             </div>
             <div>
-              <div className="text-sm text-gray-500">Created</div>
-              <div className="text-sm font-medium text-gray-900">
+              <div className="text-sm text-[#aaaaaa]">Created</div>
+              <div className="text-sm font-medium text-[#1a1a1a]">
                 {new Date(share.createdAt).toLocaleDateString()}
               </div>
             </div>
           </div>
 
           {share.apiKey && (
-            <div className="border rounded-lg p-4 space-y-3">
+            <div className="border border-[#e8e8e8] rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-900">API Access</h4>
-                <button
+                <h4 className="text-sm font-medium text-[#1a1a1a]">API Access</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={handleRegenerateApiKey}
-                  className="text-xs text-indigo-600 hover:text-indigo-900 flex items-center gap-1"
+                  className="h-7 text-xs"
                 >
-                  <RefreshCw className="h-3 w-3" />
+                  <RefreshCw className="h-3 w-3 mr-1" />
                   Regenerate
-                </button>
+                </Button>
               </div>
               <div>
-                <div className="text-xs text-gray-500 mb-1">API Key</div>
+                <div className="text-xs text-[#aaaaaa] mb-1">API Key</div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-gray-50 px-3 py-2 rounded text-xs font-mono break-all">
+                  <code className="flex-1 bg-[#f8f8f8] px-3 py-2 rounded text-xs font-mono break-all">
                     {share.apiKey}
                   </code>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleCopy(share.apiKey!, 'API Key')}
-                    className="text-xs text-indigo-600 hover:text-indigo-900 whitespace-nowrap"
+                    className="h-7 text-xs whitespace-nowrap"
                   >
                     {copying === 'API Key' ? 'Copied!' : 'Copy'}
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 mb-1">API Endpoint</div>
+                <div className="text-xs text-[#aaaaaa] mb-1">API Endpoint</div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-gray-50 px-3 py-2 rounded text-xs font-mono break-all">
+                  <code className="flex-1 bg-[#f8f8f8] px-3 py-2 rounded text-xs font-mono break-all">
                     GET {apiUrl}
                   </code>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleCopy(apiUrl!, 'API URL')}
-                    className="text-xs text-indigo-600 hover:text-indigo-900 whitespace-nowrap"
+                    className="h-7 text-xs whitespace-nowrap"
                   >
                     {copying === 'API URL' ? 'Copied!' : 'Copy'}
-                  </button>
+                  </Button>
                 </div>
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                <div className="text-xs font-medium text-blue-900 mb-2">Example Usage (cURL)</div>
+              <div className="bg-[#dbeafe] border border-[#93c5fd] rounded p-3">
+                <div className="text-xs font-medium text-[#1e40af] mb-2">Example Usage (cURL)</div>
                 <code className="block bg-white px-3 py-2 rounded text-xs font-mono whitespace-pre-wrap break-all">
                   {`curl -X GET "${apiUrl}"`}
                 </code>
@@ -732,55 +657,62 @@ function ShareDetailsDialog({
           )}
 
           {share.shareToken && (
-            <div className="border rounded-lg p-4 space-y-3">
+            <div className="border border-[#e8e8e8] rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-900">External Sharing</h4>
-                <button
+                <h4 className="text-sm font-medium text-[#1a1a1a]">External Sharing</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={handleRegenerateShareToken}
-                  className="text-xs text-indigo-600 hover:text-indigo-900 flex items-center gap-1"
+                  className="h-7 text-xs"
                 >
-                  <RefreshCw className="h-3 w-3" />
+                  <RefreshCw className="h-3 w-3 mr-1" />
                   Regenerate
-                </button>
+                </Button>
               </div>
               <div>
-                <div className="text-xs text-gray-500 mb-1">Share Token</div>
+                <div className="text-xs text-[#aaaaaa] mb-1">Share Token</div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-gray-50 px-3 py-2 rounded text-xs font-mono break-all">
+                  <code className="flex-1 bg-[#f8f8f8] px-3 py-2 rounded text-xs font-mono break-all">
                     {share.shareToken}
                   </code>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleCopy(share.shareToken!, 'Share Token')}
-                    className="text-xs text-indigo-600 hover:text-indigo-900 whitespace-nowrap"
+                    className="h-7 text-xs whitespace-nowrap"
                   >
                     {copying === 'Share Token' ? 'Copied!' : 'Copy'}
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 mb-1">Share URL</div>
+                <div className="text-xs text-[#aaaaaa] mb-1">Share URL</div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-gray-50 px-3 py-2 rounded text-xs font-mono break-all">
+                  <code className="flex-1 bg-[#f8f8f8] px-3 py-2 rounded text-xs font-mono break-all">
                     {shareUrl}
                   </code>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleCopy(shareUrl!, 'Share URL')}
-                    className="text-xs text-indigo-600 hover:text-indigo-900 whitespace-nowrap"
+                    className="h-7 text-xs whitespace-nowrap"
                   >
                     {copying === 'Share URL' ? 'Copied!' : 'Copy'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
           )}
         </div>
-        <div className="px-6 py-4 border-t border-gray-200">
-          <button
+        <div className="px-6 py-4 border-t border-[#f0f0f0]">
+          <Button
             onClick={onClose}
-            className="w-full bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300"
+            variant="secondary"
+            className="w-full"
           >
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </div>

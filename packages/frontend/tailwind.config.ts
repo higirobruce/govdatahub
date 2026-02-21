@@ -16,6 +16,48 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["'Inter'", '-apple-system', 'BlinkMacSystemFont', "'Segoe UI'", 'sans-serif'],
+      },
+      fontSize: {
+        'xxs': '10px',
+        'xs': '11px',
+        'sm': '12px',
+        'base': '13px',
+        'md': '13.5px',
+        'lg': '14px',
+        'xl': '15px',
+        '2xl': '16px',
+        '3xl': '18px',
+        '4xl': '22px',
+        '5xl': '26px',
+      },
+      spacing: {
+        '1.5': '6px',
+        '2': '8px',
+        '2.5': '10px',
+        '3': '12px',
+        '3.5': '14px',
+        '4': '16px',
+        '4.5': '18px',
+        '5': '20px',
+        '5.5': '22px',
+        '6': '24px',
+        '8': '32px',
+        '9': '36px',
+      },
+      borderRadius: {
+        'sm': '6px',
+        'md': '8px',
+        'lg': '10px',
+        'xl': '14px',
+        '2xl': '16px',
+      },
+      boxShadow: {
+        'subtle': '0 1px 3px rgba(0, 0, 0, 0.06)',
+        'card': '0 1px 3px rgba(0, 0, 0, 0.06)',
+        'dropdown': '0 4px 16px rgba(0, 0, 0, 0.1)',
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -50,11 +92,6 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
       },
       keyframes: {
         "accordion-down": {

@@ -195,7 +195,7 @@ export function TableBrowser({
                         className={`text-xs px-2 py-1 rounded ${
                           isTableAdded(connection.id, table.name)
                             ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            : 'bg-[#1a1a1a] text-white hover:bg-[#2a2a2a]'
                         }`}
                       >
                         {isTableAdded(connection.id, table.name) ? 'Added' : 'Add'}
@@ -211,24 +211,24 @@ export function TableBrowser({
 
       {/* Staging Data */}
       {isStagingEnabled && (
-        <div className="border border-indigo-200 rounded-md overflow-hidden">
+        <div className="border border-[#e8e8e8] rounded-md overflow-hidden">
           {/* Staging Header */}
           <button
             onClick={() =>
               setExpandedConnection(expandedConnection === 'staging' ? null : 'staging')
             }
-            className="w-full px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-left flex items-center justify-between transition-colors"
+            className="w-full px-3 py-2 bg-[#f8f8f8] hover:bg-[#f0f0f0] text-left flex items-center justify-between transition-colors"
           >
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-indigo-900 truncate">
+              <div className="text-sm font-medium text-[#1a1a1a] truncate">
                 Staging Data
               </div>
-              <div className="text-xs text-indigo-700 truncate">
+              <div className="text-xs text-[#555555] truncate">
                 Uploaded staging tables
               </div>
             </div>
             <svg
-              className={`w-4 h-4 text-indigo-600 transition-transform ${
+              className={`w-4 h-4 text-[#1a1a1a] transition-transform ${
                 expandedConnection === 'staging' ? 'transform rotate-90' : ''
               }`}
               fill="none"
@@ -254,7 +254,7 @@ export function TableBrowser({
               )}
               {stagingTables && stagingTables.length === 0 && (
                 <div className="px-3 py-2 text-xs text-gray-500">
-                  No staging tables found. <a href="/ingestion" className="text-indigo-600 hover:text-indigo-500">Upload data →</a>
+                  No staging tables found. <a href="/ingestion" className="text-[#1a1a1a] hover:text-[#2a2a2a]">Upload data →</a>
                 </div>
               )}
               {stagingTables && stagingTables.length > 0 && (
@@ -282,7 +282,7 @@ export function TableBrowser({
                         className={`text-xs px-2 py-1 rounded ${
                           isTableAdded('staging', table.name)
                             ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            : 'bg-[#1a1a1a] text-white hover:bg-[#2a2a2a]'
                         }`}
                       >
                         {isTableAdded('staging', table.name) ? 'Added' : 'Add'}

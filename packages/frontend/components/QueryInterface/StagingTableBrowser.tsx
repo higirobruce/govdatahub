@@ -51,7 +51,7 @@ export default function StagingTableBrowser({ onInsertTable }: StagingTableBrows
     return (
       <div className="text-sm text-gray-500 space-y-2">
         <p>No staging tables available.</p>
-        <a href="/ingestion" className="text-indigo-600 hover:text-indigo-500">
+        <a href="/ingestion" className="text-[#1a1a1a] hover:text-[#2a2a2a]">
           Upload data to staging →
         </a>
       </div>

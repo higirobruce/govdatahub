@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import Link from 'next/link';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
 
 interface StagedDataset {
   id: string;
@@ -118,59 +120,57 @@ export default function StagedDataPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Staged Datasets</h1>
-        <p className="text-muted-foreground mt-2">
-          View and manage datasets that have been uploaded but not imported to a database
-        </p>
-      </div>
+    <div className="w-full">
+      <PageHeader
+        title="Staged Datasets"
+        subtitle="View and manage datasets that have been uploaded but not imported to a database"
+      />
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
+        <div className="bg-[#fee2e2] border border-[#fca5a5] text-[#991b1b] px-4 py-3 rounded mb-6">
           {error}
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Datasets List */}
-        <div className="border rounded-lg">
-          <div className="bg-muted px-4 py-3 border-b">
-            <h2 className="font-semibold">Staged Datasets ({datasets.length})</h2>
+        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
+          <div className="bg-[#f8f8f8] px-6 py-4 border-b border-[#f0f0f0]">
+            <h2 className="font-semibold text-[#1a1a1a]">Staged Datasets ({datasets.length})</h2>
           </div>
           <div className="overflow-auto max-h-[600px]">
             {loading ? (
-              <div className="p-8 text-center text-muted-foreground">
+              <div className="p-8 text-center text-[#aaaaaa]">
                 Loading datasets...
               </div>
             ) : datasets.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
+              <div className="p-8 text-center text-[#aaaaaa]">
                 <p className="mb-4">No staged datasets found</p>
                 <Link
                   href="/ingestion"
-                  className="text-indigo-600 hover:text-indigo-800 underline"
+                  className="text-[#1a1a1a] hover:underline font-medium"
                 >
                   Upload a file to staging
                 </Link>
               </div>
             ) : (
-              <div className="divide-y">
+              <div className="divide-y divide-[#f0f0f0]">
                 {datasets.map((dataset) => (
                   <div
                     key={dataset.id}
-                    className={`p-4 hover:bg-muted cursor-pointer transition-colors ${
-                      selectedDataset?.id === dataset.id ? 'bg-indigo-50' : ''
+                    className={`p-4 hover:bg-[#fafafa] cursor-pointer transition-colors ${
+                      selectedDataset?.id === dataset.id ? 'bg-[#f8f8f8]' : ''
                     }`}
                     onClick={() => loadDatasetDetail(dataset.id)}
                     title={`Table: ${dataset.tableName}`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium truncate">{getDisplayName(dataset)}</h3>
-                        <p className="text-sm text-muted-foreground truncate font-mono text-xs">
+                        <h3 className="font-medium truncate text-[#1a1a1a]">{getDisplayName(dataset)}</h3>
+                        <p className="text-xs text-[#aaaaaa] truncate font-mono">
                           {dataset.tableName}
                         </p>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-4 mt-2 text-xs text-[#aaaaaa]">
                           <span>{formatFileSize(dataset.rowCount)}</span>
                           <span>{formatDate(dataset.createdAt)}</span>
                         </div>
@@ -184,29 +184,29 @@ export default function StagedDataPage() {
         </div>
 
         {/* Dataset Detail */}
-        <div className="border rounded-lg">
-          <div className="bg-muted px-4 py-3 border-b">
-            <h2 className="font-semibold">Dataset Details</h2>
+        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
+          <div className="bg-[#f8f8f8] px-6 py-4 border-b border-[#f0f0f0]">
+            <h2 className="font-semibold text-[#1a1a1a]">Dataset Details</h2>
           </div>
           <div className="overflow-auto max-h-[600px]">
             {!selectedDataset ? (
-              <div className="p-8 text-center text-muted-foreground">
+              <div className="p-8 text-center text-[#aaaaaa]">
                 Select a dataset to view details
               </div>
             ) : detailLoading ? (
-              <div className="p-8 text-center text-muted-foreground">
+              <div className="p-8 text-center text-[#aaaaaa]">
                 Loading details...
               </div>
             ) : (
-              <div className="p-4 space-y-4">
+              <div className="p-6 space-y-4">
                 {/* Metadata */}
                 <div className="space-y-2">
-                  <h3 className="font-semibold text-lg">
+                  <h3 className="font-semibold text-lg text-[#1a1a1a]">
                     {selectedDataset.importJob?.fileName
                       ? selectedDataset.importJob.fileName.replace(/\.(csv|xlsx?|json)$/i, '')
                       : selectedDataset.tableName}
                   </h3>
-                  <div className="text-sm text-muted-foreground space-y-1">
+                  <div className="text-sm text-[#aaaaaa] space-y-1">
                     <p className="font-mono text-xs truncate" title={selectedDataset.tableName}>
                       Table: {selectedDataset.tableName}
                     </p>
@@ -215,31 +215,31 @@ export default function StagedDataPage() {
                     )}
                   </div>
                   <div className="flex gap-4 text-sm">
-                    <span className="font-medium">Rows:</span>
-                    <span>{selectedDataset.rowCount.toLocaleString()}</span>
+                    <span className="font-medium text-[#555555]">Rows:</span>
+                    <span className="text-[#1a1a1a]">{selectedDataset.rowCount.toLocaleString()}</span>
                   </div>
                   <div className="flex gap-4 text-sm">
-                    <span className="font-medium">Created:</span>
-                    <span>{formatDate(selectedDataset.createdAt)}</span>
+                    <span className="font-medium text-[#555555]">Created:</span>
+                    <span className="text-[#1a1a1a]">{formatDate(selectedDataset.createdAt)}</span>
                   </div>
                 </div>
 
                 {/* Schema */}
                 <div>
-                  <h4 className="font-semibold mb-2">Schema</h4>
-                  <div className="border rounded overflow-hidden">
+                  <h4 className="font-semibold mb-2 text-[#1a1a1a]">Schema</h4>
+                  <div className="border border-[#e8e8e8] rounded overflow-hidden">
                     <table className="w-full text-sm">
-                      <thead className="bg-muted">
+                      <thead className="bg-[#f8f8f8]">
                         <tr>
-                          <th className="px-3 py-2 text-left">Column</th>
-                          <th className="px-3 py-2 text-left">Type</th>
+                          <th className="px-3 py-2 text-left text-xs text-[#aaaaaa] font-medium">Column</th>
+                          <th className="px-3 py-2 text-left text-xs text-[#aaaaaa] font-medium">Type</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y">
+                      <tbody className="divide-y divide-[#f0f0f0]">
                         {Array.isArray(selectedDataset.schema) && selectedDataset.schema.map((col, idx) => (
                           <tr key={idx}>
-                            <td className="px-3 py-2 font-mono text-xs">{col.name}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{col.type}</td>
+                            <td className="px-3 py-2 font-mono text-xs text-[#1a1a1a]">{col.name}</td>
+                            <td className="px-3 py-2 text-[#555555]">{col.type}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -249,28 +249,28 @@ export default function StagedDataPage() {
 
                 {/* Data Preview (first 10 rows) */}
                 <div>
-                  <h4 className="font-semibold mb-2">Data Preview (first 10 rows)</h4>
+                  <h4 className="font-semibold mb-2 text-[#1a1a1a]">Data Preview (first 10 rows)</h4>
                   {Array.isArray(selectedDataset.schema) && Array.isArray(selectedDataset.data) ? (
                     <>
-                      <div className="border rounded overflow-auto">
+                      <div className="border border-[#e8e8e8] rounded overflow-auto">
                         <table className="w-full text-sm">
-                          <thead className="bg-muted sticky top-0">
+                          <thead className="bg-[#f8f8f8] sticky top-0">
                             <tr>
                               {selectedDataset.schema.map((col, idx) => (
-                                <th key={idx} className="px-3 py-2 text-left text-xs font-mono whitespace-nowrap">
+                                <th key={idx} className="px-3 py-2 text-left text-xs text-[#aaaaaa] font-mono whitespace-nowrap font-medium">
                                   {col.name}
                                 </th>
                               ))}
                             </tr>
                           </thead>
-                          <tbody className="divide-y">
+                          <tbody className="divide-y divide-[#f0f0f0]">
                             {selectedDataset.data.slice(0, 10).map((row, rowIdx) => (
-                              <tr key={rowIdx} className="hover:bg-muted">
+                              <tr key={rowIdx} className="hover:bg-[#fafafa]">
                                 {selectedDataset.schema.map((col, colIdx) => (
-                                  <td key={colIdx} className="px-3 py-2 text-xs whitespace-nowrap">
+                                  <td key={colIdx} className="px-3 py-2 text-xs whitespace-nowrap text-[#1a1a1a]">
                                     {row[col.name] !== null && row[col.name] !== undefined
                                       ? String(row[col.name])
-                                      : <span className="text-muted-foreground italic">null</span>
+                                      : <span className="text-[#aaaaaa] italic">null</span>
                                     }
                                   </td>
                                 ))}
@@ -280,34 +280,34 @@ export default function StagedDataPage() {
                         </table>
                       </div>
                       {selectedDataset.rowCount > 10 && (
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="text-xs text-[#aaaaaa] mt-2">
                           Showing 10 of {selectedDataset.rowCount.toLocaleString()} rows
                         </p>
                       )}
                     </>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Invalid data format</p>
+                    <p className="text-sm text-[#aaaaaa]">Invalid data format</p>
                   )}
                 </div>
 
                 {/* Actions */}
-                <div className="pt-4 border-t space-y-3">
-                  <p className="text-sm text-muted-foreground">
+                <div className="pt-4 border-t border-[#f0f0f0] space-y-3">
+                  <p className="text-sm text-[#aaaaaa]">
                     This data is stored in staging and can be queried alongside your database tables.
                   </p>
                   <div className="flex gap-2">
-                    <Link
-                      href="/query"
-                      className="inline-block px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm"
-                    >
-                      Query This Data
-                    </Link>
-                    <button
+                    <Button asChild>
+                      <Link href="/query">
+                        Query This Data
+                      </Link>
+                    </Button>
+                    <Button
                       onClick={() => setDeleteConfirmId(selectedDataset.id)}
-                      className="px-4 py-2 border border-red-300 text-red-700 rounded hover:bg-red-50 text-sm"
+                      variant="outline"
+                      className="text-[#ef4444] border-[#fca5a5] hover:bg-[#fee2e2]"
                     >
                       Delete Dataset
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -318,28 +318,28 @@ export default function StagedDataPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-2">Delete Staged Dataset</h3>
-            <p className="text-sm text-gray-600 mb-4">
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-2 text-[#1a1a1a]">Delete Staged Dataset</h3>
+            <p className="text-sm text-[#555555] mb-4">
               Are you sure you want to delete this staged dataset? This action cannot be undone.
               The staging table and all its data will be permanently removed.
             </p>
             <div className="flex gap-3 justify-end">
-              <button
+              <Button
                 onClick={() => setDeleteConfirmId(null)}
                 disabled={isDeleting}
-                className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-sm disabled:opacity-50"
+                variant="secondary"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => handleDelete(deleteConfirmId)}
                 disabled={isDeleting}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-[#ef4444] hover:bg-[#dc2626] text-white"
               >
                 {isDeleting ? 'Deleting...' : 'Delete'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

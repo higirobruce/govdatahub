@@ -93,7 +93,7 @@ export function SavedQueriesPanel({
       {/* Save Current Query Button */}
       <button
         onClick={() => setShowSaveDialog(true)}
-        className="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
+        className="w-full px-3 py-2 text-sm font-medium text-white bg-[#1a1a1a] rounded-md hover:bg-[#2a2a2a] transition-colors"
         disabled={currentQuery.tables.length === 0}
       >
         💾 Save Current Query
@@ -117,7 +117,7 @@ export function SavedQueriesPanel({
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
                   placeholder="My Cross-Database Query"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#1a1a1a] focus:border-[#1a1a1a]"
                   autoFocus
                 />
               </div>
@@ -131,7 +131,7 @@ export function SavedQueriesPanel({
                   onChange={(e) => setSaveDescription(e.target.value)}
                   placeholder="Describe what this query does..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#1a1a1a] focus:border-[#1a1a1a]"
                 />
               </div>
             </div>
@@ -151,7 +151,7 @@ export function SavedQueriesPanel({
               <button
                 onClick={handleSaveQuery}
                 disabled={isSaving || !saveName.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm font-medium text-white bg-[#1a1a1a] rounded-md hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? 'Saving...' : 'Save Query'}
               </button>
@@ -217,7 +217,7 @@ export function SavedQueriesPanel({
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => handleLoadQuery(query)}
-                    className="flex-1 px-3 py-1 text-xs font-medium text-indigo-600 border border-indigo-300 rounded hover:bg-indigo-50"
+                    className="flex-1 px-3 py-1 text-xs font-medium text-[#1a1a1a] border border-[#dddddd] rounded hover:bg-[#f8f8f8]"
                   >
                     Load
                   </button>

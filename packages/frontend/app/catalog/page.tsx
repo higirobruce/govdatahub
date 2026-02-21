@@ -7,6 +7,8 @@ import { api } from '@/lib/api';
 import { Connection } from '@/types';
 import SchemaTree from '@/components/DataCatalog/SchemaTree';
 import StagingDataCatalog from '@/components/DataCatalog/StagingDataCatalog';
+import { PageHeader } from '@/components/ui/page-header';
+import { FolderOpen } from 'lucide-react';
 
 type ViewMode = 'connections' | 'staging';
 
@@ -26,34 +28,32 @@ export default function CatalogPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Data Catalog</h1>
-        <p className="mt-2 text-gray-600">
-          Browse schemas, tables, and columns from all data sources
-        </p>
-      </div>
+    <div className="w-full">
+      <PageHeader
+        title="Data Catalog"
+        subtitle="Browse schemas, tables, and columns from all data sources"
+      />
 
       {/* View Mode Tabs */}
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="border-b border-gray-200">
+      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
+        <div className="border-b border-[#f0f0f0]">
           <nav className="-mb-px flex" aria-label="Tabs">
             <button
               onClick={() => setViewMode('connections')}
-              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${
                 viewMode === 'connections'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
               }`}
             >
               Database Connections
             </button>
             <button
               onClick={() => setViewMode('staging')}
-              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${
                 viewMode === 'staging'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
               }`}
             >
               Staging Data
@@ -61,18 +61,18 @@ export default function CatalogPage() {
           </nav>
         </div>
 
-        <div className="p-4">
+        <div className="p-6">
           {viewMode === 'connections' ? (
             <>
               {/* Connection Selector */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-[#555555] mb-2">
                   Select Database Connection *
                 </label>
                 <select
                   value={selectedConnectionId}
                   onChange={(e) => setSelectedConnectionId(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                  className="block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
                 >
                   <option value="">-- Select a connection --</option>
                   {connections?.map((conn) => (
@@ -82,9 +82,9 @@ export default function CatalogPage() {
                   ))}
                 </select>
                 {!connections || connections.length === 0 ? (
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-2 text-sm text-[#aaaaaa]">
                     No connections available.{' '}
-                    <a href="/connections" className="text-indigo-600 hover:text-indigo-500">
+                    <a href="/connections" className="text-[#1a1a1a] hover:underline font-medium">
                       Create one first
                     </a>
                   </p>
@@ -94,7 +94,7 @@ export default function CatalogPage() {
               {/* Schema Tree */}
               {selectedConnectionId ? (
                 <div>
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                  <h3 className="text-base font-semibold text-[#1a1a1a] mb-4">
                     Database Structure
                   </h3>
                   <SchemaTree
@@ -103,24 +103,12 @@ export default function CatalogPage() {
                   />
                 </div>
               ) : (
-                <div className="text-center text-gray-500 py-8">
-                  <svg
-                    className="mx-auto h-12 w-12 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                    />
-                  </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">
+                <div className="text-center text-[#aaaaaa] py-12">
+                  <FolderOpen className="mx-auto h-12 w-12 text-[#aaaaaa]" />
+                  <h3 className="mt-2 text-sm font-medium text-[#1a1a1a]">
                     Select a connection
                   </h3>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p className="mt-1 text-sm text-[#aaaaaa]">
                     Choose a database connection to explore its structure
                   </p>
                 </div>

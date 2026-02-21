@@ -111,7 +111,7 @@ export default function StagingDataCatalog() {
         <div className="mt-4">
           <a
             href="/ingestion"
-            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#1a1a1a] hover:bg-[#2a2a2a]"
           >
             Upload Data
           </a>
@@ -128,7 +128,7 @@ export default function StagingDataCatalog() {
         </h3>
         <a
           href="/staged"
-          className="text-sm text-indigo-600 hover:text-indigo-500"
+          className="text-sm text-[#1a1a1a] hover:text-[#2a2a2a]"
         >
           View All Staged Data →
         </a>
@@ -171,7 +171,7 @@ export default function StagingDataCatalog() {
                     e.stopPropagation();
                     handleQueryTable(table);
                   }}
-                  className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
+                  className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-[#1a1a1a] bg-[#f0f0f0] hover:bg-[#e8e8e8]"
                 >
                   Query
                 </button>

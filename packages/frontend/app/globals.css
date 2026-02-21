@@ -1,51 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    /* Grayscale color system */
+    --background: 0 0% 91%;        /* #e8e8e8 */
+    --foreground: 0 0% 10%;        /* #1a1a1a */
+
+    --card: 0 0% 100%;             /* #ffffff */
+    --card-foreground: 0 0% 10%;   /* #1a1a1a */
+
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 238.7 83.5% 58.8%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 238.7 83.5% 95%;
-    --accent-foreground: 238.7 83.5% 20%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 238.7 83.5% 58.8%;
+    --popover-foreground: 0 0% 10%;
+
+    --primary: 0 0% 10%;           /* #1a1a1a - dark for primary actions */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 94%;         /* #f0f0f0 - subtle gray */
+    --secondary-foreground: 0 0% 10%;
+
+    --muted: 0 0% 94%;             /* #f0f0f0 */
+    --muted-foreground: 0 0% 67%;  /* #aaaaaa */
+
+    --accent: 0 0% 96%;            /* #f5f5f5 - hover state */
+    --accent-foreground: 0 0% 10%;
+
+    --destructive: 0 84% 60%;      /* #ef4444 - red */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 87%;            /* #dddddd */
+    --input: 0 0% 87%;             /* #dddddd */
+    --ring: 0 0% 10%;
+
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
+    /* Keep dark mode variables for future use */
+    --background: 0 0% 10%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+    --card: 0 0% 10%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+    --popover: 0 0% 10%;
     --popover-foreground: 0 0% 98%;
-    --primary: 238.7 83.5% 68%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 3.7% 15.9%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 10%;
+    --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 238.7 83.5% 20%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 0% 20%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 238.7 83.5% 68%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 98%;
   }
 }
 
@@ -53,8 +66,27 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
-    font-size: 11px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: #1a1a1a;
+    min-height: 100vh;
+  }
+
+  /* Custom scrollbar matching temp.html */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #dddddd;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 }

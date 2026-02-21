@@ -187,7 +187,7 @@ export function OrderByBuilder({
       {/* Add Order By Button */}
       <button
         onClick={handleAddOrderBy}
-        className="w-full px-3 py-2 text-sm font-medium text-indigo-600 border border-indigo-300 rounded-md hover:bg-indigo-50 transition-colors"
+        className="w-full px-3 py-2 text-sm font-medium text-[#1a1a1a] border border-[#dddddd] rounded-md hover:bg-[#f8f8f8] transition-colors"
       >
         + Add Sort
       </button>

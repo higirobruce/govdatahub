@@ -17,6 +17,7 @@ import {
   Eye,
   X,
 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface Transformation {
   id: string;
@@ -153,12 +154,12 @@ export default function TransformationsPage() {
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, string> = {
-      active: 'bg-green-100 text-green-800',
-      paused: 'bg-gray-100 text-gray-800',
-      running: 'bg-blue-100 text-blue-800',
-      success: 'bg-green-100 text-green-800',
-      failed: 'bg-red-100 text-red-800',
-      timeout: 'bg-orange-100 text-orange-800',
+      active: 'bg-[#d1fae5] text-[#065f46]',
+      paused: 'bg-[#f0f0f0] text-[#555555]',
+      running: 'bg-[#dbeafe] text-[#1e40af]',
+      success: 'bg-[#d1fae5] text-[#065f46]',
+      failed: 'bg-[#fee2e2] text-[#991b1b]',
+      timeout: 'bg-[#fed7aa] text-[#9a3412]',
     };
     return (
       <Badge className={variants[status] || ''}>{status}</Badge>
@@ -167,10 +168,10 @@ export default function TransformationsPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <p className="text-red-800">Failed to load transformations: {error.message}</p>
-          <p className="text-red-600 text-sm mt-2">Please check the browser console for more details.</p>
+      <div className="w-full">
+        <div className="bg-[#fee2e2] border border-[#fca5a5] rounded-md p-4">
+          <p className="text-[#991b1b]">Failed to load transformations: {error.message}</p>
+          <p className="text-[#991b1b] text-sm mt-2">Please check the browser console for more details.</p>
         </div>
       </div>
     );
@@ -178,11 +179,11 @@ export default function TransformationsPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="w-full">
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-            <p className="mt-4 text-gray-600">Loading transformations...</p>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a1a1a]"></div>
+            <p className="mt-4 text-[#555555]">Loading transformations...</p>
           </div>
         </div>
       </div>
@@ -192,13 +193,13 @@ export default function TransformationsPage() {
   // Show create form
   if (showCreateModal) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
+      <div className="w-full max-w-3xl">
         <Button
           variant="outline"
           onClick={() => setShowCreateModal(false)}
           className="mb-4"
         >
-          <X className="h-4 w-4 mr-2" />
+          <X className="h-4 w-4" />
           Cancel
         </Button>
         <Card>
@@ -228,7 +229,7 @@ export default function TransformationsPage() {
     const paginatedRows = selectedResults.rows?.slice(startIdx, endIdx) || [];
 
     return (
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="w-full max-w-7xl">
         <Button
           variant="outline"
           onClick={() => {
@@ -240,7 +241,7 @@ export default function TransformationsPage() {
           }}
           className="mb-4"
         >
-          <X className="h-4 w-4 mr-2" />
+          <X className="h-4 w-4" />
           Back to Runs
         </Button>
         <Card>
@@ -248,7 +249,7 @@ export default function TransformationsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Transformation Results</CardTitle>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-[#555555] mt-1">
                   {totalRows} total rows {totalRows > RESULTS_PER_PAGE && `(showing ${startIdx + 1}-${endIdx})`}
                 </p>
               </div>
@@ -262,7 +263,7 @@ export default function TransformationsPage() {
                   >
                     Previous
                   </Button>
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-[#555555]">
                     Page {resultsPage + 1} of {totalPages}
                   </span>
                   <Button
@@ -279,34 +280,34 @@ export default function TransformationsPage() {
           </CardHeader>
           <CardContent>
             {totalRows === 0 ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-[#aaaaaa]">
                 No results returned
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-[#f0f0f0]">
+                  <thead className="bg-[#f8f8f8]">
                     <tr>
                       {selectedResults.fields?.map((field: any) => (
                         <th
                           key={field.name}
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          className="px-6 py-3 text-left text-xs font-medium text-[#aaaaaa] uppercase tracking-wider"
                         >
                           {field.name}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-[#f0f0f0]">
                     {paginatedRows.map((row: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-gray-50">
+                      <tr key={idx} className="hover:bg-[#fafafa]">
                         {selectedResults.fields?.map((field: any) => (
                           <td
                             key={field.name}
-                            className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                            className="px-6 py-4 whitespace-nowrap text-sm text-[#1a1a1a]"
                           >
                             {row[field.name] === null
-                              ? <span className="text-gray-400">NULL</span>
+                              ? <span className="text-[#aaaaaa]">NULL</span>
                               : typeof row[field.name] === 'object'
                               ? JSON.stringify(row[field.name])
                               : String(row[field.name])}
@@ -327,13 +328,13 @@ export default function TransformationsPage() {
   // Show runs modal
   if (showRunsModal && selectedTransformation) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
+      <div className="w-full max-w-5xl">
         <Button
           variant="outline"
           onClick={() => setShowRunsModal(false)}
           className="mb-4"
         >
-          <X className="h-4 w-4 mr-2" />
+          <X className="h-4 w-4" />
           Back to List
         </Button>
         <Card className="mb-4">
@@ -345,7 +346,7 @@ export default function TransformationsPage() {
           {selectedRuns.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
-                <p className="text-gray-500">No execution history yet</p>
+                <p className="text-[#aaaaaa]">No execution history yet</p>
               </CardContent>
             </Card>
           ) : (
@@ -360,28 +361,28 @@ export default function TransformationsPage() {
                           <Clock className="h-4 w-4 animate-spin" />
                         )}
                         {run.status === 'success' && (
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <CheckCircle2 className="h-4 w-4 text-[#16a34a]" />
                         )}
                         {(run.status === 'failed' || run.status === 'timeout') && (
-                          <XCircle className="h-4 w-4 text-red-600" />
+                          <XCircle className="h-4 w-4 text-[#dc2626]" />
                         )}
                       </div>
                       <div className="text-sm space-y-1">
-                        <p className="text-gray-600">
+                        <p className="text-[#555555]">
                           Started: {formatDate(run.startedAt)}
                         </p>
                         {run.completedAt && (
-                          <p className="text-gray-600">
+                          <p className="text-[#555555]">
                             Duration: {formatDuration(run.executionTimeMs)}
                           </p>
                         )}
                         {run.rowsProcessed !== null && (
-                          <p className="text-gray-600">
+                          <p className="text-[#555555]">
                             Rows: {run.rowsProcessed.toLocaleString()}
                           </p>
                         )}
                         {run.errorMessage && (
-                          <p className="text-red-600 text-xs">
+                          <p className="text-[#dc2626] text-xs">
                             Error: {run.errorMessage}
                           </p>
                         )}
@@ -418,29 +419,27 @@ export default function TransformationsPage() {
 
   // Main list view
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Transformations</h1>
-          <p className="mt-2 text-gray-600">
-            Manage SQL-based data transformations
-          </p>
-        </div>
-        <Button onClick={() => setShowCreateModal(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Transformation
-        </Button>
-      </div>
+    <div className="w-full">
+      <PageHeader
+        title="Transformations"
+        subtitle="Manage SQL-based data transformations"
+        actions={
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="h-4 w-4" />
+            Create Transformation
+          </Button>
+        }
+      />
 
       {/* Transformations List */}
       {!transformations || transformations.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-gray-500 mb-4">
+            <p className="text-[#aaaaaa] mb-4">
               No transformations created yet
             </p>
             <Button onClick={() => setShowCreateModal(true)}>
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4" />
               Create Your First Transformation
             </Button>
           </CardContent>
@@ -456,7 +455,7 @@ export default function TransformationsPage() {
                       <CardTitle>{transformation.name}</CardTitle>
                       {getStatusBadge(transformation.status)}
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-[#aaaaaa] mt-1">
                       {transformation.description}
                     </p>
                   </div>
@@ -506,17 +505,17 @@ export default function TransformationsPage() {
                       size="sm"
                       onClick={() => handleDelete(transformation.id)}
                     >
-                      <Trash2 className="h-4 w-4 text-red-600" />
+                      <Trash2 className="h-4 w-4 text-[#dc2626]" />
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <div className="bg-gray-50 p-3 rounded-md font-mono text-xs overflow-x-auto">
+                  <div className="bg-[#f8f8f8] p-3 rounded-md font-mono text-xs overflow-x-auto">
                     {transformation.sqlQuery}
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-4 text-sm text-[#555555]">
                     <span className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
                       Last run: {formatDate(transformation.lastRunAt)}
@@ -578,39 +577,39 @@ function CreateTransformationForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-[#555555] mb-1">
           Name *
         </label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full px-3 py-2 border border-[#dddddd] rounded-md text-[13px] focus:outline-none focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a]"
           required
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-[#555555] mb-1">
           Description *
         </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full px-3 py-2 border border-[#dddddd] rounded-md text-[13px] focus:outline-none focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a]"
           rows={2}
           required
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-[#555555] mb-1">
           Source Connection *
         </label>
         <select
           value={sourceConnectionId}
           onChange={(e) => setSourceConnectionId(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full px-3 py-2 border border-[#dddddd] rounded-md text-[13px] focus:outline-none focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a]"
           required
         >
           <option value="">Select a connection</option>
@@ -623,39 +622,39 @@ function CreateTransformationForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-[#555555] mb-1">
           SQL Query *
         </label>
         <textarea
           value={sqlQuery}
           onChange={(e) => setSqlQuery(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+          className="w-full px-3 py-2 border border-[#dddddd] rounded-md text-[13px] focus:outline-none focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] font-mono"
           rows={8}
           placeholder="SELECT user_id, COUNT(*) as count FROM events GROUP BY user_id"
           required
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-[#aaaaaa] mt-1">
           Write a SELECT query to transform your data
         </p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-[#555555] mb-1">
           Max Rows
         </label>
         <input
           type="number"
           value={maxRows}
           onChange={(e) => setMaxRows(parseInt(e.target.value))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full px-3 py-2 border border-[#dddddd] rounded-md text-[13px] focus:outline-none focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a]"
           min="1"
           max="100000"
         />
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-3">
-          <p className="text-red-800 text-sm">{error}</p>
+        <div className="bg-[#fee2e2] border border-[#fca5a5] rounded-md p-3">
+          <p className="text-[#991b1b] text-sm">{error}</p>
         </div>
       )}
 

@@ -19,7 +19,7 @@ export default function SQLEditor({
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={onKeyDown}
       disabled={disabled}
-      className="w-full h-64 font-mono text-sm border border-gray-300 rounded-md p-4 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
+      className="w-full h-64 font-mono text-sm border border-gray-300 rounded-md p-4 focus:ring-[#1a1a1a] focus:border-[#1a1a1a] disabled:bg-gray-50 disabled:text-gray-500"
       placeholder="Enter your SQL query here...&#10;&#10;Example:&#10;SELECT * FROM users LIMIT 10;"
       spellCheck={false}
     />

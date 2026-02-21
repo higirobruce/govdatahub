@@ -18,11 +18,11 @@ export const TableNode = memo(({ data }: NodeProps<TableNodeData>) => {
       <Handle
         type="target"
         position={Position.Left}
-        className="w-3 h-3 !bg-indigo-500"
+        className="w-3 h-3 !bg-[#1a1a1a]"
       />
 
       {/* Table Header */}
-      <div className="bg-indigo-600 text-white px-3 py-2 rounded-t-md">
+      <div className="bg-[#1a1a1a] text-white px-3 py-2 rounded-t-md">
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-sm truncate">{table.alias}</div>
@@ -79,7 +79,7 @@ export const TableNode = memo(({ data }: NodeProps<TableNodeData>) => {
       <Handle
         type="source"
         position={Position.Right}
-        className="w-3 h-3 !bg-indigo-500"
+        className="w-3 h-3 !bg-[#1a1a1a]"
       />
     </div>
   );

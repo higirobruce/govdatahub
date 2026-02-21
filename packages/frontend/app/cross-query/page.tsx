@@ -126,15 +126,15 @@ export default function CrossQueryPage() {
     (queryDefinition.tables.length === 1 || queryDefinition.joins.length > 0);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-[#f2f2f2]">
       {/* Header */}
       <div className="bg-white border-b px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-[#1a1a1a]">
               Cross-Database Query Builder
             </h1>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-[#555555] mt-1">
               Join data from multiple databases using visual query builder
             </p>
           </div>
@@ -142,7 +142,7 @@ export default function CrossQueryPage() {
             <button
               onClick={handleExecute}
               disabled={isExecuting}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-subtle text-white bg-[#1a1a1a] hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isExecuting ? (
                 <>
@@ -198,10 +198,10 @@ export default function CrossQueryPage() {
 
       {/* Error Alert */}
       {error && (
-        <div className="bg-red-50 border-b border-red-200 px-6 py-3">
+        <div className="bg-[#fee2e2] border-b border-[#fca5a5] px-6 py-3">
           <div className="flex">
             <svg
-              className="h-5 w-5 text-red-400"
+              className="h-5 w-5 text-[#ef4444]"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -214,7 +214,7 @@ export default function CrossQueryPage() {
               />
             </svg>
             <div className="ml-3">
-              <p className="text-sm text-red-800">{error}</p>
+              <p className="text-sm text-[#991b1b]">{error}</p>
             </div>
           </div>
         </div>
@@ -225,14 +225,14 @@ export default function CrossQueryPage() {
         {/* Left Sidebar */}
         <div className={`bg-white border-r flex flex-col overflow-hidden transition-all ${isRightContentCollapsed ? 'flex-1' : 'w-[23rem]'}`}>
           {/* Sidebar Tabs */}
-          <div className="border-b bg-gray-50">
+          <div className="border-b bg-[#f8f8f8]">
             <nav className="flex">
               <button
                 onClick={() => setSidebarTab('connections')}
                 className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
                   sidebarTab === 'connections'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
                 }`}
               >
                 📊 Data
@@ -241,8 +241,8 @@ export default function CrossQueryPage() {
                 onClick={() => setSidebarTab('filters')}
                 className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
                   sidebarTab === 'filters'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
                 }`}
               >
                 🔍 Filter
@@ -251,8 +251,8 @@ export default function CrossQueryPage() {
                 onClick={() => setSidebarTab('sorting')}
                 className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
                   sidebarTab === 'sorting'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
                 }`}
               >
                 ↕️ Sort
@@ -261,8 +261,8 @@ export default function CrossQueryPage() {
                 onClick={() => setSidebarTab('saved')}
                 className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
                   sidebarTab === 'saved'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
                 }`}
               >
                 💾 Saved
@@ -277,7 +277,7 @@ export default function CrossQueryPage() {
               <div className="space-y-4">
                 {/* Connection Selector */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">
                     Select Connections
                   </h3>
                   <ConnectionSelector
@@ -289,7 +289,7 @@ export default function CrossQueryPage() {
                 {/* Table Browser */}
                 {selectedConnections.length > 0 && (
                   <div className="pt-4 border-t">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                    <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">
                       Browse Tables
                     </h3>
                     <TableBrowser
@@ -303,11 +303,11 @@ export default function CrossQueryPage() {
                 {/* Query Settings */}
                 {queryDefinition.tables.length > 0 && (
                   <div className="pt-4 border-t">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                    <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">
                       Query Settings
                     </h3>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-[#555555] mb-1">
                         Result Limit
                       </label>
                       <input
@@ -319,12 +319,12 @@ export default function CrossQueryPage() {
                             limit: parseInt(e.target.value) || 100,
                           })
                         }
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md"
+                        className="w-full px-2 py-1 text-sm border border-[#dddddd] rounded-md focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
                         min="1"
                         max="10000"
                       />
                     </div>
-                    <div className="mt-3 text-xs text-gray-600 space-y-1">
+                    <div className="mt-3 text-xs text-[#555555] space-y-1">
                       <div>Tables: {queryDefinition.tables.length}</div>
                       <div>Joins: {queryDefinition.joins.length}</div>
                       <div>Columns: {queryDefinition.columns.length}</div>
@@ -339,7 +339,7 @@ export default function CrossQueryPage() {
             {/* Filters Tab */}
             {sidebarTab === 'filters' && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
                   WHERE Filters
                 </h3>
                 <FilterBuilder
@@ -352,7 +352,7 @@ export default function CrossQueryPage() {
             {/* Sorting Tab */}
             {sidebarTab === 'sorting' && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
                   ORDER BY Sorting
                 </h3>
                 <OrderByBuilder
@@ -383,11 +383,11 @@ export default function CrossQueryPage() {
           <div className="bg-white border-b px-4 py-2 flex justify-end">
             <button
               onClick={() => setIsRightContentCollapsed(!isRightContentCollapsed)}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              className="p-1 hover:bg-[#f8f8f8] rounded transition-colors"
               title={isRightContentCollapsed ? 'Expand content area' : 'Collapse content area'}
             >
               <svg
-                className={`w-4 h-4 text-gray-600 transition-transform ${isRightContentCollapsed ? 'rotate-180' : ''}`}
+                className={`w-4 h-4 text-[#555555] transition-transform ${isRightContentCollapsed ? 'rotate-180' : ''}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -414,10 +414,10 @@ export default function CrossQueryPage() {
 
           {/* Bottom Section - Column Selector and Preview */}
           {queryDefinition.tables.length > 0 && (
-            <div className={`h-64 flex gap-4 p-4 bg-gray-50 overflow-hidden ${isSqlPreviewCollapsed ? '' : ''}`}>
+            <div className={`h-64 flex gap-4 p-4 bg-[#f2f2f2] overflow-hidden ${isSqlPreviewCollapsed ? '' : ''}`}>
               {/* Column Selector */}
               <div className={`bg-white border rounded-lg p-4 overflow-y-auto ${isSqlPreviewCollapsed ? 'flex-1' : 'w-1/2'}`}>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
                   Select Columns
                 </h3>
                 <ColumnSelector
@@ -430,16 +430,16 @@ export default function CrossQueryPage() {
               {queryDefinition.columns.length > 0 && (
                 <div className={`bg-white border rounded-lg overflow-hidden transition-all ${isSqlPreviewCollapsed ? 'w-12' : 'flex-1'}`}>
                   <div className="flex items-center justify-between px-4 py-3 border-b">
-                    <h3 className={`text-sm font-semibold text-gray-900 ${isSqlPreviewCollapsed ? 'hidden' : ''}`}>
+                    <h3 className={`text-sm font-semibold text-[#1a1a1a] ${isSqlPreviewCollapsed ? 'hidden' : ''}`}>
                       SQL Preview
                     </h3>
                     <button
                       onClick={() => setIsSqlPreviewCollapsed(!isSqlPreviewCollapsed)}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      className="p-1 hover:bg-[#f8f8f8] rounded transition-colors"
                       title={isSqlPreviewCollapsed ? 'Expand SQL Preview' : 'Collapse SQL Preview'}
                     >
                       <svg
-                        className={`w-4 h-4 text-gray-600 transition-transform ${isSqlPreviewCollapsed ? 'rotate-180' : ''}`}
+                        className={`w-4 h-4 text-[#555555] transition-transform ${isSqlPreviewCollapsed ? 'rotate-180' : ''}`}
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -473,9 +473,9 @@ export default function CrossQueryPage() {
           {/* Empty State */}
           {queryDefinition.tables.length === 0 && !result && (
             <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-gray-500">
+              <div className="text-center text-[#aaaaaa]">
                 <svg
-                  className="mx-auto h-16 w-16 text-gray-400"
+                  className="mx-auto h-16 w-16 text-[#aaaaaa]"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -487,13 +487,13 @@ export default function CrossQueryPage() {
                     d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
                   />
                 </svg>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">
+                <h3 className="mt-4 text-lg font-medium text-[#1a1a1a]">
                   Cross-Database Query Builder
                 </h3>
-                <p className="mt-2 text-sm text-gray-600 max-w-md">
+                <p className="mt-2 text-sm text-[#555555] max-w-md">
                   Select connections from the sidebar to start building your cross-database query
                 </p>
-                <div className="mt-4 space-y-2 text-sm text-gray-500">
+                <div className="mt-4 space-y-2 text-sm text-[#aaaaaa]">
                   <p>✓ Select multiple database connections</p>
                   <p>✓ Add tables to your query</p>
                   <p>✓ Create joins with drag-and-drop</p>

@@ -61,7 +61,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen items-center justify-center bg-[#e8e8e8] px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
@@ -75,8 +75,8 @@ export default function LoginPage() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               {error && (
-                <div className="rounded-md bg-destructive/15 p-3">
-                  <p className="text-sm text-destructive">{error}</p>
+                <div className="rounded-md bg-[#fee2e2] p-3">
+                  <p className="text-sm text-[#991b1b]">{error}</p>
                 </div>
               )}
 
