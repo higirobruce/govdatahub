@@ -1708,7 +1708,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@example.com
 SMTP_PASS=your-password
-NOTIFICATION_FROM_EMAIL=noreply@govdatahub.com
+NOTIFICATION_FROM_EMAIL=noreply@datagate.com
 ```
 
 ---

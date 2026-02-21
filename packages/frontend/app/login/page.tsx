@@ -68,7 +68,7 @@ export default function LoginPage() {
             Welcome back
           </CardTitle>
           <CardDescription className="text-center">
-            Sign in to your GovDataHub account
+            Sign in to your DataGate account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -129,6 +129,11 @@ export default function LoginPage() {
             Don't have an account?{' '}
             <Link href="/register" className="text-primary hover:underline">
               Sign up
+            </Link>
+          </div>
+          <div className="text-xs text-center text-[#aaaaaa]">
+            <Link href="/landing" className="hover:text-[#555555] transition-colors">
+              ← Back to Homepage
             </Link>
           </div>
         </CardFooter>

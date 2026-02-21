@@ -18,7 +18,7 @@ This guide walks through testing the cross-database join functionality (Phase 1-
 Create the cross-query tables:
 
 ```bash
-cd /Users/brucehigiro/Documents/development/govdatahub/packages/backend
+cd /Users/brucehigiro/Documents/development/datagate/packages/backend
 
 # Run migration
 npm run migration:run
@@ -34,7 +34,7 @@ Migration AddCrossQuery1708400000000 has been executed successfully.
 **Verify tables created:**
 ```sql
 -- Connect to metadata database
-psql -U admin -d govdatahub
+psql -U admin -d datagate
 
 -- Check tables exist
 \dt fdw_servers
@@ -49,7 +49,7 @@ psql -U admin -d govdatahub
 ## Step 2: Start Backend Server
 
 ```bash
-cd /Users/brucehigiro/Documents/development/govdatahub/packages/backend
+cd /Users/brucehigiro/Documents/development/datagate/packages/backend
 
 # Start in development mode
 npm run start:dev
@@ -463,7 +463,7 @@ GET /api/cross-query/saved/{queryId}
 
 ```sql
 -- Connect to metadata database
-psql -U admin -d govdatahub
+psql -U admin -d datagate
 
 -- Check FDW servers table
 SELECT * FROM fdw_servers;

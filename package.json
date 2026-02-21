@@ -1,12 +1,12 @@
 {
-  "name": "govdatahub",
+  "name": "datagate",
   "version": "1.0.0",
-  "description": "Data integration and AI-ready data platform for government use cases",
+  "description": "DataGate - A powerful multi-database integration platform with cross-database query capabilities, data transformations, and unified data management",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
-    "build": "pnpm --filter backend build && pnpm --filter frontend build",
-    "start": "concurrently \"pnpm --filter backend start:prod\" \"pnpm --filter frontend start\"",
+    "dev": "concurrently \"pnpm --filter datagate-backend dev\" \"pnpm --filter datagate-frontend dev\"",
+    "build": "pnpm --filter datagate-backend build && pnpm --filter datagate-frontend build",
+    "start": "concurrently \"pnpm --filter datagate-backend start:prod\" \"pnpm --filter datagate-frontend start\"",
     "lint": "pnpm --recursive lint",
     "test": "pnpm --recursive test",
     "setup": "bash scripts/setup.sh",

@@ -22,7 +22,7 @@ docker compose down
 
 echo ""
 echo "2️⃣  Removing PostgreSQL volume (this deletes all data)..."
-docker volume rm govdatahub_postgres-data 2>/dev/null || echo "   Volume already removed or doesn't exist"
+docker volume rm datagate_postgres-data 2>/dev/null || echo "   Volume already removed or doesn't exist"
 
 echo ""
 echo "3️⃣  Starting containers with fresh volumes..."
@@ -34,9 +34,9 @@ sleep 15
 
 echo ""
 echo "5️⃣  Testing PostgreSQL connection..."
-if docker exec govdatahub-postgres psql -U admin -d govdatahub -c "SELECT 'Connection successful!' as status;" > /dev/null 2>&1; then
+if docker exec datagate-postgres psql -U admin -d datagate -c "SELECT 'Connection successful!' as status;" > /dev/null 2>&1; then
     echo "   ✅ PostgreSQL is ready!"
-    docker exec govdatahub-postgres psql -U admin -d govdatahub -c "SELECT version();"
+    docker exec datagate-postgres psql -U admin -d datagate -c "SELECT version();"
 else
     echo "   ❌ Failed to connect to PostgreSQL"
     echo ""

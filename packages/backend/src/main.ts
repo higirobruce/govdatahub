@@ -26,7 +26,7 @@ async function bootstrap() {
 
   // Swagger
   const config = new DocumentBuilder()
-    .setTitle('GovDataHub API')
+    .setTitle('DataGate API')
     .setDescription('Data integration and AI-ready data platform API')
     .setVersion('1.0')
     .addTag('connections', 'Database connection management')

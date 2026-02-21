@@ -8,12 +8,16 @@ import { Sidebar } from '@/components/Sidebar';
 import { MainContent } from '@/components/MainContent';
 import { UserMenu } from '@/components/UserMenu';
 
+// Metadata is added via the Metadata API in Next.js 14+
+// Note: metadata exports can only be used in Server Components
+// For client components, we handle this with a head element
+
 function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
   const pathname = usePathname();
-  const isAuthPage = pathname === '/login' || pathname === '/register';
+  const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/landing';
 
-  // Auth pages - no sidebar
+  // Auth pages and landing page - no sidebar
   if (isAuthPage) {
     return <main>{children}</main>;
   }
@@ -39,11 +43,11 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuthPage = pathname === '/login' || pathname === '/register';
+  const isPublicPage = pathname === '/login' || pathname === '/register' || pathname === '/landing';
 
   return (
     <>
-      {isAuthPage ? (
+      {isPublicPage ? (
         <main>{children}</main>
       ) : (
         <ProtectedRoute>
@@ -61,6 +65,27 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <title>DataGate - Multi-Database Integration Platform</title>
+        <meta name="description" content="DataGate is a powerful data integration platform that connects to multiple databases (PostgreSQL, MySQL), enables SQL queries, cross-database joins, and provides data transformation pipelines." />
+        <meta name="keywords" content="data integration, database management, SQL query, PostgreSQL, MySQL, cross-database joins, data transformation, ETL" />
+        <meta name="author" content="DataGate" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="DataGate - Multi-Database Integration Platform" />
+        <meta property="og:description" content="Connect, query, and transform data across multiple databases with DataGate's powerful integration platform." />
+
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="DataGate - Multi-Database Integration Platform" />
+        <meta name="twitter:description" content="Connect, query, and transform data across multiple databases with DataGate's powerful integration platform." />
+
+        {/* Favicon */}
+        <link rel="icon" type="image/svg+xml" href="/Coat_of_arms_of_Rwanda.svg" />
+        <link rel="manifest" href="/site.webmanifest" />
+      </head>
       <body>
         <AuthProvider>
           <LayoutContent>{children}</LayoutContent>

@@ -37,7 +37,7 @@ echo ""
 
 # List all volumes
 echo "4️⃣  Checking Docker volumes..."
-docker volume ls | grep -E "(postgres|govdatahub)" || echo "   ℹ️  No postgres/govdatahub volumes found"
+docker volume ls | grep -E "(postgres|datagate)" || echo "   ℹ️  No postgres/datagate volumes found"
 echo ""
 
 # Check if port 5432 is in use
@@ -63,15 +63,15 @@ sleep 2
 
 echo ""
 echo "Step 2: Removing specific container if it exists..."
-docker rm -f govdatahub-postgres 2>/dev/null || echo "Container already removed"
+docker rm -f datagate-postgres 2>/dev/null || echo "Container already removed"
 
 echo ""
 echo "Step 3: Removing ALL volumes related to this project..."
-docker volume ls | grep govdatahub | awk '{print $2}' | xargs -r docker volume rm 2>/dev/null || echo "Volumes already removed"
+docker volume ls | grep datagate | awk '{print $2}' | xargs -r docker volume rm 2>/dev/null || echo "Volumes already removed"
 
 echo ""
 echo "Step 4: Verifying volumes are gone..."
-docker volume ls | grep -E "(postgres|govdatahub)" && echo "⚠️  Some volumes still exist!" || echo "✅ All volumes removed"
+docker volume ls | grep -E "(postgres|datagate)" && echo "⚠️  Some volumes still exist!" || echo "✅ All volumes removed"
 
 echo ""
 echo "Step 5: Removing any stopped PostgreSQL containers..."
@@ -101,7 +101,7 @@ echo "-----------------------------------"
 
 echo ""
 echo "Step 10: Testing connection with admin user..."
-if docker exec govdatahub-postgres psql -U admin -d govdatahub -c "SELECT 'SUCCESS!' as status;" 2>&1; then
+if docker exec datagate-postgres psql -U admin -d datagate -c "SELECT 'SUCCESS!' as status;" 2>&1; then
     echo ""
     echo "✅ CONNECTION SUCCESSFUL!"
     echo ""
@@ -123,11 +123,11 @@ else
     docker ps | grep postgres
     echo ""
     echo "Container environment:"
-    docker exec govdatahub-postgres env | grep POSTGRES
+    docker exec datagate-postgres env | grep POSTGRES
     echo ""
     echo "Available users in database:"
-    docker exec govdatahub-postgres psql -U postgres -c "\du" 2>&1 || echo "Could not query users"
+    docker exec datagate-postgres psql -U postgres -c "\du" 2>&1 || echo "Could not query users"
     echo ""
     echo "Available databases:"
-    docker exec govdatahub-postgres psql -U postgres -c "\l" 2>&1 || echo "Could not query databases"
+    docker exec datagate-postgres psql -U postgres -c "\l" 2>&1 || echo "Could not query databases"
 fi

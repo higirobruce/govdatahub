@@ -11,9 +11,9 @@ export function exportAnalyticsToCsv(data: {
   connectionHealth: any;
 }) {
   const timestamp = new Date().toISOString().split('T')[0];
-  const filename = `govdatahub-analytics-${timestamp}.csv`;
+  const filename = `datagate-analytics-${timestamp}.csv`;
 
-  let csv = 'GovDataHub Analytics Report\n';
+  let csv = 'DataGate Analytics Report\n';
   csv += `Generated: ${new Date().toLocaleString()}\n\n`;
 
   // Query Performance Section
@@ -105,7 +105,7 @@ export function exportAnalyticsToPdf(data: {
   connectionHealth: any;
 }) {
   const timestamp = new Date().toISOString().split('T')[0];
-  const filename = `govdatahub-analytics-${timestamp}.pdf`;
+  const filename = `datagate-analytics-${timestamp}.pdf`;
 
   const doc = new jsPDF();
   let yPos = 20;
@@ -113,7 +113,7 @@ export function exportAnalyticsToPdf(data: {
   // Title
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text('GovDataHub Analytics Report', 14, yPos);
+  doc.text('DataGate Analytics Report', 14, yPos);
   yPos += 10;
 
   doc.setFontSize(10);

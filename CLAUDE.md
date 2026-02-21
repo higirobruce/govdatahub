@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-GovDataHub is a data integration platform that connects to multiple databases (PostgreSQL, MySQL), provides SQL query interfaces, and enables **cross-database queries** using PostgreSQL Foreign Data Wrappers (FDW).
+DataGate is a data integration platform that connects to multiple databases (PostgreSQL, MySQL), provides SQL query interfaces, and enables **cross-database queries** using PostgreSQL Foreign Data Wrappers (FDW).
 
 **Tech Stack:**
 - Backend: NestJS 11 + TypeORM + PostgreSQL (metadata DB)

@@ -1,8 +1,8 @@
 -- Setup script for Foreign Data Wrapper extensions
 -- Run this as a PostgreSQL superuser
 
--- Connect to the govdatahub database
-\c govdatahub
+-- Connect to the datagate database
+\c datagate
 
 -- Create the postgres_fdw extension
 CREATE EXTENSION IF NOT EXISTS postgres_fdw;

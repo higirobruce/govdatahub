@@ -92,10 +92,12 @@ export function Sidebar() {
 
         {/* Brand */}
         <div className="flex items-center gap-2.5 px-4.5 pb-5 font-semibold text-[15px] border-b border-[#f0f0f0]">
-          <div className="w-8 h-8 bg-[#1a1a1a] rounded-md flex items-center justify-center text-white text-lg font-semibold">
-            GD
-          </div>
-          GovDataHub
+          <img
+            src="/Coat_of_arms_of_Rwanda.svg"
+            alt="Rwanda Coat of Arms"
+            className="w-8 h-8"
+          />
+          DataGate
         </div>
 
       {/* Main Navigation */}

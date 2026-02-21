@@ -558,7 +558,7 @@ A: Treat API keys like passwords. Don't commit them to version control. Use envi
 For issues or questions:
 - Check Swagger API docs: `http://localhost:3001/api/docs`
 - Contact your dataset administrator
-- File an issue in the GovDataHub repository
+- File an issue in the DataGate repository
 
 ---
 

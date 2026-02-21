@@ -4,9 +4,9 @@ services:
   # Metadata database for GovDataHub
   postgres:
     image: postgres:15-alpine
-    container_name: govdatahub-postgres
+    container_name: datagate-postgres
     environment:
-      POSTGRES_DB: govdatahub
+      POSTGRES_DB: datagate
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin123
     ports:
@@ -14,17 +14,17 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d govdatahub"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d datagate"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
-      - govdatahub-network
+      - datagate-network
 
   # Sample MySQL database for testing connections
   mysql:
     image: mysql:8.0
-    container_name: govdatahub-mysql-sample
+    container_name: datagate-mysql-sample
     environment:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: sampledb
@@ -40,7 +40,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - govdatahub-network
+      - datagate-network
 
 volumes:
   postgres-data:
@@ -49,5 +49,5 @@ volumes:
     driver: local
 
 networks:
-  govdatahub-network:
+  datagate-network:
     driver: bridge

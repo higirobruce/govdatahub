@@ -19,7 +19,7 @@ echo "Running FDW setup as postgres superuser..."
 echo "You may be prompted for the postgres user password."
 echo ""
 
-psql -U postgres -d govdatahub -f "$(dirname "$0")/setup-fdw.sql"
+psql -U postgres -d datagate -f "$(dirname "$0")/setup-fdw.sql"
 
 if [ $? -eq 0 ]; then
     echo ""
@@ -37,6 +37,6 @@ else
     echo "Troubleshooting tips:"
     echo "1. Make sure PostgreSQL is running"
     echo "2. Make sure you have the postgres superuser password"
-    echo "3. Try running manually: psql -U postgres -d govdatahub -f scripts/setup-fdw.sql"
+    echo "3. Try running manually: psql -U postgres -d datagate -f scripts/setup-fdw.sql"
     exit 1
 fi

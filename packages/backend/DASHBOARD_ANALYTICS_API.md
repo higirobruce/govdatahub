@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Dashboard Analytics API provides comprehensive insights into your GovDataHub platform usage, performance, and health. All endpoints require JWT authentication and are scoped to your organization.
+The Dashboard Analytics API provides comprehensive insights into your DataGate platform usage, performance, and health. All endpoints require JWT authentication and are scoped to your organization.
 
 **Base URL**: `http://localhost:3001/api/dashboard/analytics`
 
@@ -537,4 +537,4 @@ for query in analytics["query_performance"]["slowestQueries"][:5]:
 For issues or questions:
 - Check Swagger API docs: `http://localhost:3001/api/docs`
 - Review this documentation
-- File an issue in the GovDataHub repository
+- File an issue in the DataGate repository

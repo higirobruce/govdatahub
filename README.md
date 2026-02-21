@@ -1,8 +1,8 @@
-# GovDataHub
+# DataGate
 
 **Data Integration and AI-Ready Data Platform for Government Use Cases**
 
-GovDataHub is a web-based platform that allows users to connect to multiple databases, browse schemas, run SQL queries, and provide a REST API for external applications.
+DataGate is a web-based platform that allows users to connect to multiple databases, browse schemas, run SQL queries, and provide a REST API for external applications.
 
 ## Features
 
@@ -41,7 +41,7 @@ GovDataHub is a web-based platform that allows users to connect to multiple data
 ### 1. Clone and Setup
 
 ```bash
-cd govdatahub
+cd datagate
 bash scripts/setup.sh
 ```
 
@@ -208,7 +208,7 @@ curl -X POST http://localhost:3001/api/connections \
     "port": 5432,
     "username": "admin",
     "password": "admin123",
-    "database": "govdatahub"
+    "database": "datagate"
   }'
 
 # Execute a query
@@ -223,7 +223,7 @@ curl -X POST http://localhost:3001/api/query \
 ## Project Structure
 
 ```
-govdatahub/
+datagate/
 ├── packages/
 │   ├── backend/              # NestJS API
 │   │   ├── src/
@@ -282,7 +282,7 @@ The docker-compose setup includes:
 **PostgreSQL** (Metadata DB)
 - Host: localhost
 - Port: 5432
-- Database: govdatahub
+- Database: datagate
 - Username: admin
 - Password: admin123
 
@@ -419,4 +419,4 @@ For issues and questions:
 
 ---
 
-**Built with ❤️ for Government Data Integration**
+**Built with ❤️ for Multi-Database Integration**

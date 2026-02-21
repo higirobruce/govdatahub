@@ -36,7 +36,7 @@ docker compose up -d
 
 # Wait for PostgreSQL
 echo "⏳ Waiting for PostgreSQL to be ready..."
-until docker compose exec -T postgres pg_isready -U admin -d govdatahub >/dev/null 2>&1; do
+until docker compose exec -T postgres pg_isready -U admin -d datagate >/dev/null 2>&1; do
     sleep 1
 done
 

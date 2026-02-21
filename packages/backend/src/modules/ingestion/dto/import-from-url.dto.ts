@@ -54,7 +54,7 @@ export class ImportFromUrlDto {
   @ApiPropertyOptional({
     description: 'Custom HTTP headers',
     example: {
-      'User-Agent': 'GovDataHub/1.0',
+      'User-Agent': 'DataGate/1.0',
     },
   })
   @IsOptional()

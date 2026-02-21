@@ -77,7 +77,7 @@ export default function RegisterPage() {
             Create an account
           </CardTitle>
           <CardDescription className="text-center">
-            Sign up to get started with GovDataHub
+            Sign up to get started with DataGate
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -176,6 +176,11 @@ export default function RegisterPage() {
             Already have an account?{' '}
             <Link href="/login" className="text-primary hover:underline">
               Sign in
+            </Link>
+          </div>
+          <div className="text-xs text-center text-[#aaaaaa]">
+            <Link href="/landing" className="hover:text-[#555555] transition-colors">
+              ← Back to Homepage
             </Link>
           </div>
         </CardFooter>

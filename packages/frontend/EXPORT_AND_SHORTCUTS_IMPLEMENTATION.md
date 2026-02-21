@@ -68,7 +68,7 @@
 4. Connection Health (summary + connection details table)
 
 **PDF Output:**
-- Title: "GovDataHub Analytics Report"
+- Title: "DataGate Analytics Report"
 - Timestamp: Generated date/time
 - 4 main sections with formatted tables
 - Auto-pagination when content exceeds page height
@@ -161,7 +161,7 @@ pnpm add jspdf jspdf-autotable
 2. Switch to **Analytics** tab (click or press `Alt+2`)
 3. Wait for data to load (buttons disabled during loading)
 4. Click **"Export CSV"** or **"Export PDF"**
-5. File downloads automatically: `govdatahub-analytics-YYYY-MM-DD.csv` or `.pdf`
+5. File downloads automatically: `datagate-analytics-YYYY-MM-DD.csv` or `.pdf`
 
 ### Using Keyboard Shortcuts
 

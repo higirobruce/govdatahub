@@ -24,7 +24,7 @@ pnpm add jspdf jspdf-autotable
   - Shared Datasets (total shares, API calls, most accessed)
   - Data Freshness (stale datasets, failed transformations)
   - Connection Health (connection status matrix)
-- Filename format: `govdatahub-analytics-YYYY-MM-DD.csv`
+- Filename format: `datagate-analytics-YYYY-MM-DD.csv`
 - Text-safe formatting (escaped quotes, proper delimiters)
 
 ### PDF Export
@@ -34,7 +34,7 @@ pnpm add jspdf jspdf-autotable
   - Summary statistics for each section
   - Formatted tables with column headers
   - Consistent styling (Beyond Workspace design)
-- Filename format: `govdatahub-analytics-YYYY-MM-DD.pdf`
+- Filename format: `datagate-analytics-YYYY-MM-DD.pdf`
 - Uses jsPDF with autotable plugin for table formatting
 
 ## Usage
@@ -87,7 +87,7 @@ interface ExportData {
 
 The CSV export follows this structure:
 ```csv
-GovDataHub Analytics Report
+DataGate Analytics Report
 Generated: [timestamp]
 
 === QUERY PERFORMANCE ===

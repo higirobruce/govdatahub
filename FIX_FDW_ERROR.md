@@ -44,7 +44,7 @@ These scripts will:
 Run the setup script as the postgres superuser:
 
 ```bash
-cd /Users/brucehigiro/Documents/development/govdatahub
+cd /Users/brucehigiro/Documents/development/datagate
 ./scripts/setup-fdw.sh
 ```
 
@@ -53,7 +53,7 @@ cd /Users/brucehigiro/Documents/development/govdatahub
 **Alternative:** If you prefer to run manually:
 
 ```bash
-psql -U postgres -d govdatahub -f scripts/setup-fdw.sql
+psql -U postgres -d datagate -f scripts/setup-fdw.sql
 ```
 
 ### Step 2: Restart Backend Server
@@ -85,7 +85,7 @@ Now try creating a cross-database query again:
 To verify postgres_fdw is installed correctly:
 
 ```bash
-psql -U postgres -d govdatahub -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'postgres_fdw';"
+psql -U postgres -d datagate -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'postgres_fdw';"
 ```
 
 Expected output:
@@ -127,7 +127,7 @@ After running the setup script and restarting the backend:
 ### Issue: "CREATE SERVER" permission denied
 **Solution:** Grant permission to admin user:
 ```sql
-psql -U postgres -d govdatahub -c "ALTER USER admin WITH SUPERUSER;"
+psql -U postgres -d datagate -c "ALTER USER admin WITH SUPERUSER;"
 ```
 
 ### Issue: "relation 'fdw_servers' does not exist"
