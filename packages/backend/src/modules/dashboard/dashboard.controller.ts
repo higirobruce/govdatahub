@@ -88,4 +88,40 @@ export class DashboardController {
   async deleteShare(@Param('id') id: string, @Request() req: any) {
     await this.sharingService.deleteShare(id, req.user.organizationId);
   }
+
+  @Get('analytics/query-performance')
+  @ApiOperation({
+    summary: 'Get query performance analytics',
+    description: 'Returns query execution statistics, failure rates, slowest queries, and trends over the specified time period',
+  })
+  async getQueryPerformanceStats(@Request() req: any) {
+    return await this.catalogService.getQueryPerformanceStats(req.user.organizationId, 7);
+  }
+
+  @Get('analytics/shared-datasets')
+  @ApiOperation({
+    summary: 'Get shared dataset analytics',
+    description: 'Returns statistics about shared datasets, API usage, and access patterns',
+  })
+  async getSharedDatasetStats(@Request() req: any) {
+    return await this.catalogService.getSharedDatasetStats(req.user.organizationId, 7);
+  }
+
+  @Get('analytics/data-freshness')
+  @ApiOperation({
+    summary: 'Get data freshness and quality stats',
+    description: 'Returns information about stale datasets, failed transformations, and data quality metrics',
+  })
+  async getDataFreshnessStats(@Request() req: any) {
+    return await this.catalogService.getDataFreshnessStats(req.user.organizationId);
+  }
+
+  @Get('analytics/connection-health')
+  @ApiOperation({
+    summary: 'Get connection health status',
+    description: 'Returns connection status, query counts, error rates, and health metrics for all connections',
+  })
+  async getConnectionHealthStats(@Request() req: any) {
+    return await this.catalogService.getConnectionHealthStats(req.user.organizationId);
+  }
 }

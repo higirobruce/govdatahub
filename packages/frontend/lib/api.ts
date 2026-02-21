@@ -271,6 +271,16 @@ export const api = {
       request(`/dashboard/shares/${id}`, {
         method: 'DELETE',
       }),
+
+    // Analytics
+    getQueryPerformance: (): Promise<any> =>
+      request('/dashboard/analytics/query-performance'),
+    getSharedDatasetStats: (): Promise<any> =>
+      request('/dashboard/analytics/shared-datasets'),
+    getDataFreshnessStats: (): Promise<any> =>
+      request('/dashboard/analytics/data-freshness'),
+    getConnectionHealthStats: (): Promise<any> =>
+      request('/dashboard/analytics/connection-health'),
   },
 
   // Public datasets (no auth required)
