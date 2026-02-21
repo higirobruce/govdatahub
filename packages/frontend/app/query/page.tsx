@@ -9,7 +9,8 @@ import SQLEditor from '@/components/QueryInterface/SQLEditor';
 import ResultsTable from '@/components/QueryInterface/ResultsTable';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { Play, AlertCircle } from 'lucide-react';
+import { Play, AlertCircle, BarChart3 } from 'lucide-react';
+import { QueryVisualization } from '@/components/QueryVisualization';
 
 type DataSource = 'connections' | 'staging';
 
@@ -29,6 +30,7 @@ export default function QueryPage() {
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [showVisualization, setShowVisualization] = useState(false);
 
   const { data: connections } = useSWR<Connection[]>('/connections', async () => {
     const result = await api.connections.list();
@@ -132,7 +134,7 @@ export default function QueryPage() {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-full">
       <PageHeader
         title="SQL Query"
         subtitle="Execute SQL queries on your databases and staging data"
@@ -148,11 +150,10 @@ export default function QueryPage() {
                 setSelectedStagingTable('');
                 setError(null);
               }}
-              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${
-                dataSource === 'connections'
-                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
-              }`}
+              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${dataSource === 'connections'
+                ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
+                }`}
             >
               Database Connections
             </button>
@@ -162,11 +163,10 @@ export default function QueryPage() {
                 setSelectedConnectionId('');
                 setError(null);
               }}
-              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${
-                dataSource === 'staging'
-                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
-              }`}
+              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${dataSource === 'staging'
+                ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
+                }`}
             >
               Staging Data
             </button>
@@ -312,19 +312,39 @@ export default function QueryPage() {
 
       {/* Results */}
       {queryResult && (
-        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
+        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card overflow-hidden">
           <div className="px-6 py-5">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-base font-semibold text-[#1a1a1a]">
                 Query Results
               </h3>
-              <div className="text-sm text-[#aaaaaa]">
-                {queryResult.rowCount} rows in {queryResult.executionTimeMs}ms
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => setShowVisualization(true)}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Visualize
+                </Button>
+                <div className="text-sm text-[#aaaaaa]">
+                  {queryResult.rowCount} rows in {queryResult.executionTimeMs}ms
+                </div>
               </div>
             </div>
-            <ResultsTable result={queryResult} />
+            <div className='w-full max-w-[80vw] overflow-auto'>
+              <ResultsTable result={queryResult} /></div>
           </div>
         </div>
+      )}
+
+      {/* Visualization Modal */}
+      {showVisualization && queryResult && (
+        <QueryVisualization
+          queryResult={queryResult}
+          onClose={() => setShowVisualization(false)}
+        />
       )}
     </div>
   );

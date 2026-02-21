@@ -16,6 +16,7 @@ import {
   Link as LinkIcon,
   Menu,
   X,
+  BarChart3,
 } from 'lucide-react';
 
 interface NavItem {
@@ -34,6 +35,7 @@ export function Sidebar() {
     { id: 'connections', label: 'Connections', href: '/connections', icon: <Database /> },
     { id: 'query', label: 'SQL Query', href: '/query', icon: <Search /> },
     { id: 'cross-query', label: 'Cross-Query', href: '/cross-query', icon: <LinkIcon /> },
+    { id: 'charts', label: 'Charts', href: '/charts', icon: <BarChart3 /> },
     { id: 'staged', label: 'Staged Data', href: '/staged', icon: <FileText /> },
     { id: 'ingestion', label: 'Data Ingestion', href: '/ingestion', icon: <Upload /> },
     { id: 'transformations', label: 'Transformations', href: '/transformations', icon: <GitBranch /> },

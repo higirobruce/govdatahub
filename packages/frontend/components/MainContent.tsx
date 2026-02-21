@@ -11,7 +11,7 @@ export function MainContent({ children, className }: MainContentProps) {
   return (
     <main
       className={cn(
-        'flex-1 bg-[#f2f2f2] rounded-2xl overflow-y-auto shadow-subtle',
+        'flex-1 bg-[#f2f2f2] rounded-2xl overflow-y-auto overflow-x-hidden shadow-subtle',
         // Responsive margins and padding
         'm-0 md:m-3 md:ml-0 rounded-none md:rounded-2xl',
         'p-4 md:p-8',

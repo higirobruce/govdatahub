@@ -16,6 +16,9 @@ import {
   Zap,
   Download,
   FileText,
+  BarChart3,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
@@ -29,8 +32,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { LineChart, BarChart, PieChart } from '@/components/charts';
 
 export function AnalyticsTab() {
+  const [showCharts, setShowCharts] = useState(true);
+
   // Fetch all analytics data
   const { data: queryPerf, isLoading: queryPerfLoading } = useSWR(
     '/dashboard/analytics/query-performance',
@@ -57,6 +63,37 @@ export function AnalyticsTab() {
   );
 
   const isLoading = queryPerfLoading || sharedLoading || freshnessLoading || healthLoading;
+
+  // Prepare chart data
+  const sharedDatasetsChartData = sharedDatasets?.mostAccessedDatasets
+    ? {
+        xAxis: sharedDatasets.mostAccessedDatasets.map((d: any) => d.name.substring(0, 20)),
+        series: [{
+          name: 'API Calls',
+          data: sharedDatasets.mostAccessedDatasets.map((d: any) => d.accessCount),
+          color: '#60a5fa'
+        }]
+      }
+    : { xAxis: [], series: [] };
+
+  const connectionStatusChartData = connectionHealth?.connections
+    ? [
+        { name: 'Online', value: connectionHealth.onlineConnections, color: '#4ade80' },
+        { name: 'Offline', value: connectionHealth.offlineConnections, color: '#aaaaaa' },
+        { name: 'Error', value: connectionHealth.errorConnections, color: '#ef4444' }
+      ].filter(item => item.value > 0)
+    : [];
+
+  const queryPerformanceChartData = queryPerf?.slowestQueries
+    ? {
+        xAxis: queryPerf.slowestQueries.map((q: any) => `Query ${q.id.substring(0, 6)}`),
+        series: [{
+          name: 'Execution Time (ms)',
+          data: queryPerf.slowestQueries.map((q: any) => q.executionTimeMs),
+          color: '#fb923c'
+        }]
+      }
+    : { xAxis: [], series: [] };
 
   // Export handlers
   const handleExportCSV = () => {
@@ -88,27 +125,47 @@ export function AnalyticsTab() {
   return (
     <div className="w-full space-y-6">
       {/* Export Actions */}
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-between items-center">
         <Button
-          onClick={handleExportCSV}
+          onClick={() => setShowCharts(!showCharts)}
           variant="outline"
           size="sm"
-          disabled={isLoading}
           className="gap-2"
         >
-          <Download className="h-4 w-4" />
-          Export CSV
+          {showCharts ? (
+            <>
+              <EyeOff className="h-4 w-4" />
+              Hide Charts
+            </>
+          ) : (
+            <>
+              <Eye className="h-4 w-4" />
+              Show Charts
+            </>
+          )}
         </Button>
-        <Button
-          onClick={handleExportPDF}
-          variant="outline"
-          size="sm"
-          disabled={isLoading}
-          className="gap-2"
-        >
-          <FileText className="h-4 w-4" />
-          Export PDF
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleExportCSV}
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button
+            onClick={handleExportPDF}
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+            className="gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Export PDF
+          </Button>
+        </div>
       </div>
       {/* Quick Stats Row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -220,6 +277,70 @@ export function AnalyticsTab() {
           }
         />
       </div>
+
+      {/* Visual Charts Section */}
+      {showCharts && !isLoading && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Shared Datasets Chart */}
+          {sharedDatasetsChartData.series.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-[#60a5fa]" />
+                  Dataset API Call Volume
+                </CardTitle>
+                <p className="text-sm text-[#aaaaaa]">Visual breakdown of most accessed datasets</p>
+              </CardHeader>
+              <CardContent>
+                <BarChart
+                  data={sharedDatasetsChartData}
+                  height="300px"
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Connection Status Chart */}
+          {connectionStatusChartData.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Database className="h-4 w-4 text-[#4ade80]" />
+                  Connection Health Distribution
+                </CardTitle>
+                <p className="text-sm text-[#aaaaaa]">Status breakdown of all connections</p>
+              </CardHeader>
+              <CardContent>
+                <PieChart
+                  data={connectionStatusChartData}
+                  height="300px"
+                  donut={true}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Query Performance Chart */}
+          {queryPerformanceChartData.series.length > 0 && (
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-[#fb923c]" />
+                  Query Execution Times
+                </CardTitle>
+                <p className="text-sm text-[#aaaaaa]">Performance analysis of slowest queries</p>
+              </CardHeader>
+              <CardContent>
+                <BarChart
+                  data={queryPerformanceChartData}
+                  height="300px"
+                  horizontal={false}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Query Performance Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
