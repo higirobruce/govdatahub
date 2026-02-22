@@ -13,6 +13,9 @@ import { RedshiftDriver } from './drivers/redshift.driver';
 import { SnowflakeDriver } from './drivers/snowflake.driver';
 import { BigQueryDriver } from './drivers/bigquery.driver';
 import { MongoDBDriver } from './drivers/mongodb.driver';
+import { SqlServerDriver } from './drivers/sql-server.driver';
+import { ClickHouseDriver } from './drivers/clickhouse.driver';
+import { SQLiteDriver } from './drivers/sqlite.driver';
 
 @Injectable()
 export class ConnectionsService {
@@ -191,6 +194,12 @@ export class ConnectionsService {
         return new BigQueryDriver();
       case 'mongodb':
         return new MongoDBDriver();
+      case 'sqlserver':
+        return new SqlServerDriver();
+      case 'clickhouse':
+        return new ClickHouseDriver();
+      case 'sqlite':
+        return new SQLiteDriver();
       default:
         throw new BadRequestException(`Unsupported database type: ${type}`);
     }

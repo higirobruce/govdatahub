@@ -15,6 +15,9 @@ const DEFAULT_PORTS: Record<ConnectionType, number | undefined> = {
   snowflake: undefined,
   bigquery: undefined,
   mongodb: 27017,
+  sqlserver: 1433,
+  clickhouse: 8123,
+  sqlite: undefined,
 };
 
 const TYPE_LABELS: Record<ConnectionType, string> = {
@@ -24,15 +27,24 @@ const TYPE_LABELS: Record<ConnectionType, string> = {
   snowflake: 'Snowflake',
   bigquery: 'Google BigQuery',
   mongodb: 'MongoDB',
+  sqlserver: 'Microsoft SQL Server',
+  clickhouse: 'ClickHouse',
+  sqlite: 'SQLite',
 };
 
-const STANDARD_TYPES: ConnectionType[] = ['postgresql', 'mysql', 'redshift'];
-const NEEDS_PORT = (type: ConnectionType) => STANDARD_TYPES.includes(type) || type === 'mongodb';
-const NEEDS_HOST = (type: ConnectionType) => type !== 'bigquery';
-const NEEDS_CREDENTIALS = (type: ConnectionType) => type !== 'bigquery';
+const NO_HOST_TYPES: ConnectionType[] = ['bigquery', 'sqlite'];
+const NO_PORT_TYPES: ConnectionType[] = ['bigquery', 'snowflake', 'sqlite'];
+const NO_CREDS_TYPES: ConnectionType[] = ['bigquery', 'sqlite'];
+// Types that expose the SSL toggle
+const SSL_TYPES: ConnectionType[] = ['postgresql', 'mysql', 'redshift', 'sqlserver', 'clickhouse'];
+
+const NEEDS_HOST = (type: ConnectionType) => !NO_HOST_TYPES.includes(type);
+const NEEDS_PORT = (type: ConnectionType) => !NO_PORT_TYPES.includes(type);
+const NEEDS_CREDENTIALS = (type: ConnectionType) => !NO_CREDS_TYPES.includes(type);
 const IS_SNOWFLAKE = (type: ConnectionType) => type === 'snowflake';
 const IS_BIGQUERY = (type: ConnectionType) => type === 'bigquery';
 const IS_MONGODB = (type: ConnectionType) => type === 'mongodb';
+const IS_SQLITE = (type: ConnectionType) => type === 'sqlite';
 
 export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
   const [formData, setFormData] = useState<CreateConnectionDto>({
@@ -53,12 +65,12 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
     setFormData({
       name: formData.name,
       type,
-      host: type !== 'bigquery' ? (type === 'snowflake' ? '' : 'localhost') : undefined,
+      host: NEEDS_HOST(type) ? (IS_SNOWFLAKE(type) ? '' : 'localhost') : undefined,
       port: DEFAULT_PORTS[type],
-      username: type !== 'bigquery' ? '' : undefined,
-      password: type !== 'bigquery' ? '' : undefined,
+      username: NEEDS_CREDENTIALS(type) ? '' : undefined,
+      password: NEEDS_CREDENTIALS(type) ? '' : undefined,
       database: '',
-      ssl: STANDARD_TYPES.includes(type) ? false : undefined,
+      ssl: SSL_TYPES.includes(type) ? false : undefined,
       warehouse: undefined,
       keyFile: undefined,
     });
@@ -206,10 +218,14 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
           </>
         )}
 
-        {/* Database / Project ID */}
-        <div>
+        {/* Database / Project ID / File Path */}
+        <div className={IS_SQLITE(formData.type) ? 'sm:col-span-2' : ''}>
           <label className={labelClass}>
-            {IS_BIGQUERY(formData.type) ? 'Project ID *' : 'Database Name *'}
+            {IS_BIGQUERY(formData.type)
+              ? 'Project ID *'
+              : IS_SQLITE(formData.type)
+                ? 'File Path *'
+                : 'Database Name *'}
           </label>
           <input
             type="text"
@@ -217,8 +233,20 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             value={formData.database}
             onChange={(e) => setFormData({ ...formData, database: e.target.value })}
             className={inputClass}
-            placeholder={IS_BIGQUERY(formData.type) ? 'my-gcp-project' : 'mydb'}
+            placeholder={
+              IS_BIGQUERY(formData.type)
+                ? 'my-gcp-project'
+                : IS_SQLITE(formData.type)
+                  ? '/data/mydb.sqlite3  or  :memory:'
+                  : 'mydb'
+            }
           />
+          {IS_SQLITE(formData.type) && (
+            <p className="mt-1 text-xs text-[#aaaaaa]">
+              Provide an absolute path to the SQLite file, or <code>:memory:</code> for an
+              in-memory database.
+            </p>
+          )}
         </div>
 
         {/* Snowflake: Warehouse */}
@@ -253,8 +281,8 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
           </div>
         )}
 
-        {/* SSL (standard types only) */}
-        {STANDARD_TYPES.includes(formData.type) && (
+        {/* SSL */}
+        {SSL_TYPES.includes(formData.type) && (
           <div className="flex items-center">
             <input
               type="checkbox"
