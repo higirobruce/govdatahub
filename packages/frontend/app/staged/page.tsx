@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import Link from 'next/link';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
+import { FileText } from 'lucide-react';
 
 interface StagedDataset {
   id: string;
@@ -124,6 +125,7 @@ export default function StagedDataPage() {
       <PageHeader
         title="Staged Datasets"
         subtitle="View and manage datasets that have been uploaded but not imported to a database"
+        icon={FileText}
       />
 
       {error && (

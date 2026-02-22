@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Database } from 'lucide-react';
 
 export default function ConnectionsPage() {
   const { showToast } = useToast();
@@ -67,6 +67,7 @@ export default function ConnectionsPage() {
       <PageHeader
         title="Connections"
         subtitle="Manage your database connections"
+        icon={Database}
         actions={
           <Button onClick={() => setShowForm(!showForm)} variant={showForm ? 'outline' : 'default'}>
             {showForm ? (

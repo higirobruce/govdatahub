@@ -16,6 +16,7 @@ import {
   XCircle,
   Eye,
   X,
+  GitBranch,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { useToast } from '@/components/ui/toast';
@@ -433,6 +434,7 @@ export default function TransformationsPage() {
       <PageHeader
         title="Transformations"
         subtitle="Manage SQL-based data transformations"
+        icon={GitBranch}
         actions={
           <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="h-4 w-4" />

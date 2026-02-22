@@ -12,6 +12,7 @@ import { QueryPreview } from '@/components/CrossQueryBuilder/QueryPreview';
 import { ResultsViewer } from '@/components/CrossQueryBuilder/ResultsViewer';
 import { SavedQueriesPanel } from '@/components/CrossQueryBuilder/SavedQueriesPanel';
 import { api } from '@/lib/api';
+import { Link as LinkIcon } from 'lucide-react';
 
 type SidebarTab = 'connections' | 'filters' | 'sorting' | 'saved';
 
@@ -130,13 +131,18 @@ export default function CrossQueryPage() {
       {/* Header */}
       <div className="bg-white border-b px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-[#1a1a1a]">
-              Cross-Database Query Builder
-            </h1>
-            <p className="text-sm text-[#555555] mt-1">
-              Join data from multiple databases using visual query builder
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <LinkIcon className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-[#1a1a1a]">
+                Cross-Database Query Builder
+              </h1>
+              <p className="text-sm text-[#555555] mt-1">
+                Join data from multiple databases using visual query builder
+              </p>
+            </div>
           </div>
           {canExecute && (
             <button

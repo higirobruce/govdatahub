@@ -7,7 +7,7 @@ import { DashboardGrid } from '@/components/DashboardBuilder/DashboardGrid';
 import { ChartConfigPanel } from '@/components/DashboardBuilder/ChartConfigPanel';
 import { DashboardList } from '@/components/DashboardBuilder/DashboardList';
 import { ShareDashboardModal } from '@/components/DashboardBuilder/ShareDashboardModal';
-import { Plus, Save, FolderOpen, Eye, Settings, Bell, Share2 } from 'lucide-react';
+import { Plus, Save, FolderOpen, Eye, Settings, Bell, Share2, LayoutDashboard } from 'lucide-react';
 import { ChartWidget, DashboardLayout, Dashboard } from '@/components/DashboardBuilder/types';
 import { useToast } from '@/components/ui/toast';
 
@@ -164,6 +164,7 @@ export default function DashboardsPage() {
       <PageHeader
         title="Dashboard Builder"
         subtitle="Create interactive dashboards with drag-and-drop charts"
+        icon={LayoutDashboard}
       />
 
       {/* Toolbar */}

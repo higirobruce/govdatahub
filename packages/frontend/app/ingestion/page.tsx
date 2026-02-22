@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Check, ChevronRight } from 'lucide-react';
+import { Check, ChevronRight, Upload } from 'lucide-react';
 import { FileUpload, UploadedFile } from '@/components/DataIngestion/FileUpload';
 import { DataPreview, PreviewData } from '@/components/DataIngestion/DataPreview';
 import {
@@ -211,6 +211,7 @@ export default function DataIngestionPage() {
       <PageHeader
         title="Data Ingestion"
         subtitle="Import data from multiple sources into your data hub"
+        icon={Upload}
       />
 
       {/* Tab Navigation */}

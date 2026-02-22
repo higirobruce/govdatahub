@@ -9,7 +9,7 @@ import SQLEditor from '@/components/QueryInterface/SQLEditor';
 import ResultsTable from '@/components/QueryInterface/ResultsTable';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { Play, AlertCircle, BarChart3, LayoutDashboard } from 'lucide-react';
+import { Play, AlertCircle, BarChart3, LayoutDashboard, Search } from 'lucide-react';
 import { QueryVisualization } from '@/components/QueryVisualization';
 import { AddToDashboardModal } from '@/components/DashboardBuilder/AddToDashboardModal';
 import { useToast } from '@/components/ui/toast';
@@ -142,6 +142,7 @@ export default function QueryPage() {
       <PageHeader
         title="SQL Query"
         subtitle="Execute SQL queries on your databases and staging data"
+        icon={Search}
       />
 
       {/* Data Source Selector */}

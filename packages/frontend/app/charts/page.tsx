@@ -55,8 +55,13 @@ export default function ChartsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-[28px] font-bold text-[#1a1a1a] mb-2">Data Visualization</h1>
-        <p className="text-[15px] text-[#555555]">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <BarChart3 className="w-6 h-6 text-white" />
+          </div>
+          <h1 className="text-[28px] font-bold text-[#1a1a1a]">Data Visualization</h1>
+        </div>
+        <p className="text-[15px] text-[#555555] ml-[52px]">
           Create interactive charts to visualize your data. Built with Apache ECharts.
         </p>
       </div>
