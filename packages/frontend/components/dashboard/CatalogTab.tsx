@@ -28,7 +28,7 @@ interface DatasetCatalogItem {
   id: string;
   name: string;
   description: string;
-  type: 'staged' | 'connection' | 'transformation';
+  type: 'staged' | 'connection' | 'transformation' | 'cross-query';
   tableName: string;
   rowCount: number;
   lastUpdated: string;
@@ -111,6 +111,8 @@ export function CatalogTab() {
         return <Database className="h-4 w-4" />;
       case 'transformation':
         return <GitBranch className="h-4 w-4" />;
+      case 'cross-query':
+        return <Share2 className="h-4 w-4" />;
       default:
         return <Database className="h-4 w-4" />;
     }

@@ -10,7 +10,7 @@ import {
 import { Organization } from './organization.entity';
 import { User } from './user.entity';
 
-export type DatasetType = 'staged' | 'connection' | 'transformation';
+export type DatasetType = 'staged' | 'connection' | 'transformation' | 'cross-query';
 export type ShareAccessLevel = 'public' | 'organization' | 'private';
 
 @Entity('dataset_shares')
@@ -28,7 +28,7 @@ export class DatasetShare {
   datasetType: DatasetType;
 
   @Column('text', { name: 'dataset_id' })
-  datasetId: string; // References staged_data.id, connection.id, or transformation.id
+  datasetId: string; // References staged_data.id, connection.id, transformation.id, or saved_cross_query.id
 
   @Column('text', { name: 'table_name', nullable: true })
   tableName?: string; // For staged data or connection tables

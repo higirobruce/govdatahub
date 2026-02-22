@@ -5,6 +5,7 @@ import useSWR, { mutate } from 'swr';
 import { api } from '@/lib/api';
 import { SavedCrossQuery, QueryDefinition } from '@/types';
 import { useToast } from '@/components/ui/toast';
+import { Share2 } from 'lucide-react';
 
 interface SavedQueriesPanelProps {
   onLoadQuery: (queryDefinition: QueryDefinition) => void;
@@ -17,9 +18,19 @@ export function SavedQueriesPanel({
 }: SavedQueriesPanelProps) {
   const { showToast } = useToast();
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [selectedQueryForShare, setSelectedQueryForShare] = useState<SavedCrossQuery | null>(null);
   const [saveName, setSaveName] = useState('');
   const [saveDescription, setSaveDescription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareForm, setShareForm] = useState({
+    name: '',
+    description: '',
+    accessLevel: 'private' as 'private' | 'organization' | 'public',
+    generateApiKey: false,
+    generateShareToken: false,
+  });
 
   const { data: savedQueries, error } = useSWR<SavedCrossQuery[]>(
     '/cross-query/saved',
@@ -82,6 +93,42 @@ export function SavedQueriesPanel({
       showToast('Query deleted successfully', 'success');
     } catch (err: any) {
       showToast(`Failed to delete query: ${err.message}`, 'error');
+    }
+  };
+
+  const handleShareQuery = (query: SavedCrossQuery) => {
+    setSelectedQueryForShare(query);
+    setShareForm({
+      name: query.name,
+      description: query.description || '',
+      accessLevel: 'private',
+      generateApiKey: false,
+      generateShareToken: false,
+    });
+    setShowShareDialog(true);
+  };
+
+  const handleSubmitShare = async () => {
+    if (!selectedQueryForShare) return;
+
+    setIsSharing(true);
+    try {
+      await api.dashboard.createShare({
+        name: shareForm.name,
+        description: shareForm.description,
+        datasetType: 'cross-query',
+        datasetId: selectedQueryForShare.id,
+        accessLevel: shareForm.accessLevel,
+        generateApiKey: shareForm.generateApiKey,
+        generateShareToken: shareForm.generateShareToken,
+      });
+      showToast('Cross-query shared successfully!', 'success');
+      setShowShareDialog(false);
+      setSelectedQueryForShare(null);
+    } catch (err: any) {
+      showToast(`Failed to share query: ${err.message}`, 'error');
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -224,6 +271,13 @@ export function SavedQueriesPanel({
                     Load
                   </button>
                   <button
+                    onClick={() => handleShareQuery(query)}
+                    className="flex-1 px-3 py-1 text-xs font-medium text-blue-600 border border-blue-300 rounded hover:bg-blue-50 inline-flex items-center justify-center gap-1"
+                  >
+                    <Share2 className="h-3 w-3" />
+                    Share
+                  </button>
+                  <button
                     onClick={() => handleDeleteQuery(query.id, query.name)}
                     className="flex-1 px-3 py-1 text-xs font-medium text-red-600 border border-red-300 rounded hover:bg-red-50"
                   >
@@ -235,6 +289,100 @@ export function SavedQueriesPanel({
           </div>
         )}
       </div>
+
+      {/* Share Dialog */}
+      {showShareDialog && selectedQueryForShare && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Share Cross-Query
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={shareForm.name}
+                  onChange={(e) => setShareForm({ ...shareForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#1a1a1a] focus:border-[#1a1a1a]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={shareForm.description}
+                  onChange={(e) => setShareForm({ ...shareForm, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#1a1a1a] focus:border-[#1a1a1a]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Access Level
+                </label>
+                <select
+                  value={shareForm.accessLevel}
+                  onChange={(e) => setShareForm({ ...shareForm, accessLevel: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#1a1a1a] focus:border-[#1a1a1a]"
+                >
+                  <option value="private">Private</option>
+                  <option value="organization">Organization</option>
+                  <option value="public">Public</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={shareForm.generateApiKey}
+                    onChange={(e) => setShareForm({ ...shareForm, generateApiKey: e.target.checked })}
+                    className="rounded border-gray-300 text-[#1a1a1a] focus:ring-[#1a1a1a]"
+                  />
+                  <span className="text-sm text-gray-700">Generate API Key (for programmatic access)</span>
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={shareForm.generateShareToken}
+                    onChange={(e) => setShareForm({ ...shareForm, generateShareToken: e.target.checked })}
+                    className="rounded border-gray-300 text-[#1a1a1a] focus:ring-[#1a1a1a]"
+                  />
+                  <span className="text-sm text-gray-700">Generate Share Token (for read-only web access)</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowShareDialog(false);
+                  setSelectedQueryForShare(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                disabled={isSharing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitShare}
+                disabled={isSharing || !shareForm.name.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#1a1a1a] rounded-md hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSharing ? 'Sharing...' : 'Share Query'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

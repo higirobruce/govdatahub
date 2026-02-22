@@ -248,7 +248,7 @@ export const api = {
     createShare: (data: {
       name: string;
       description: string;
-      datasetType: 'staged' | 'connection' | 'transformation';
+      datasetType: 'staged' | 'connection' | 'transformation' | 'cross-query';
       datasetId: string;
       tableName?: string;
       accessLevel: 'private' | 'organization' | 'public';

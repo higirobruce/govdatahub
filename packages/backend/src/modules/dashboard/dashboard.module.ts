@@ -9,6 +9,7 @@ import {
   CachedResult,
   QueryHistory,
   ImportJob,
+  SavedCrossQuery,
 } from '../../database/entities';
 import { DashboardController } from './dashboard.controller';
 import { PublicDatasetController } from './public-dataset.controller';
@@ -28,6 +29,7 @@ import { EncryptionModule } from '../encryption/encryption.module';
       CachedResult,
       QueryHistory,
       ImportJob,
+      SavedCrossQuery,
     ]),
     ConnectionsModule,
     EncryptionModule,

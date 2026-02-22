@@ -10,6 +10,7 @@ import {
   ImportJob,
   ImportJobStatus,
   TransformationRun,
+  SavedCrossQuery,
 } from '../../database/entities';
 import { DatasetCatalogItemDto } from './dto/dataset-catalog-item.dto';
 import { DashboardStatsDto } from './dto/dashboard-stats.dto';
@@ -36,6 +37,8 @@ export class DatasetCatalogService {
     private importJobRepository: Repository<ImportJob>,
     @InjectRepository(TransformationRun)
     private transformationRunRepository: Repository<TransformationRun>,
+    @InjectRepository(SavedCrossQuery)
+    private savedCrossQueryRepository: Repository<SavedCrossQuery>,
     private connectionsService: ConnectionsService,
   ) {}
 
@@ -124,18 +127,43 @@ export class DatasetCatalogService {
       });
     }
 
+    // 4. Get saved cross-queries
+    const crossQueries = await this.savedCrossQueryRepository.find({
+      where: { organizationId },
+    });
+
+    for (const crossQuery of crossQueries) {
+      const shareKey = `cross-query:${crossQuery.id}`;
+      const share = sharesMap.get(shareKey);
+
+      datasets.push({
+        id: crossQuery.id,
+        name: crossQuery.name,
+        description: crossQuery.description || 'Cross-database query',
+        type: 'cross-query',
+        tableName: '-', // Cross-queries span multiple tables
+        rowCount: 0, // Would need to execute query to get accurate count
+        lastUpdated: crossQuery.updatedAt?.toISOString() || crossQuery.createdAt.toISOString(),
+        source: 'Cross-Database Query',
+        isShared: !!share,
+        accessLevel: share?.accessLevel || 'private',
+        shareId: share?.id,
+      });
+    }
+
     return datasets;
   }
 
   async getStats(organizationId: string): Promise<DashboardStatsDto> {
     // Total datasets
-    const [stagedCount, connectionsCount, transformationsCount] = await Promise.all([
+    const [stagedCount, connectionsCount, transformationsCount, crossQueriesCount] = await Promise.all([
       this.stagedDataRepository.count({ where: { organizationId } }),
       this.connectionRepository.count({ where: { organizationId } }),
       this.transformationRepository.count({ where: { organizationId, status: 'active' } }),
+      this.savedCrossQueryRepository.count({ where: { organizationId } }),
     ]);
 
-    const totalDatasets = stagedCount + connectionsCount + transformationsCount;
+    const totalDatasets = stagedCount + connectionsCount + transformationsCount + crossQueriesCount;
 
     // Active connections
     const activeConnections = connectionsCount;

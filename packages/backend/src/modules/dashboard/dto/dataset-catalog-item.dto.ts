@@ -10,8 +10,8 @@ export class DatasetCatalogItemDto {
   @ApiProperty({ example: 'Customer information from CRM' })
   description: string;
 
-  @ApiProperty({ example: 'staged', enum: ['staged', 'connection', 'transformation'] })
-  type: 'staged' | 'connection' | 'transformation';
+  @ApiProperty({ example: 'staged', enum: ['staged', 'connection', 'transformation', 'cross-query'] })
+  type: 'staged' | 'connection' | 'transformation' | 'cross-query';
 
   @ApiProperty({ example: 'customers' })
   tableName: string;

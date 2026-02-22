@@ -1,14 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { CrossQueryResult } from '@/types';
+import { CrossQueryResult, QueryResult } from '@/types';
+import { Button } from '@/components/ui/button';
+import { BarChart3, LayoutDashboard, Download } from 'lucide-react';
+import { QueryVisualization } from '@/components/QueryVisualization';
+import { AddToDashboardModal } from '@/components/DashboardBuilder/AddToDashboardModal';
+import { useToast } from '@/components/ui/toast';
 
 interface ResultsViewerProps {
   result: CrossQueryResult;
 }
 
 export function ResultsViewer({ result }: ResultsViewerProps) {
+  const { showToast } = useToast();
   const [currentPage, setCurrentPage] = useState(0);
+  const [showVisualization, setShowVisualization] = useState(false);
+  const [showAddToDashboard, setShowAddToDashboard] = useState(false);
   const rowsPerPage = 100;
 
   if (!result.rows || result.rows.length === 0) {
@@ -26,13 +34,75 @@ export function ResultsViewer({ result }: ResultsViewerProps) {
 
   const columns = result.fields.map((f) => f.name);
 
+  // Convert CrossQueryResult to QueryResult format for compatibility
+  const queryResult: QueryResult = {
+    fields: result.fields,
+    rows: result.rows,
+    rowCount: result.rowCount,
+    executionTimeMs: result.executionTimeMs,
+  };
+
+  const handleExportCSV = () => {
+    const csv = [
+      columns.join(','),
+      ...result.rows.map(row =>
+        columns.map(col => {
+          const value = row[col];
+          if (value === null) return '';
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        }).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `cross-query-results-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('Results exported to CSV', 'success');
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">Query Results</h3>
-        <div className="text-sm text-gray-600">
-          {result.rowCount} rows in {result.executionTimeMs}ms
+        <div className="flex items-center gap-4">
+          <Button
+            onClick={() => setShowVisualization(true)}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Visualize
+          </Button>
+          <Button
+            onClick={() => setShowAddToDashboard(true)}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            Add to Dashboard
+          </Button>
+          <Button
+            onClick={handleExportCSV}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <div className="text-sm text-gray-600">
+            {result.rowCount} rows in {result.executionTimeMs}ms
+          </div>
         </div>
       </div>
 
@@ -116,6 +186,29 @@ export function ResultsViewer({ result }: ResultsViewerProps) {
             {result.generatedSql}
           </pre>
         </details>
+      )}
+
+      {/* Visualization Modal */}
+      {showVisualization && (
+        <QueryVisualization
+          queryResult={queryResult}
+          onClose={() => setShowVisualization(false)}
+        />
+      )}
+
+      {/* Add to Dashboard Modal */}
+      {showAddToDashboard && (
+        <AddToDashboardModal
+          queryResult={queryResult}
+          onClose={() => setShowAddToDashboard(false)}
+          onAdd={(chartConfig) => {
+            const existingCharts = JSON.parse(localStorage.getItem('pendingDashboardCharts') || '[]');
+            existingCharts.push(chartConfig);
+            localStorage.setItem('pendingDashboardCharts', JSON.stringify(existingCharts));
+            showToast(`Chart "${chartConfig.title}" added! Go to Dashboard Builder to see it.`, 'success');
+            setShowAddToDashboard(false);
+          }}
+        />
       )}
     </div>
   );

@@ -10,9 +10,9 @@ export class CreateShareDto {
   @IsString()
   description: string;
 
-  @ApiProperty({ example: 'staged', enum: ['staged', 'connection', 'transformation'] })
-  @IsEnum(['staged', 'connection', 'transformation'])
-  datasetType: 'staged' | 'connection' | 'transformation';
+  @ApiProperty({ example: 'staged', enum: ['staged', 'connection', 'transformation', 'cross-query'] })
+  @IsEnum(['staged', 'connection', 'transformation', 'cross-query'])
+  datasetType: 'staged' | 'connection' | 'transformation' | 'cross-query';
 
   @ApiProperty({ example: 'uuid-of-dataset' })
   @IsString()
