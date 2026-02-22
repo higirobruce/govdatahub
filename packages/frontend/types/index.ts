@@ -112,6 +112,7 @@ export interface ColumnSelection {
   table: string;
   column: string;
   alias?: string;
+  aggregate?: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'COUNT_DISTINCT';
 }
 
 export interface FilterCondition {
@@ -127,11 +128,17 @@ export interface OrderByClause {
   direction: 'ASC' | 'DESC';
 }
 
+export interface GroupByClause {
+  table: string;
+  column: string;
+}
+
 export interface QueryDefinition {
   tables: TableReference[];
   joins: JoinDefinition[];
   columns: ColumnSelection[];
   filters?: FilterCondition[];
+  groupBy?: GroupByClause[];
   orderBy?: OrderByClause[];
   limit?: number;
 }

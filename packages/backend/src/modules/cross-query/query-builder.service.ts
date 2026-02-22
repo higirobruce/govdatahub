@@ -30,7 +30,17 @@ export class QueryBuilderService {
       }
 
       // Use table alias, not the full foreign table name
-      const columnRef = `${this.quoteIdent(col.table)}.${this.quoteIdent(col.column)}`;
+      let columnRef = `${this.quoteIdent(col.table)}.${this.quoteIdent(col.column)}`;
+
+      // Wrap with aggregate function if specified
+      if (col.aggregate) {
+        if (col.aggregate === 'COUNT_DISTINCT') {
+          columnRef = `COUNT(DISTINCT ${columnRef})`;
+        } else {
+          columnRef = `${col.aggregate}(${columnRef})`;
+        }
+      }
+
       return col.alias
         ? `${columnRef} AS ${this.quoteIdent(col.alias)}`
         : columnRef;
@@ -90,6 +100,15 @@ export class QueryBuilderService {
       });
 
       sql += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    // GROUP BY clause
+    if (queryDef.groupBy && queryDef.groupBy.length > 0) {
+      const groupClauses = queryDef.groupBy.map(
+        (group) =>
+          `${this.quoteIdent(group.table)}.${this.quoteIdent(group.column)}`,
+      );
+      sql += ` GROUP BY ${groupClauses.join(', ')}`;
     }
 
     // ORDER BY clause

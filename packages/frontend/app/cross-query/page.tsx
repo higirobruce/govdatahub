@@ -8,13 +8,15 @@ import { VisualJoinEditor } from '@/components/CrossQueryBuilder/VisualJoinEdito
 import { ColumnSelector } from '@/components/CrossQueryBuilder/ColumnSelector';
 import { FilterBuilder } from '@/components/CrossQueryBuilder/FilterBuilder';
 import { OrderByBuilder } from '@/components/CrossQueryBuilder/OrderByBuilder';
+import { GroupByBuilder } from '@/components/CrossQueryBuilder/GroupByBuilder';
+import { LimitBuilder } from '@/components/CrossQueryBuilder/LimitBuilder';
 import { QueryPreview } from '@/components/CrossQueryBuilder/QueryPreview';
 import { ResultsViewer } from '@/components/CrossQueryBuilder/ResultsViewer';
 import { SavedQueriesPanel } from '@/components/CrossQueryBuilder/SavedQueriesPanel';
 import { api } from '@/lib/api';
 import { Link as LinkIcon } from 'lucide-react';
 
-type SidebarTab = 'connections' | 'filters' | 'sorting' | 'saved';
+type SidebarTab = 'connections' | 'filters' | 'groupby' | 'sorting' | 'limit' | 'saved';
 
 export default function CrossQueryPage() {
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
@@ -254,6 +256,16 @@ export default function CrossQueryPage() {
                 🔍 Filter
               </button>
               <button
+                onClick={() => setSidebarTab('groupby')}
+                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
+                  sidebarTab === 'groupby'
+                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
+                }`}
+              >
+                📦 Group
+              </button>
+              <button
                 onClick={() => setSidebarTab('sorting')}
                 className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
                   sidebarTab === 'sorting'
@@ -262,6 +274,16 @@ export default function CrossQueryPage() {
                 }`}
               >
                 ↕️ Sort
+              </button>
+              <button
+                onClick={() => setSidebarTab('limit')}
+                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
+                  sidebarTab === 'limit'
+                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
+                }`}
+              >
+                🔢 Limit
               </button>
               <button
                 onClick={() => setSidebarTab('saved')}
@@ -306,36 +328,20 @@ export default function CrossQueryPage() {
                   </div>
                 )}
 
-                {/* Query Settings */}
+                {/* Query Summary */}
                 {queryDefinition.tables.length > 0 && (
                   <div className="pt-4 border-t">
                     <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">
-                      Query Settings
+                      Query Summary
                     </h3>
-                    <div>
-                      <label className="block text-xs font-medium text-[#555555] mb-1">
-                        Result Limit
-                      </label>
-                      <input
-                        type="number"
-                        value={queryDefinition.limit || 100}
-                        onChange={(e) =>
-                          setQueryDefinition({
-                            ...queryDefinition,
-                            limit: parseInt(e.target.value) || 100,
-                          })
-                        }
-                        className="w-full px-2 py-1 text-sm border border-[#dddddd] rounded-md focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
-                        min="1"
-                        max="10000"
-                      />
-                    </div>
-                    <div className="mt-3 text-xs text-[#555555] space-y-1">
+                    <div className="text-xs text-[#555555] space-y-1">
                       <div>Tables: {queryDefinition.tables.length}</div>
                       <div>Joins: {queryDefinition.joins.length}</div>
                       <div>Columns: {queryDefinition.columns.length}</div>
                       <div>Filters: {queryDefinition.filters?.length || 0}</div>
+                      <div>Group By: {queryDefinition.groupBy?.length || 0} columns</div>
                       <div>Sorting: {queryDefinition.orderBy?.length || 0} columns</div>
+                      <div>Limit: {queryDefinition.limit ? queryDefinition.limit.toLocaleString() : 'None'}</div>
                     </div>
                   </div>
                 )}
@@ -355,6 +361,19 @@ export default function CrossQueryPage() {
               </div>
             )}
 
+            {/* Group By Tab */}
+            {sidebarTab === 'groupby' && (
+              <div>
+                <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
+                  GROUP BY Aggregation
+                </h3>
+                <GroupByBuilder
+                  queryDefinition={queryDefinition}
+                  onQueryChange={setQueryDefinition}
+                />
+              </div>
+            )}
+
             {/* Sorting Tab */}
             {sidebarTab === 'sorting' && (
               <div>
@@ -362,6 +381,19 @@ export default function CrossQueryPage() {
                   ORDER BY Sorting
                 </h3>
                 <OrderByBuilder
+                  queryDefinition={queryDefinition}
+                  onQueryChange={setQueryDefinition}
+                />
+              </div>
+            )}
+
+            {/* Limit Tab */}
+            {sidebarTab === 'limit' && (
+              <div>
+                <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
+                  LIMIT Result Rows
+                </h3>
+                <LimitBuilder
                   queryDefinition={queryDefinition}
                   onQueryChange={setQueryDefinition}
                 />

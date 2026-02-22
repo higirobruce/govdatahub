@@ -108,6 +108,30 @@ export function ColumnSelector({
     );
   };
 
+  const handleUpdateAggregate = (index: number, aggregate: string | undefined) => {
+    const newColumns = [...queryDefinition.columns];
+    newColumns[index] = {
+      ...newColumns[index],
+      aggregate: aggregate as any,
+    };
+    onQueryChange({
+      ...queryDefinition,
+      columns: newColumns,
+    });
+  };
+
+  const handleUpdateAlias = (index: number, alias: string) => {
+    const newColumns = [...queryDefinition.columns];
+    newColumns[index] = {
+      ...newColumns[index],
+      alias: alias || undefined,
+    };
+    onQueryChange({
+      ...queryDefinition,
+      columns: newColumns,
+    });
+  };
+
   if (queryDefinition.tables.length === 0) {
     return (
       <div className="text-sm text-gray-500">
@@ -116,8 +140,103 @@ export function ColumnSelector({
     );
   }
 
+  const handleAddCountStar = () => {
+    if (queryDefinition.tables.length === 0) return;
+    const firstTable = queryDefinition.tables[0];
+
+    // Add a COUNT(*) column using the first column of the first table
+    const firstColumn = firstTable.columns?.[0];
+    if (!firstColumn) return;
+
+    onQueryChange({
+      ...queryDefinition,
+      columns: [
+        ...queryDefinition.columns,
+        {
+          table: firstTable.alias,
+          column: firstColumn.name,
+          aggregate: 'COUNT' as any,
+          alias: 'count',
+        },
+      ],
+    });
+  };
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Quick Actions */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleAddCountStar}
+          disabled={queryDefinition.tables.length === 0}
+          className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          + Add COUNT(*)
+        </button>
+      </div>
+
+      {/* Selected Columns with Aggregates */}
+      {queryDefinition.columns.length > 0 && (
+        <div className="border border-blue-200 rounded-md bg-blue-50 p-3">
+          <h4 className="text-xs font-semibold text-gray-700 mb-2">
+            Selected Columns ({queryDefinition.columns.length})
+          </h4>
+          <div className="space-y-2">
+            {queryDefinition.columns.map((col, index) => (
+              <div key={`${col.table}-${col.column}-${index}`} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
+                {/* Column Name */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-mono text-gray-900 truncate">
+                    {col.table}.{col.column}
+                  </div>
+                </div>
+
+                {/* Aggregate Function */}
+                <select
+                  value={col.aggregate || ''}
+                  onChange={(e) => handleUpdateAggregate(index, e.target.value || undefined)}
+                  className="text-xs border border-gray-300 rounded px-2 py-1 w-32"
+                >
+                  <option value="">No Aggregate</option>
+                  <option value="COUNT">COUNT</option>
+                  <option value="COUNT_DISTINCT">COUNT DISTINCT</option>
+                  <option value="SUM">SUM</option>
+                  <option value="AVG">AVG</option>
+                  <option value="MIN">MIN</option>
+                  <option value="MAX">MAX</option>
+                </select>
+
+                {/* Alias Input */}
+                <input
+                  type="text"
+                  value={col.alias || ''}
+                  onChange={(e) => handleUpdateAlias(index, e.target.value)}
+                  placeholder="alias"
+                  className="text-xs border border-gray-300 rounded px-2 py-1 w-24"
+                />
+
+                {/* Remove Button */}
+                <button
+                  onClick={() => handleToggleColumn(col.table, col.column)}
+                  className="text-red-600 hover:text-red-700"
+                  title="Remove column"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="text-xs text-gray-600 mt-2">
+            💡 Use aggregates with GROUP BY for COUNT, SUM, AVG, etc.
+          </div>
+        </div>
+      )}
+
+      {/* Available Columns */}
+      <div className="space-y-3">
+        <h4 className="text-xs font-semibold text-gray-700">Available Columns</h4>
       {queryDefinition.tables.map((table) => {
         const isExpanded = expandedTables.has(table.alias);
 
@@ -203,13 +322,7 @@ export function ColumnSelector({
           </div>
         );
       })}
-
-      {/* Summary */}
-      {queryDefinition.columns.length > 0 && (
-        <div className="text-xs text-gray-600 pt-2 border-t">
-          {queryDefinition.columns.length} column{queryDefinition.columns.length !== 1 ? 's' : ''} selected
-        </div>
-      )}
+      </div>
     </div>
   );
 }

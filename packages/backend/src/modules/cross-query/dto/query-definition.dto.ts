@@ -81,6 +81,15 @@ export class JoinDefinitionDto {
   conditions: JoinConditionDto[];
 }
 
+export enum AggregateFunction {
+  COUNT = 'COUNT',
+  COUNT_DISTINCT = 'COUNT_DISTINCT',
+  SUM = 'SUM',
+  AVG = 'AVG',
+  MIN = 'MIN',
+  MAX = 'MAX',
+}
+
 export class ColumnSelectionDto {
   @ApiProperty({ example: 'users' })
   @IsString()
@@ -94,6 +103,11 @@ export class ColumnSelectionDto {
   @IsOptional()
   @IsString()
   alias?: string;
+
+  @ApiProperty({ enum: AggregateFunction, required: false })
+  @IsOptional()
+  @IsEnum(AggregateFunction)
+  aggregate?: AggregateFunction;
 }
 
 export enum FilterOperator {
@@ -144,6 +158,16 @@ export class OrderByClauseDto {
   direction: OrderDirection;
 }
 
+export class GroupByClauseDto {
+  @ApiProperty({ example: 'orders' })
+  @IsString()
+  table: string;
+
+  @ApiProperty({ example: 'product_id' })
+  @IsString()
+  column: string;
+}
+
 export class QueryDefinitionDto {
   @ApiProperty({ type: [TableReferenceDto] })
   @IsArray()
@@ -169,6 +193,13 @@ export class QueryDefinitionDto {
   @ValidateNested({ each: true })
   @Type(() => FilterConditionDto)
   filters?: FilterConditionDto[];
+
+  @ApiProperty({ type: [GroupByClauseDto], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GroupByClauseDto)
+  groupBy?: GroupByClauseDto[];
 
   @ApiProperty({ type: [OrderByClauseDto], required: false })
   @IsOptional()
