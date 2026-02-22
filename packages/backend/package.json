@@ -25,6 +25,7 @@
     "migration:revert": "tsx ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts"
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^8.1.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^3.2.0",
     "@nestjs/core": "^11.0.1",
@@ -47,6 +48,7 @@
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "snowflake-sdk": "^2.3.4",
     "typeorm": "^0.3.20",
     "uuid": "^11.0.3",
     "xlsx": "^0.18.5"

@@ -1,9 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { Connection } from '@/types';
+import { Connection, ConnectionType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Database } from 'lucide-react';
+
+const TYPE_COLORS: Record<ConnectionType, string> = {
+  postgresql: 'bg-[#60a5fa]',
+  mysql: 'bg-[#fb923c]',
+  redshift: 'bg-[#c084fc]',
+  snowflake: 'bg-[#38bdf8]',
+  bigquery: 'bg-[#4ade80]',
+};
+
+function connectionSubtitle(connection: Connection): string {
+  const type = connection.type.toUpperCase();
+  if (connection.type === 'bigquery') {
+    return `${type} - ${connection.database}`;
+  }
+  if (connection.type === 'snowflake') {
+    const warehouse = connection.warehouse ? ` / ${connection.warehouse}` : '';
+    return `${type} - ${connection.host}/${connection.database}${warehouse}`;
+  }
+  return `${type} - ${connection.host}:${connection.port}/${connection.database}`;
+}
 
 interface ConnectionListProps {
   connections: Connection[];
@@ -60,19 +80,14 @@ export default function ConnectionList({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-3">
                   <div
-                    className={`flex-shrink-0 w-2.5 h-2.5 rounded-full ${
-                      connection.type === 'postgresql'
-                        ? 'bg-[#60a5fa]'
-                        : 'bg-[#fb923c]'
-                    }`}
+                    className={`flex-shrink-0 w-2.5 h-2.5 rounded-full ${TYPE_COLORS[connection.type] || 'bg-[#aaaaaa]'}`}
                   />
                   <div className="flex-1">
                     <h3 className="text-sm font-medium text-[#1a1a1a] truncate">
                       {connection.name}
                     </h3>
                     <p className="text-sm text-[#555555]">
-                      {connection.type.toUpperCase()} - {connection.host}:
-                      {connection.port}/{connection.database}
+                      {connectionSubtitle(connection)}
                       {connection.ssl && (
                         <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#d1fae5] text-[#065f46]">
                           SSL
