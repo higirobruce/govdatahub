@@ -11,12 +11,27 @@ const SUPPORTED_TYPES = [
   'sqlserver',
   'clickhouse',
   'sqlite',
+  'duckdb',
+  'elasticsearch',
+  'cassandra',
 ];
 
-/** Types that don't use a host/port/credential model */
-const NO_HOST_TYPES = ['bigquery', 'sqlite'];
-const NO_PORT_TYPES = ['bigquery', 'snowflake', 'sqlite'];
-const NO_CREDS_TYPES = ['bigquery', 'sqlite'];
+/**
+ * Types that require no host — file-based or cloud-credential-based.
+ */
+const NO_HOST_TYPES = ['bigquery', 'sqlite', 'duckdb'];
+
+/**
+ * Types that require no port number.
+ */
+const NO_PORT_TYPES = ['bigquery', 'snowflake', 'sqlite', 'duckdb'];
+
+/**
+ * Types where credentials are never needed (class-validator won't require them).
+ * Note: elasticsearch and cassandra accept optional credentials — they are not
+ * in this list so they can be passed through, but the form marks them optional.
+ */
+const NO_CREDS_TYPES = ['bigquery', 'sqlite', 'duckdb', 'elasticsearch', 'cassandra'];
 
 export class CreateConnectionDto {
   @ApiProperty({
@@ -46,7 +61,7 @@ export class CreateConnectionDto {
 
   @ApiProperty({
     example: 5432,
-    description: 'Database port (not required for Snowflake, BigQuery, or SQLite)',
+    description: 'Database port (not required for Snowflake, BigQuery, SQLite, or DuckDB)',
     required: false,
   })
   @ValidateIf((o) => !NO_PORT_TYPES.includes(o.type))
@@ -57,7 +72,8 @@ export class CreateConnectionDto {
 
   @ApiProperty({
     example: 'admin',
-    description: 'Database username (not required for BigQuery or SQLite)',
+    description:
+      'Database username (not required for BigQuery, SQLite, DuckDB; optional for Elasticsearch/Cassandra)',
     required: false,
   })
   @ValidateIf((o) => !NO_CREDS_TYPES.includes(o.type))
@@ -66,7 +82,8 @@ export class CreateConnectionDto {
 
   @ApiProperty({
     example: 'password123',
-    description: 'Database password (not required for BigQuery or SQLite)',
+    description:
+      'Database password (not required for BigQuery, SQLite, DuckDB; optional for Elasticsearch/Cassandra)',
     required: false,
   })
   @ValidateIf((o) => !NO_CREDS_TYPES.includes(o.type))
@@ -75,7 +92,7 @@ export class CreateConnectionDto {
 
   @ApiProperty({
     example: 'finance_db',
-    description: 'Database name, BigQuery project ID, or SQLite file path',
+    description: 'Database/keyspace name, BigQuery project ID, or SQLite/DuckDB file path',
   })
   @IsString()
   database: string;

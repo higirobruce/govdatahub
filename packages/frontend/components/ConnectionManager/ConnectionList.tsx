@@ -15,6 +15,9 @@ const TYPE_COLORS: Record<ConnectionType, string> = {
   sqlserver: 'bg-[#f472b6]',
   clickhouse: 'bg-[#fbbf24]',
   sqlite: 'bg-[#94a3b8]',
+  duckdb: 'bg-[#facc15]',
+  elasticsearch: 'bg-[#f97316]',
+  cassandra: 'bg-[#818cf8]',
 };
 
 function connectionSubtitle(connection: Connection): string {

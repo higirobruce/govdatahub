@@ -16,6 +16,9 @@ import { MongoDBDriver } from './drivers/mongodb.driver';
 import { SqlServerDriver } from './drivers/sql-server.driver';
 import { ClickHouseDriver } from './drivers/clickhouse.driver';
 import { SQLiteDriver } from './drivers/sqlite.driver';
+import { DuckDBDriver } from './drivers/duckdb.driver';
+import { ElasticsearchDriver } from './drivers/elasticsearch.driver';
+import { CassandraDriver } from './drivers/cassandra.driver';
 
 @Injectable()
 export class ConnectionsService {
@@ -200,6 +203,12 @@ export class ConnectionsService {
         return new ClickHouseDriver();
       case 'sqlite':
         return new SQLiteDriver();
+      case 'duckdb':
+        return new DuckDBDriver();
+      case 'elasticsearch':
+        return new ElasticsearchDriver();
+      case 'cassandra':
+        return new CassandraDriver();
       default:
         throw new BadRequestException(`Unsupported database type: ${type}`);
     }

@@ -18,6 +18,9 @@ const DEFAULT_PORTS: Record<ConnectionType, number | undefined> = {
   sqlserver: 1433,
   clickhouse: 8123,
   sqlite: undefined,
+  duckdb: undefined,
+  elasticsearch: 9200,
+  cassandra: 9042,
 };
 
 const TYPE_LABELS: Record<ConnectionType, string> = {
@@ -30,21 +33,38 @@ const TYPE_LABELS: Record<ConnectionType, string> = {
   sqlserver: 'Microsoft SQL Server',
   clickhouse: 'ClickHouse',
   sqlite: 'SQLite',
+  duckdb: 'DuckDB',
+  elasticsearch: 'Elasticsearch',
+  cassandra: 'Cassandra / ScyllaDB',
 };
 
-const NO_HOST_TYPES: ConnectionType[] = ['bigquery', 'sqlite'];
-const NO_PORT_TYPES: ConnectionType[] = ['bigquery', 'snowflake', 'sqlite'];
-const NO_CREDS_TYPES: ConnectionType[] = ['bigquery', 'sqlite'];
-// Types that expose the SSL toggle
-const SSL_TYPES: ConnectionType[] = ['postgresql', 'mysql', 'redshift', 'sqlserver', 'clickhouse'];
+/** Types with no host field (in-process or cloud-credential-based) */
+const NO_HOST_TYPES: ConnectionType[] = ['bigquery', 'sqlite', 'duckdb'];
+/** Types with no port field */
+const NO_PORT_TYPES: ConnectionType[] = ['bigquery', 'snowflake', 'sqlite', 'duckdb'];
+/** Types that hide the credentials fields entirely */
+const NO_CREDS_TYPES: ConnectionType[] = ['bigquery', 'sqlite', 'duckdb'];
+/** Types that show credentials but don't require them */
+const OPTIONAL_CREDS_TYPES: ConnectionType[] = ['elasticsearch', 'cassandra'];
+/** Types that expose the SSL toggle */
+const SSL_TYPES: ConnectionType[] = [
+  'postgresql', 'mysql', 'redshift', 'sqlserver', 'clickhouse', 'elasticsearch', 'cassandra',
+];
+/** File-path database types */
+const FILE_DB_TYPES: ConnectionType[] = ['sqlite', 'duckdb'];
 
-const NEEDS_HOST = (type: ConnectionType) => !NO_HOST_TYPES.includes(type);
-const NEEDS_PORT = (type: ConnectionType) => !NO_PORT_TYPES.includes(type);
-const NEEDS_CREDENTIALS = (type: ConnectionType) => !NO_CREDS_TYPES.includes(type);
-const IS_SNOWFLAKE = (type: ConnectionType) => type === 'snowflake';
-const IS_BIGQUERY = (type: ConnectionType) => type === 'bigquery';
-const IS_MONGODB = (type: ConnectionType) => type === 'mongodb';
-const IS_SQLITE = (type: ConnectionType) => type === 'sqlite';
+const NEEDS_HOST = (t: ConnectionType) => !NO_HOST_TYPES.includes(t);
+const NEEDS_PORT = (t: ConnectionType) => !NO_PORT_TYPES.includes(t);
+/** Whether to render the credentials fields at all */
+const SHOWS_CREDENTIALS = (t: ConnectionType) => !NO_CREDS_TYPES.includes(t);
+/** Whether the credentials fields carry the HTML `required` attribute */
+const REQUIRES_CREDENTIALS = (t: ConnectionType) =>
+  !NO_CREDS_TYPES.includes(t) && !OPTIONAL_CREDS_TYPES.includes(t);
+
+const IS_SNOWFLAKE = (t: ConnectionType) => t === 'snowflake';
+const IS_BIGQUERY = (t: ConnectionType) => t === 'bigquery';
+const IS_MONGODB = (t: ConnectionType) => t === 'mongodb';
+const IS_FILE_DB = (t: ConnectionType) => FILE_DB_TYPES.includes(t);
 
 export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
   const [formData, setFormData] = useState<CreateConnectionDto>({
@@ -67,8 +87,8 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
       type,
       host: NEEDS_HOST(type) ? (IS_SNOWFLAKE(type) ? '' : 'localhost') : undefined,
       port: DEFAULT_PORTS[type],
-      username: NEEDS_CREDENTIALS(type) ? '' : undefined,
-      password: NEEDS_CREDENTIALS(type) ? '' : undefined,
+      username: SHOWS_CREDENTIALS(type) ? '' : undefined,
+      password: SHOWS_CREDENTIALS(type) ? '' : undefined,
       database: '',
       ssl: SSL_TYPES.includes(type) ? false : undefined,
       warehouse: undefined,
@@ -143,11 +163,15 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
           </select>
         </div>
 
-        {/* Host / Account (not BigQuery) */}
+        {/* Host / Account */}
         {NEEDS_HOST(formData.type) && (
           <div className={IS_MONGODB(formData.type) ? 'sm:col-span-2' : ''}>
             <label className={labelClass}>
-              {IS_SNOWFLAKE(formData.type) ? 'Account Identifier *' : IS_MONGODB(formData.type) ? 'Host or Connection URI *' : 'Host *'}
+              {IS_SNOWFLAKE(formData.type)
+                ? 'Account Identifier *'
+                : IS_MONGODB(formData.type)
+                  ? 'Host or Connection URI *'
+                  : 'Host *'}
             </label>
             <input
               type="text"
@@ -168,13 +192,14 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             )}
             {IS_MONGODB(formData.type) && (
               <p className="mt-1 text-xs text-[#aaaaaa]">
-                For Atlas, paste the full <code>mongodb+srv://</code> URI here and leave other fields blank.
+                For Atlas, paste the full <code>mongodb+srv://</code> URI here and leave other
+                fields blank.
               </p>
             )}
           </div>
         )}
 
-        {/* Port (PostgreSQL, MySQL, Redshift only) */}
+        {/* Port */}
         {NEEDS_PORT(formData.type) && (
           <div>
             <label className={labelClass}>Port *</label>
@@ -190,14 +215,16 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
           </div>
         )}
 
-        {/* Username / Password (not BigQuery) */}
-        {NEEDS_CREDENTIALS(formData.type) && (
+        {/* Username / Password */}
+        {SHOWS_CREDENTIALS(formData.type) && (
           <>
             <div>
-              <label className={labelClass}>Username *</label>
+              <label className={labelClass}>
+                {REQUIRES_CREDENTIALS(formData.type) ? 'Username *' : 'Username'}
+              </label>
               <input
                 type="text"
-                required
+                required={REQUIRES_CREDENTIALS(formData.type)}
                 value={formData.username || ''}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                 className={inputClass}
@@ -205,10 +232,12 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
               />
             </div>
             <div>
-              <label className={labelClass}>Password *</label>
+              <label className={labelClass}>
+                {REQUIRES_CREDENTIALS(formData.type) ? 'Password *' : 'Password'}
+              </label>
               <input
                 type="password"
-                required
+                required={REQUIRES_CREDENTIALS(formData.type)}
                 value={formData.password || ''}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 className={inputClass}
@@ -219,13 +248,15 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
         )}
 
         {/* Database / Project ID / File Path */}
-        <div className={IS_SQLITE(formData.type) ? 'sm:col-span-2' : ''}>
+        <div className={IS_FILE_DB(formData.type) ? 'sm:col-span-2' : ''}>
           <label className={labelClass}>
             {IS_BIGQUERY(formData.type)
               ? 'Project ID *'
-              : IS_SQLITE(formData.type)
+              : IS_FILE_DB(formData.type)
                 ? 'File Path *'
-                : 'Database Name *'}
+                : formData.type === 'cassandra'
+                  ? 'Keyspace *'
+                  : 'Database Name *'}
           </label>
           <input
             type="text"
@@ -236,15 +267,20 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
             placeholder={
               IS_BIGQUERY(formData.type)
                 ? 'my-gcp-project'
-                : IS_SQLITE(formData.type)
-                  ? '/data/mydb.sqlite3  or  :memory:'
-                  : 'mydb'
+                : IS_FILE_DB(formData.type)
+                  ? '/data/mydb.' + (formData.type === 'duckdb' ? 'duckdb' : 'sqlite3') + '  or  :memory:'
+                  : formData.type === 'cassandra'
+                    ? 'my_keyspace'
+                    : 'mydb'
             }
           />
-          {IS_SQLITE(formData.type) && (
+          {IS_FILE_DB(formData.type) && (
             <p className="mt-1 text-xs text-[#aaaaaa]">
-              Provide an absolute path to the SQLite file, or <code>:memory:</code> for an
-              in-memory database.
+              Absolute path to the {formData.type === 'duckdb' ? 'DuckDB' : 'SQLite'} file, or{' '}
+              <code>:memory:</code> for an in-memory database.
+              {formData.type === 'duckdb' && (
+                <> DuckDB can also query Parquet and CSV files via <code>read_parquet()</code>.</>
+              )}
             </p>
           )}
         </div>

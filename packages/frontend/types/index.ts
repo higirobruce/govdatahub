@@ -7,7 +7,10 @@ export type ConnectionType =
   | 'mongodb'
   | 'sqlserver'
   | 'clickhouse'
-  | 'sqlite';
+  | 'sqlite'
+  | 'duckdb'
+  | 'elasticsearch'
+  | 'cassandra';
 
 export interface Connection {
   id: string;
