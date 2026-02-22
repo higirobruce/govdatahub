@@ -11,6 +11,7 @@ const TYPE_COLORS: Record<ConnectionType, string> = {
   redshift: 'bg-[#c084fc]',
   snowflake: 'bg-[#38bdf8]',
   bigquery: 'bg-[#4ade80]',
+  mongodb: 'bg-[#86efac]',
 };
 
 function connectionSubtitle(connection: Connection): string {

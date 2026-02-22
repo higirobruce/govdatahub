@@ -14,6 +14,7 @@ const DEFAULT_PORTS: Record<ConnectionType, number | undefined> = {
   redshift: 5439,
   snowflake: undefined,
   bigquery: undefined,
+  mongodb: 27017,
 };
 
 const TYPE_LABELS: Record<ConnectionType, string> = {
@@ -22,14 +23,16 @@ const TYPE_LABELS: Record<ConnectionType, string> = {
   redshift: 'Amazon Redshift',
   snowflake: 'Snowflake',
   bigquery: 'Google BigQuery',
+  mongodb: 'MongoDB',
 };
 
 const STANDARD_TYPES: ConnectionType[] = ['postgresql', 'mysql', 'redshift'];
-const NEEDS_PORT = (type: ConnectionType) => STANDARD_TYPES.includes(type);
+const NEEDS_PORT = (type: ConnectionType) => STANDARD_TYPES.includes(type) || type === 'mongodb';
 const NEEDS_HOST = (type: ConnectionType) => type !== 'bigquery';
 const NEEDS_CREDENTIALS = (type: ConnectionType) => type !== 'bigquery';
 const IS_SNOWFLAKE = (type: ConnectionType) => type === 'snowflake';
 const IS_BIGQUERY = (type: ConnectionType) => type === 'bigquery';
+const IS_MONGODB = (type: ConnectionType) => type === 'mongodb';
 
 export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
   const [formData, setFormData] = useState<CreateConnectionDto>({
@@ -130,9 +133,9 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
 
         {/* Host / Account (not BigQuery) */}
         {NEEDS_HOST(formData.type) && (
-          <div>
+          <div className={IS_MONGODB(formData.type) ? 'sm:col-span-2' : ''}>
             <label className={labelClass}>
-              {IS_SNOWFLAKE(formData.type) ? 'Account Identifier *' : 'Host *'}
+              {IS_SNOWFLAKE(formData.type) ? 'Account Identifier *' : IS_MONGODB(formData.type) ? 'Host or Connection URI *' : 'Host *'}
             </label>
             <input
               type="text"
@@ -140,10 +143,21 @@ export default function ConnectionForm({ onSubmit }: ConnectionFormProps) {
               value={formData.host || ''}
               onChange={(e) => setFormData({ ...formData, host: e.target.value })}
               className={inputClass}
-              placeholder={IS_SNOWFLAKE(formData.type) ? 'myorg-myaccount' : 'localhost'}
+              placeholder={
+                IS_SNOWFLAKE(formData.type)
+                  ? 'myorg-myaccount'
+                  : IS_MONGODB(formData.type)
+                    ? 'localhost  or  mongodb+srv://user:pass@cluster.mongodb.net/db'
+                    : 'localhost'
+              }
             />
             {IS_SNOWFLAKE(formData.type) && (
               <p className="mt-1 text-xs text-[#aaaaaa]">e.g. myorg-myaccount.us-east-1</p>
+            )}
+            {IS_MONGODB(formData.type) && (
+              <p className="mt-1 text-xs text-[#aaaaaa]">
+                For Atlas, paste the full <code>mongodb+srv://</code> URI here and leave other fields blank.
+              </p>
             )}
           </div>
         )}

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsInt, IsBoolean, IsOptional, IsIn, Min, Max, ValidateIf } from 'class-validator';
 
-const SUPPORTED_TYPES = ['postgresql', 'mysql', 'redshift', 'snowflake', 'bigquery'];
+const SUPPORTED_TYPES = ['postgresql', 'mysql', 'redshift', 'snowflake', 'bigquery', 'mongodb'];
 
 export class CreateConnectionDto {
   @ApiProperty({

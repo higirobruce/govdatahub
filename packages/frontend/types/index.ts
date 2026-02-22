@@ -1,4 +1,4 @@
-export type ConnectionType = 'postgresql' | 'mysql' | 'redshift' | 'snowflake' | 'bigquery';
+export type ConnectionType = 'postgresql' | 'mysql' | 'redshift' | 'snowflake' | 'bigquery' | 'mongodb';
 
 export interface Connection {
   id: string;

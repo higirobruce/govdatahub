@@ -12,6 +12,7 @@ import { MySQLDriver } from './drivers/mysql.driver';
 import { RedshiftDriver } from './drivers/redshift.driver';
 import { SnowflakeDriver } from './drivers/snowflake.driver';
 import { BigQueryDriver } from './drivers/bigquery.driver';
+import { MongoDBDriver } from './drivers/mongodb.driver';
 
 @Injectable()
 export class ConnectionsService {
@@ -188,6 +189,8 @@ export class ConnectionsService {
         return new SnowflakeDriver();
       case 'bigquery':
         return new BigQueryDriver();
+      case 'mongodb':
+        return new MongoDBDriver();
       default:
         throw new BadRequestException(`Unsupported database type: ${type}`);
     }
