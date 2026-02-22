@@ -8,7 +8,7 @@ import { LineageGraphDto } from './dto/lineage-graph.dto';
 @ApiTags('lineage')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('api/lineage')
+@Controller('lineage')
 export class LineageController {
   constructor(private lineageBuilder: LineageBuilderService) {}
 

@@ -14,7 +14,7 @@ import { useToast } from '@/components/ui/toast';
 const ALL_NODE_TYPES = Object.values(NodeType);
 
 export default function LineagePage() {
-  const { toast } = useToast();
+  const { showToast } = useToast();
   const [selectedNodeTypes, setSelectedNodeTypes] = useState<NodeType[]>(ALL_NODE_TYPES);
   const [selectedNode, setSelectedNode] = useState<LineageNode | null>(null);
 
@@ -62,16 +62,9 @@ export default function LineagePage() {
   const handleRefresh = async () => {
     try {
       await mutate();
-      toast({
-        title: 'Lineage Refreshed',
-        description: 'Data lineage graph has been updated.',
-      });
+      showToast('Data lineage graph has been updated.', 'success');
     } catch (error) {
-      toast({
-        title: 'Refresh Failed',
-        description: 'Failed to refresh lineage graph.',
-        variant: 'destructive',
-      });
+      showToast('Failed to refresh lineage graph.', 'error');
     }
   };
 
@@ -87,10 +80,7 @@ export default function LineagePage() {
     linkElement.setAttribute('download', exportFileName);
     linkElement.click();
 
-    toast({
-      title: 'Export Successful',
-      description: 'Lineage graph exported as JSON.',
-    });
+    showToast('Lineage graph exported as JSON.', 'success');
   };
 
   const handleNodeClick = (nodeId: string) => {
