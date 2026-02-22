@@ -28,6 +28,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CrossQueryModule } from './modules/cross-query/cross-query.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { LineageModule } from './modules/lineage/lineage.module';
 
 @Module({
   imports: [
@@ -92,6 +93,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     CrossQueryModule,
     IngestionModule,
     DashboardModule,
+    LineageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -440,6 +440,33 @@ export const api = {
         method: 'DELETE',
       }),
   },
+
+  lineage: {
+    getGraph: (params?: any): Promise<any> => {
+      const searchParams = new URLSearchParams();
+      if (params?.nodeTypes) {
+        params.nodeTypes.forEach((type: string) => searchParams.append('nodeTypes', type));
+      }
+      if (params?.datasetId) searchParams.set('datasetId', params.datasetId);
+      if (params?.direction) searchParams.set('direction', params.direction);
+      if (params?.maxDepth) searchParams.set('maxDepth', params.maxDepth.toString());
+      if (params?.startDate) searchParams.set('startDate', params.startDate);
+      if (params?.endDate) searchParams.set('endDate', params.endDate);
+
+      const query = searchParams.toString();
+      return request(`/lineage/graph${query ? `?${query}` : ''}`);
+    },
+
+    getDatasetLineage: (
+      datasetId: string,
+      direction: 'upstream' | 'downstream' | 'both' = 'both',
+      maxDepth: number = 3
+    ): Promise<any> => {
+      return request(
+        `/lineage/dataset/${datasetId}?direction=${direction}&maxDepth=${maxDepth}`
+      );
+    },
+  },
 };
 
 export { ApiError };

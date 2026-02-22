@@ -18,6 +18,7 @@ import {
   X,
   BarChart3,
   LayoutDashboard,
+  Network,
 } from 'lucide-react';
 
 interface NavItem {
@@ -41,6 +42,7 @@ export function Sidebar() {
     { id: 'staged', label: 'Staged Data', href: '/staged', icon: <FileText /> },
     { id: 'ingestion', label: 'Data Ingestion', href: '/ingestion', icon: <Upload /> },
     { id: 'transformations', label: 'Transformations', href: '/transformations', icon: <GitBranch /> },
+    { id: 'lineage', label: 'Data Lineage', href: '/lineage', icon: <Network /> },
   ];
 
   const bottomNavItems: NavItem[] = [

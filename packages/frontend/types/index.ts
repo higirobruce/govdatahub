@@ -155,3 +155,6 @@ export interface SavedCrossQuery {
   createdAt: string;
   updatedAt: string;
 }
+
+// Lineage Types
+export * from './lineage';
