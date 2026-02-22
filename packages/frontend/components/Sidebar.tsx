@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   BarChart3,
+  LayoutDashboard,
 } from 'lucide-react';
 
 interface NavItem {
@@ -36,6 +37,7 @@ export function Sidebar() {
     { id: 'query', label: 'SQL Query', href: '/query', icon: <Search /> },
     { id: 'cross-query', label: 'Cross-Query', href: '/cross-query', icon: <LinkIcon /> },
     { id: 'charts', label: 'Charts', href: '/charts', icon: <BarChart3 /> },
+    { id: 'dashboards', label: 'Dashboard Builder', href: '/dashboards', icon: <LayoutDashboard /> },
     { id: 'staged', label: 'Staged Data', href: '/staged', icon: <FileText /> },
     { id: 'ingestion', label: 'Data Ingestion', href: '/ingestion', icon: <Upload /> },
     { id: 'transformations', label: 'Transformations', href: '/transformations', icon: <GitBranch /> },

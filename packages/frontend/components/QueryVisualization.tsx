@@ -2,10 +2,10 @@
 
 import { useState, useMemo } from 'react';
 import { QueryResult } from '@/types';
-import { LineChart, BarChart, PieChart } from '@/components/charts';
+import { LineChart, BarChart, PieChart, ScatterChart, AreaChart, RadarChart } from '@/components/charts';
 import { sqlToChartData, sqlToPieData } from '@/lib/chart-utils';
 import { Button } from '@/components/ui/button';
-import { X, BarChart3, LineChart as LineIcon, PieChart as PieIcon } from 'lucide-react';
+import { X, BarChart3, LineChart as LineIcon, PieChart as PieIcon, ScatterChart as ScatterIcon, Activity, Target } from 'lucide-react';
 
 interface QueryVisualizationProps {
   queryResult: QueryResult;
@@ -17,13 +17,13 @@ interface QueryVisualizationProps {
  * Allows users to instantly visualize their SQL query results
  */
 export function QueryVisualization({ queryResult, onClose }: QueryVisualizationProps) {
-  const [chartType, setChartType] = useState<'line' | 'bar' | 'pie'>('bar');
+  const [chartType, setChartType] = useState<'line' | 'bar' | 'pie' | 'scatter' | 'area' | 'radar'>('bar');
   const [xColumn, setXColumn] = useState<string>('');
   const [yColumn, setYColumn] = useState<string>('');
   const [groupBy, setGroupBy] = useState<string>('');
 
   // Get column names from query results
-  const columns = queryResult.columns || [];
+  const columns = queryResult.fields?.map(f => f.name) || [];
   const rows = queryResult.rows || [];
 
   // Auto-select columns on first render
@@ -33,7 +33,7 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
     }
     if (columns.length > 1 && !yColumn) {
       // Try to find a numeric column
-      const numericCol = columns.find(col => {
+      const numericCol = columns.find((col: string) => {
         const firstValue = rows[0]?.[col];
         return typeof firstValue === 'number';
       });
@@ -65,7 +65,7 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
 
   const hasData = chartType === 'pie'
     ? Array.isArray(chartData) && chartData.length > 0
-    : chartData.xAxis && chartData.xAxis.length > 0;
+    : !Array.isArray(chartData) && chartData.xAxis && chartData.xAxis.length > 0;
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
@@ -95,7 +95,7 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
                 }`}
               >
                 <BarChart3 className="w-6 h-6 mx-auto mb-1 text-[#555555]" />
-                <div className="text-[13px] font-medium text-[#1a1a1a]">Bar Chart</div>
+                <div className="text-[13px] font-medium text-[#1a1a1a]">Bar</div>
               </button>
 
               <button
@@ -107,7 +107,7 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
                 }`}
               >
                 <LineIcon className="w-6 h-6 mx-auto mb-1 text-[#555555]" />
-                <div className="text-[13px] font-medium text-[#1a1a1a]">Line Chart</div>
+                <div className="text-[13px] font-medium text-[#1a1a1a]">Line</div>
               </button>
 
               <button
@@ -119,7 +119,43 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
                 }`}
               >
                 <PieIcon className="w-6 h-6 mx-auto mb-1 text-[#555555]" />
-                <div className="text-[13px] font-medium text-[#1a1a1a]">Pie Chart</div>
+                <div className="text-[13px] font-medium text-[#1a1a1a]">Pie</div>
+              </button>
+
+              <button
+                onClick={() => setChartType('scatter')}
+                className={`p-3 rounded-lg border-2 transition-colors ${
+                  chartType === 'scatter'
+                    ? 'border-[#a78bfa] bg-[#f5f3ff]'
+                    : 'border-[#e8e8e8] hover:border-[#d0d0d0]'
+                }`}
+              >
+                <ScatterIcon className="w-6 h-6 mx-auto mb-1 text-[#555555]" />
+                <div className="text-[13px] font-medium text-[#1a1a1a]">Scatter</div>
+              </button>
+
+              <button
+                onClick={() => setChartType('area')}
+                className={`p-3 rounded-lg border-2 transition-colors ${
+                  chartType === 'area'
+                    ? 'border-[#4ade80] bg-[#f0fdf4]'
+                    : 'border-[#e8e8e8] hover:border-[#d0d0d0]'
+                }`}
+              >
+                <Activity className="w-6 h-6 mx-auto mb-1 text-[#555555]" />
+                <div className="text-[13px] font-medium text-[#1a1a1a]">Area</div>
+              </button>
+
+              <button
+                onClick={() => setChartType('radar')}
+                className={`p-3 rounded-lg border-2 transition-colors ${
+                  chartType === 'radar'
+                    ? 'border-[#ef4444] bg-[#fef2f2]'
+                    : 'border-[#e8e8e8] hover:border-[#d0d0d0]'
+                }`}
+              >
+                <Target className="w-6 h-6 mx-auto mb-1 text-[#555555]" />
+                <div className="text-[13px] font-medium text-[#1a1a1a]">Radar</div>
               </button>
             </div>
           </div>
@@ -135,7 +171,7 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
                 onChange={(e) => setXColumn(e.target.value)}
                 className="w-full px-3 py-2 border border-[#e8e8e8] rounded-md text-[14px] focus:outline-none focus:ring-2 focus:ring-[#60a5fa]"
               >
-                {columns.map((col) => (
+                {columns.map((col: string) => (
                   <option key={col} value={col}>
                     {col}
                   </option>
@@ -152,7 +188,7 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
                 onChange={(e) => setYColumn(e.target.value)}
                 className="w-full px-3 py-2 border border-[#e8e8e8] rounded-md text-[14px] focus:outline-none focus:ring-2 focus:ring-[#60a5fa]"
               >
-                {columns.map((col) => (
+                {columns.map((col: string) => (
                   <option key={col} value={col}>
                     {col}
                   </option>
@@ -171,7 +207,7 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
                   className="w-full px-3 py-2 border border-[#e8e8e8] rounded-md text-[14px] focus:outline-none focus:ring-2 focus:ring-[#60a5fa]"
                 >
                   <option value="">-- None --</option>
-                  {columns.map((col) => (
+                  {columns.map((col: string) => (
                     <option key={col} value={col}>
                       {col}
                     </option>
@@ -194,6 +230,7 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
                     data={chartData as any}
                     title="Query Results"
                     height="400px"
+                    smooth={true}
                   />
                 )}
                 {chartType === 'bar' && (
@@ -209,6 +246,46 @@ export function QueryVisualization({ queryResult, onClose }: QueryVisualizationP
                     title="Query Results"
                     height="400px"
                     donut={true}
+                  />
+                )}
+                {chartType === 'scatter' && (
+                  <ScatterChart
+                    series={[{
+                      name: yColumn,
+                      data: rows.map((row: any) => ({
+                        x: typeof row[xColumn] === 'number' ? row[xColumn] : 0,
+                        y: typeof row[yColumn] === 'number' ? row[yColumn] : 0,
+                        name: String(row[xColumn]),
+                      })),
+                      color: '#a78bfa',
+                    }]}
+                    title="Query Results"
+                    xAxisLabel={xColumn}
+                    yAxisLabel={yColumn}
+                    height="400px"
+                  />
+                )}
+                {chartType === 'area' && (
+                  <AreaChart
+                    data={chartData as any}
+                    title="Query Results"
+                    height="400px"
+                    smooth={true}
+                  />
+                )}
+                {chartType === 'radar' && columns.length >= 3 && (
+                  <RadarChart
+                    indicators={columns.slice(1).map(col => ({
+                      name: col,
+                      max: Math.max(...rows.map((r: any) => typeof r[col] === 'number' ? r[col] : 0)),
+                    }))}
+                    series={[{
+                      name: xColumn,
+                      data: rows[0] ? columns.slice(1).map(col => typeof rows[0][col] === 'number' ? rows[0][col] : 0) : [],
+                      color: '#ef4444',
+                    }]}
+                    title="Query Results"
+                    height="400px"
                   />
                 )}
               </>

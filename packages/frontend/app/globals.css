@@ -89,4 +89,60 @@
   ::-webkit-scrollbar-track {
     background: transparent;
   }
+
+  /* React Grid Layout Customization */
+  .react-grid-item {
+    transition: all 200ms ease;
+    transition-property: left, top, width, height;
+  }
+
+  .react-grid-item.cssTransforms {
+    transition-property: transform, width, height;
+  }
+
+  .react-grid-item.resizing {
+    transition: none;
+    z-index: 100;
+  }
+
+  .react-grid-item.react-draggable-dragging {
+    transition: none;
+    z-index: 100;
+    opacity: 0.8;
+  }
+
+  .react-grid-item.dropping {
+    visibility: hidden;
+  }
+
+  .react-grid-item.react-grid-placeholder {
+    background: #60a5fa;
+    opacity: 0.2;
+    transition-duration: 100ms;
+    z-index: 2;
+    border-radius: 8px;
+  }
+
+  .react-resizable-handle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+  }
+
+  .react-resizable-handle-se {
+    bottom: 0;
+    right: 0;
+    cursor: se-resize;
+  }
+
+  .react-resizable-handle-se::after {
+    content: "";
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid #aaaaaa;
+    border-bottom: 2px solid #aaaaaa;
+  }
 }

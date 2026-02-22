@@ -9,8 +9,9 @@ import SQLEditor from '@/components/QueryInterface/SQLEditor';
 import ResultsTable from '@/components/QueryInterface/ResultsTable';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { Play, AlertCircle, BarChart3 } from 'lucide-react';
+import { Play, AlertCircle, BarChart3, LayoutDashboard } from 'lucide-react';
 import { QueryVisualization } from '@/components/QueryVisualization';
+import { AddToDashboardModal } from '@/components/DashboardBuilder/AddToDashboardModal';
 
 type DataSource = 'connections' | 'staging';
 
@@ -31,6 +32,7 @@ export default function QueryPage() {
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [showVisualization, setShowVisualization] = useState(false);
+  const [showAddToDashboard, setShowAddToDashboard] = useState(false);
 
   const { data: connections } = useSWR<Connection[]>('/connections', async () => {
     const result = await api.connections.list();
@@ -328,6 +330,15 @@ export default function QueryPage() {
                   <BarChart3 className="h-4 w-4" />
                   Visualize
                 </Button>
+                <Button
+                  onClick={() => setShowAddToDashboard(true)}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  Add to Dashboard
+                </Button>
                 <div className="text-sm text-[#aaaaaa]">
                   {queryResult.rowCount} rows in {queryResult.executionTimeMs}ms
                 </div>
@@ -344,6 +355,23 @@ export default function QueryPage() {
         <QueryVisualization
           queryResult={queryResult}
           onClose={() => setShowVisualization(false)}
+        />
+      )}
+
+      {/* Add to Dashboard Modal */}
+      {showAddToDashboard && queryResult && (
+        <AddToDashboardModal
+          queryResult={queryResult}
+          onClose={() => setShowAddToDashboard(false)}
+          onAdd={(chartConfig) => {
+            // Save chart to localStorage for now (later: save to backend)
+            const existingCharts = JSON.parse(localStorage.getItem('pendingDashboardCharts') || '[]');
+            existingCharts.push(chartConfig);
+            localStorage.setItem('pendingDashboardCharts', JSON.stringify(existingCharts));
+
+            alert(`Chart "${chartConfig.title}" added! Go to Dashboard Builder to see it.`);
+            setShowAddToDashboard(false);
+          }}
         />
       )}
     </div>

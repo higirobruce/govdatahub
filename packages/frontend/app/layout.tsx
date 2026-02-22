@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import './globals.css';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { ToastProvider } from '@/components/ui/toast';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Sidebar } from '@/components/Sidebar';
 import { MainContent } from '@/components/MainContent';
@@ -87,9 +88,11 @@ export default function RootLayout({
         <link rel="manifest" href="/site.webmanifest" />
       </head>
       <body>
-        <AuthProvider>
-          <LayoutContent>{children}</LayoutContent>
-        </AuthProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <LayoutContent>{children}</LayoutContent>
+          </AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );
