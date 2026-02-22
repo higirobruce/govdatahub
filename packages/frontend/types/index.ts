@@ -1,23 +1,30 @@
+export type ConnectionType = 'postgresql' | 'mysql' | 'redshift' | 'snowflake' | 'bigquery';
+
 export interface Connection {
   id: string;
   name: string;
-  type: 'postgresql' | 'mysql';
-  host: string;
-  port: number;
+  type: ConnectionType;
+  host?: string;
+  port?: number;
   database: string;
   ssl: boolean;
+  warehouse?: string;
   createdAt: string;
 }
 
 export interface CreateConnectionDto {
   name: string;
-  type: 'postgresql' | 'mysql';
-  host: string;
-  port: number;
-  username: string;
-  password: string;
+  type: ConnectionType;
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
   database: string;
   ssl?: boolean;
+  // Snowflake-specific
+  warehouse?: string;
+  // BigQuery-specific
+  keyFile?: string;
 }
 
 export interface TestConnectionResponse {

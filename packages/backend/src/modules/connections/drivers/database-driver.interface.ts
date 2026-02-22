@@ -5,6 +5,10 @@ export interface ConnectionConfig {
   password: string;
   database: string;
   ssl?: boolean;
+  // Snowflake-specific
+  warehouse?: string;
+  // BigQuery-specific
+  keyFile?: string; // Service account JSON string
 }
 
 export interface SchemaInfo {

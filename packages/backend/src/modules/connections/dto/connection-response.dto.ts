@@ -21,19 +21,21 @@ export class ConnectionResponseDto {
 
   @ApiProperty({
     example: 'localhost',
-    description: 'Database host',
+    description: 'Database host or Snowflake account',
+    required: false,
   })
-  host: string;
+  host?: string;
 
   @ApiProperty({
     example: 5432,
     description: 'Database port',
+    required: false,
   })
-  port: number;
+  port?: number;
 
   @ApiProperty({
     example: 'finance_db',
-    description: 'Database name',
+    description: 'Database name or BigQuery project ID',
   })
   database: string;
 
@@ -42,6 +44,13 @@ export class ConnectionResponseDto {
     description: 'SSL enabled',
   })
   ssl: boolean;
+
+  @ApiProperty({
+    example: 'MY_WAREHOUSE',
+    description: 'Snowflake warehouse (Snowflake only)',
+    required: false,
+  })
+  warehouse?: string;
 
   @ApiProperty({
     example: '2024-02-16T10:30:00.000Z',

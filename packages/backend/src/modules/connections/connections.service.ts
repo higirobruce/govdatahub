@@ -9,6 +9,9 @@ import { ConnectionResponseDto } from './dto/connection-response.dto';
 import { ConnectionConfig, DatabaseDriver } from './drivers/database-driver.interface';
 import { PostgresDriver } from './drivers/postgres.driver';
 import { MySQLDriver } from './drivers/mysql.driver';
+import { RedshiftDriver } from './drivers/redshift.driver';
+import { SnowflakeDriver } from './drivers/snowflake.driver';
+import { BigQueryDriver } from './drivers/bigquery.driver';
 
 @Injectable()
 export class ConnectionsService {
@@ -22,15 +25,7 @@ export class ConnectionsService {
     // Test connection before saving
     await this.testConnectionConfig(createConnectionDto);
 
-    // Create connection config
-    const config: ConnectionConfig = {
-      host: createConnectionDto.host,
-      port: createConnectionDto.port,
-      username: createConnectionDto.username,
-      password: createConnectionDto.password,
-      database: createConnectionDto.database,
-      ssl: createConnectionDto.ssl || false,
-    };
+    const config = this.buildConfig(createConnectionDto);
 
     // Encrypt the config
     const encryptedConfig = this.encryptionService.encryptObject(config);
@@ -155,15 +150,21 @@ export class ConnectionsService {
     return { connection, config };
   }
 
-  private async testConnectionConfig(dto: CreateConnectionDto): Promise<void> {
-    const config: ConnectionConfig = {
-      host: dto.host,
-      port: dto.port,
-      username: dto.username,
-      password: dto.password,
+  private buildConfig(dto: CreateConnectionDto): ConnectionConfig {
+    return {
+      host: dto.host || '',
+      port: dto.port || 0,
+      username: dto.username || '',
+      password: dto.password || '',
       database: dto.database,
       ssl: dto.ssl || false,
+      warehouse: dto.warehouse,
+      keyFile: dto.keyFile,
     };
+  }
+
+  private async testConnectionConfig(dto: CreateConnectionDto): Promise<void> {
+    const config = this.buildConfig(dto);
 
     try {
       const driver = this.createDriver(dto.type);
@@ -181,6 +182,12 @@ export class ConnectionsService {
         return new PostgresDriver();
       case 'mysql':
         return new MySQLDriver();
+      case 'redshift':
+        return new RedshiftDriver();
+      case 'snowflake':
+        return new SnowflakeDriver();
+      case 'bigquery':
+        return new BigQueryDriver();
       default:
         throw new BadRequestException(`Unsupported database type: ${type}`);
     }
@@ -191,10 +198,11 @@ export class ConnectionsService {
       id: connection.id,
       name: connection.name,
       type: connection.type,
-      host: config.host,
-      port: config.port,
+      host: config.host || undefined,
+      port: config.port || undefined,
       database: config.database,
       ssl: config.ssl || false,
+      warehouse: config.warehouse,
       createdAt: connection.createdAt,
     };
   }
