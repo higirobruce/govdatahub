@@ -21,9 +21,18 @@ export function QueryPreview({ queryDefinition }: QueryPreviewProps) {
 
     // SELECT clause
     const columnList = queryDefinition.columns.map((col) => {
-      return col.alias
-        ? `${col.table}.${col.column} AS ${col.alias}`
-        : `${col.table}.${col.column}`;
+      let columnRef = `${col.table}.${col.column}`;
+
+      // Wrap with aggregate function if specified
+      if (col.aggregate) {
+        if (col.aggregate === 'COUNT_DISTINCT') {
+          columnRef = `COUNT(DISTINCT ${columnRef})`;
+        } else {
+          columnRef = `${col.aggregate}(${columnRef})`;
+        }
+      }
+
+      return col.alias ? `${columnRef} AS ${col.alias}` : columnRef;
     });
     lines.push(`SELECT ${columnList.join(', ')}`);
 
@@ -54,6 +63,14 @@ export function QueryPreview({ queryDefinition }: QueryPreviewProps) {
         return `${f.table}.${f.column} ${f.operator} '${f.value}'`;
       });
       lines.push(`WHERE ${conditions.join(' AND ')}`);
+    }
+
+    // GROUP BY clause
+    if (queryDefinition.groupBy && queryDefinition.groupBy.length > 0) {
+      const groupClauses = queryDefinition.groupBy.map(
+        (g) => `${g.table}.${g.column}`
+      );
+      lines.push(`GROUP BY ${groupClauses.join(', ')}`);
     }
 
     // ORDER BY clause

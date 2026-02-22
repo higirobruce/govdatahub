@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { QueryDefinition, CrossQueryResult } from '@/types';
 import { ConnectionSelector } from '@/components/CrossQueryBuilder/ConnectionSelector';
 import { TableBrowser } from '@/components/CrossQueryBuilder/TableBrowser';
@@ -16,11 +16,11 @@ import { SavedQueriesPanel } from '@/components/CrossQueryBuilder/SavedQueriesPa
 import { api } from '@/lib/api';
 import { Link as LinkIcon } from 'lucide-react';
 
-type SidebarTab = 'connections' | 'filters' | 'groupby' | 'sorting' | 'limit' | 'saved';
-
 export default function CrossQueryPage() {
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('connections');
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(['data-sources', 'query-operations'])
+  );
   const [queryDefinition, setQueryDefinition] = useState<QueryDefinition>({
     tables: [],
     joins: [],
@@ -34,6 +34,72 @@ export default function CrossQueryPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSqlPreviewCollapsed, setIsSqlPreviewCollapsed] = useState(false);
   const [isRightContentCollapsed, setIsRightContentCollapsed] = useState(false);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(368); // 23rem = 368px
+  const isResizingRef = useRef(false);
+  const animationFrameRef = useRef<number>();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Handle resizing with smooth animation
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current || !containerRef.current) return;
+
+      // Cancel any pending animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      // Use requestAnimationFrame for smooth updates
+      animationFrameRef.current = requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+
+        // Calculate width relative to the container's left edge
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const newWidth = e.clientX - containerRect.left;
+
+        // Apply constraints: min 280px, max 600px
+        const clampedWidth = Math.min(Math.max(newWidth, 200), 600);
+        setLeftPanelWidth(clampedWidth);
+      });
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingRef.current) {
+        isResizingRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        // Cancel any pending animation frame
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+      }
+    };
+
+    // Add listeners to document
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+
+      // Clean up animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   // Load column metadata when tables are added
   useEffect(() => {
@@ -229,111 +295,196 @@ export default function CrossQueryPage() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div ref={containerRef} className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
-        <div className={`bg-white border-r flex flex-col overflow-hidden transition-all ${isRightContentCollapsed ? 'flex-1' : 'w-[23rem]'}`}>
-          {/* Sidebar Tabs */}
-          <div className="border-b bg-[#f8f8f8]">
-            <nav className="flex">
+        <div
+          className="bg-white border-r flex flex-col overflow-hidden flex-shrink-0"
+          style={{ width: isRightContentCollapsed ? '100%' : `${leftPanelWidth}px` }}
+        >
+          {/* Sidebar Content - Grouped Sections */}
+          <div className="flex-1 overflow-y-auto">
+            {/* DATA SOURCES Section */}
+            <div className="border-b">
               <button
-                onClick={() => setSidebarTab('connections')}
-                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
-                  sidebarTab === 'connections'
-                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
-                }`}
+                onClick={() => {
+                  const newSet = new Set(expandedSections);
+                  if (newSet.has('data-sources')) {
+                    newSet.delete('data-sources');
+                  } else {
+                    newSet.add('data-sources');
+                  }
+                  setExpandedSections(newSet);
+                }}
+                className="w-full px-4 py-2 bg-[#f8f8f8] hover:bg-[#eeeeee] transition-colors flex items-center justify-between"
               >
-                📊 Data
+                <span className="text-xs font-bold text-[#1a1a1a] tracking-wide">DATA SOURCES</span>
+                <svg
+                  className={`w-4 h-4 text-[#555555] transition-transform ${
+                    expandedSections.has('data-sources') ? 'rotate-180' : ''
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
-              <button
-                onClick={() => setSidebarTab('filters')}
-                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
-                  sidebarTab === 'filters'
-                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
-                }`}
-              >
-                🔍 Filter
-              </button>
-              <button
-                onClick={() => setSidebarTab('groupby')}
-                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
-                  sidebarTab === 'groupby'
-                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
-                }`}
-              >
-                📦 Group
-              </button>
-              <button
-                onClick={() => setSidebarTab('sorting')}
-                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
-                  sidebarTab === 'sorting'
-                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
-                }`}
-              >
-                ↕️ Sort
-              </button>
-              <button
-                onClick={() => setSidebarTab('limit')}
-                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
-                  sidebarTab === 'limit'
-                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
-                }`}
-              >
-                🔢 Limit
-              </button>
-              <button
-                onClick={() => setSidebarTab('saved')}
-                className={`flex-1 px-3 py-2 text-xs font-medium text-center border-b-2 transition-colors ${
-                  sidebarTab === 'saved'
-                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
-                }`}
-              >
-                💾 Saved
-              </button>
-            </nav>
-          </div>
-
-          {/* Sidebar Content */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {/* Connections & Tables Tab */}
-            {sidebarTab === 'connections' && (
-              <div className="space-y-4">
-                {/* Connection Selector */}
-                <div>
-                  <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">
-                    Select Connections
-                  </h3>
-                  <ConnectionSelector
-                    selectedConnections={selectedConnections}
-                    onSelectionChange={setSelectedConnections}
-                  />
-                </div>
-
-                {/* Table Browser */}
-                {selectedConnections.length > 0 && (
-                  <div className="pt-4 border-t">
-                    <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">
-                      Browse Tables
-                    </h3>
-                    <TableBrowser
-                      connectionIds={selectedConnections}
-                      queryDefinition={queryDefinition}
-                      onQueryChange={setQueryDefinition}
+              {expandedSections.has('data-sources') && (
+                <div className="p-4 space-y-4">
+                  {/* Connection Selector */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">Select Connections</h3>
+                    <ConnectionSelector
+                      selectedConnections={selectedConnections}
+                      onSelectionChange={setSelectedConnections}
                     />
                   </div>
-                )}
 
-                {/* Query Summary */}
-                {queryDefinition.tables.length > 0 && (
-                  <div className="pt-4 border-t">
-                    <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">
-                      Query Summary
+                  {/* Table Browser */}
+                  {selectedConnections.length > 0 && (
+                    <div className="pt-4 border-t">
+                      <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">Browse Tables</h3>
+                      <TableBrowser
+                        connectionIds={selectedConnections}
+                        queryDefinition={queryDefinition}
+                        onQueryChange={setQueryDefinition}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* QUERY OPERATIONS Section */}
+            <div className="border-b">
+              <button
+                onClick={() => {
+                  const newSet = new Set(expandedSections);
+                  if (newSet.has('query-operations')) {
+                    newSet.delete('query-operations');
+                  } else {
+                    newSet.add('query-operations');
+                  }
+                  setExpandedSections(newSet);
+                }}
+                className="w-full px-4 py-2 bg-[#f8f8f8] hover:bg-[#eeeeee] transition-colors flex items-center justify-between"
+              >
+                <span className="text-xs font-bold text-[#1a1a1a] tracking-wide">QUERY OPERATIONS</span>
+                <svg
+                  className={`w-4 h-4 text-[#555555] transition-transform ${
+                    expandedSections.has('query-operations') ? 'rotate-180' : ''
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {expandedSections.has('query-operations') && (
+                <div className="divide-y">
+                  {/* Filters */}
+                  <div className="p-4">
+                    <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3 flex items-center gap-2">
+                      <span>🔍</span> WHERE Filters
                     </h3>
+                    <FilterBuilder queryDefinition={queryDefinition} onQueryChange={setQueryDefinition} />
+                  </div>
+
+                  {/* Group By */}
+                  <div className="p-4">
+                    <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3 flex items-center gap-2">
+                      <span>📦</span> GROUP BY
+                    </h3>
+                    <GroupByBuilder queryDefinition={queryDefinition} onQueryChange={setQueryDefinition} />
+                  </div>
+
+                  {/* Sorting */}
+                  <div className="p-4">
+                    <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3 flex items-center gap-2">
+                      <span>↕️</span> ORDER BY
+                    </h3>
+                    <OrderByBuilder queryDefinition={queryDefinition} onQueryChange={setQueryDefinition} />
+                  </div>
+
+                  {/* Limit */}
+                  <div className="p-4">
+                    <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3 flex items-center gap-2">
+                      <span>🔢</span> LIMIT
+                    </h3>
+                    <LimitBuilder queryDefinition={queryDefinition} onQueryChange={setQueryDefinition} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* SAVED QUERIES Section */}
+            <div className="border-b">
+              <button
+                onClick={() => {
+                  const newSet = new Set(expandedSections);
+                  if (newSet.has('saved-queries')) {
+                    newSet.delete('saved-queries');
+                  } else {
+                    newSet.add('saved-queries');
+                  }
+                  setExpandedSections(newSet);
+                }}
+                className="w-full px-4 py-2 bg-[#f8f8f8] hover:bg-[#eeeeee] transition-colors flex items-center justify-between"
+              >
+                <span className="text-xs font-bold text-[#1a1a1a] tracking-wide">SAVED QUERIES</span>
+                <svg
+                  className={`w-4 h-4 text-[#555555] transition-transform ${
+                    expandedSections.has('saved-queries') ? 'rotate-180' : ''
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {expandedSections.has('saved-queries') && (
+                <div className="p-4">
+                  <SavedQueriesPanel
+                    currentQuery={queryDefinition}
+                    onLoadQuery={(loadedQuery) => {
+                      setQueryDefinition(loadedQuery);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* QUERY SUMMARY Section */}
+            {queryDefinition.tables.length > 0 && (
+              <div className="border-b">
+                <button
+                  onClick={() => {
+                    const newSet = new Set(expandedSections);
+                    if (newSet.has('query-summary')) {
+                      newSet.delete('query-summary');
+                    } else {
+                      newSet.add('query-summary');
+                    }
+                    setExpandedSections(newSet);
+                  }}
+                  className="w-full px-4 py-2 bg-[#f8f8f8] hover:bg-[#eeeeee] transition-colors flex items-center justify-between"
+                >
+                  <span className="text-xs font-bold text-[#1a1a1a] tracking-wide">QUERY SUMMARY</span>
+                  <svg
+                    className={`w-4 h-4 text-[#555555] transition-transform ${
+                      expandedSections.has('query-summary') ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {expandedSections.has('query-summary') && (
+                  <div className="p-4">
                     <div className="text-xs text-[#555555] space-y-1">
                       <div>Tables: {queryDefinition.tables.length}</div>
                       <div>Joins: {queryDefinition.joins.length}</div>
@@ -347,76 +498,19 @@ export default function CrossQueryPage() {
                 )}
               </div>
             )}
-
-            {/* Filters Tab */}
-            {sidebarTab === 'filters' && (
-              <div>
-                <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
-                  WHERE Filters
-                </h3>
-                <FilterBuilder
-                  queryDefinition={queryDefinition}
-                  onQueryChange={setQueryDefinition}
-                />
-              </div>
-            )}
-
-            {/* Group By Tab */}
-            {sidebarTab === 'groupby' && (
-              <div>
-                <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
-                  GROUP BY Aggregation
-                </h3>
-                <GroupByBuilder
-                  queryDefinition={queryDefinition}
-                  onQueryChange={setQueryDefinition}
-                />
-              </div>
-            )}
-
-            {/* Sorting Tab */}
-            {sidebarTab === 'sorting' && (
-              <div>
-                <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
-                  ORDER BY Sorting
-                </h3>
-                <OrderByBuilder
-                  queryDefinition={queryDefinition}
-                  onQueryChange={setQueryDefinition}
-                />
-              </div>
-            )}
-
-            {/* Limit Tab */}
-            {sidebarTab === 'limit' && (
-              <div>
-                <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
-                  LIMIT Result Rows
-                </h3>
-                <LimitBuilder
-                  queryDefinition={queryDefinition}
-                  onQueryChange={setQueryDefinition}
-                />
-              </div>
-            )}
-
-            {/* Saved Queries Tab */}
-            {sidebarTab === 'saved' && (
-              <div>
-                <SavedQueriesPanel
-                  currentQuery={queryDefinition}
-                  onLoadQuery={(loadedQuery) => {
-                    setQueryDefinition(loadedQuery);
-                    setSidebarTab('connections');
-                  }}
-                />
-              </div>
-            )}
           </div>
         </div>
 
+        {/* Resizer Bar */}
+        {!isRightContentCollapsed && (
+          <div
+            onMouseDown={handleMouseDown}
+            className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors"
+          />
+        )}
+
         {/* Center/Right Content */}
-        <div className={`flex flex-col overflow-hidden transition-all ${isRightContentCollapsed ? 'w-[32rem]' : 'flex-1'}`}>
+        <div className="flex flex-col overflow-hidden flex-1 min-w-0">
           {/* Collapse/Expand Button Bar */}
           <div className="bg-white border-b px-4 py-2 flex justify-end">
             <button
@@ -452,9 +546,9 @@ export default function CrossQueryPage() {
 
           {/* Bottom Section - Column Selector and Preview */}
           {queryDefinition.tables.length > 0 && (
-            <div className={`h-64 flex gap-4 p-4 bg-[#f2f2f2] overflow-hidden ${isSqlPreviewCollapsed ? '' : ''}`}>
+            <div className={`h-64 flex gap-4 p-4 bg-[#f2f2f2] flex-shrink-0 ${isSqlPreviewCollapsed ? '' : ''}`}>
               {/* Column Selector */}
-              <div className={`bg-white border rounded-lg p-4 overflow-y-auto ${isSqlPreviewCollapsed ? 'flex-1' : 'w-1/2'}`}>
+              <div className={`bg-white border rounded-lg p-4 overflow-y-auto flex-shrink-0 min-w-0 ${isSqlPreviewCollapsed ? 'flex-1' : 'w-1/2'}`}>
                 <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
                   Select Columns
                 </h3>
@@ -466,8 +560,8 @@ export default function CrossQueryPage() {
 
               {/* Query Preview */}
               {queryDefinition.columns.length > 0 && (
-                <div className={`bg-white border rounded-lg overflow-hidden transition-all ${isSqlPreviewCollapsed ? 'w-12' : 'flex-1'}`}>
-                  <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div className={`bg-white border rounded-lg flex flex-col transition-all flex-shrink-0 min-w-0 ${isSqlPreviewCollapsed ? 'w-12' : 'flex-1'}`}>
+                  <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
                     <h3 className={`text-sm font-semibold text-[#1a1a1a] ${isSqlPreviewCollapsed ? 'hidden' : ''}`}>
                       SQL Preview
                     </h3>
@@ -492,7 +586,7 @@ export default function CrossQueryPage() {
                     </button>
                   </div>
                   {!isSqlPreviewCollapsed && (
-                    <div className="p-4 overflow-hidden">
+                    <div className="flex-1 p-4 overflow-auto min-h-0">
                       <QueryPreview queryDefinition={queryDefinition} />
                     </div>
                   )}
