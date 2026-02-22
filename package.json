@@ -17,6 +17,9 @@
   "devDependencies": {
     "concurrently": "^8.2.2"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["bcrypt", "better-sqlite3", "esbuild", "@nestjs/core", "unrs-resolver"]
+  },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=8.0.0"
