@@ -48,7 +48,7 @@ export class BigQueryDriver implements DatabaseDriver {
   async query(sql: string): Promise<QueryResult> {
     if (!this.client) throw new Error('Not connected');
 
-    const [rows, , response] = await this.client.query({
+    const [rows, response] = await this.client.query({
       query: sql,
       useLegacySql: false,
     });

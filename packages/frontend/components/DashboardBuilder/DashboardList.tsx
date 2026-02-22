@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { X, Trash2, Eye, Share2, Download, Calendar, BarChart3 } from 'lucide-react';
 import { Dashboard } from './types';
 
@@ -13,18 +14,26 @@ interface DashboardListProps {
 
 export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; index: number | null; name: string | null }>({
+    isOpen: false,
+    index: null,
+    name: null,
+  });
 
   useEffect(() => {
     const saved = JSON.parse(localStorage.getItem('dashboards') || '[]');
     setDashboards(saved);
   }, []);
 
-  const handleDelete = (index: number) => {
-    if (confirm('Delete this dashboard? This action cannot be undone.')) {
-      const updated = dashboards.filter((_, i) => i !== index);
-      setDashboards(updated);
-      localStorage.setItem('dashboards', JSON.stringify(updated));
-    }
+  const handleDelete = (index: number, name: string) => {
+    setDeleteConfirm({ isOpen: true, index, name });
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm.index === null) return;
+    const updated = dashboards.filter((_, i) => i !== deleteConfirm.index);
+    setDashboards(updated);
+    localStorage.setItem('dashboards', JSON.stringify(updated));
   };
 
   const handleExport = (dashboard: Dashboard) => {
@@ -148,7 +157,7 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
                       <Download className="w-3 h-3" />
                     </Button>
                     <Button
-                      onClick={() => handleDelete(index)}
+                      onClick={() => handleDelete(index, dashboard.name)}
                       variant="outline"
                       size="sm"
                       className="gap-2 hover:bg-[#fee2e2]"
@@ -170,6 +179,17 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
           </Button>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, index: null, name: null })}
+        onConfirm={confirmDelete}
+        title="Delete Dashboard"
+        message={`Delete dashboard "${deleteConfirm.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

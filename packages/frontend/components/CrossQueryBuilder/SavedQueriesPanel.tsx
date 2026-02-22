@@ -5,6 +5,7 @@ import useSWR, { mutate } from 'swr';
 import { api } from '@/lib/api';
 import { SavedCrossQuery, QueryDefinition } from '@/types';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Share2 } from 'lucide-react';
 
 interface SavedQueriesPanelProps {
@@ -30,6 +31,15 @@ export function SavedQueriesPanel({
     accessLevel: 'private' as 'private' | 'organization' | 'public',
     generateApiKey: false,
     generateShareToken: false,
+  });
+  const [loadConfirm, setLoadConfirm] = useState<{ isOpen: boolean; query: SavedCrossQuery | null }>({
+    isOpen: false,
+    query: null,
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null; name: string | null }>({
+    isOpen: false,
+    id: null,
+    name: null,
   });
 
   const { data: savedQueries, error } = useSWR<SavedCrossQuery[]>(
@@ -77,18 +87,25 @@ export function SavedQueriesPanel({
   };
 
   const handleLoadQuery = (savedQuery: SavedCrossQuery) => {
-    if (confirm(`Load query "${savedQuery.name}"? This will replace your current query.`)) {
-      onLoadQuery(savedQuery.queryDefinition);
+    setLoadConfirm({ isOpen: true, query: savedQuery });
+  };
+
+  const confirmLoad = () => {
+    if (loadConfirm.query) {
+      onLoadQuery(loadConfirm.query.queryDefinition);
+      showToast(`Loaded query "${loadConfirm.query.name}"`, 'success');
     }
   };
 
-  const handleDeleteQuery = async (id: string, name: string) => {
-    if (!confirm(`Delete query "${name}"? This cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteQuery = (id: string, name: string) => {
+    setDeleteConfirm({ isOpen: true, id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm.id) return;
 
     try {
-      await api.crossQuery.deleteSaved(id);
+      await api.crossQuery.deleteSaved(deleteConfirm.id);
       mutate('/cross-query/saved');
       showToast('Query deleted successfully', 'success');
     } catch (err: any) {
@@ -383,6 +400,28 @@ export function SavedQueriesPanel({
           </div>
         </div>
       )}
+
+      {/* Load Query Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={loadConfirm.isOpen}
+        onClose={() => setLoadConfirm({ isOpen: false, query: null })}
+        onConfirm={confirmLoad}
+        title="Load Query"
+        message={`Load query "${loadConfirm.query?.name}"? This will replace your current query configuration.`}
+        confirmText="Load"
+        variant="info"
+      />
+
+      {/* Delete Query Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: null, name: null })}
+        onConfirm={confirmDelete}
+        title="Delete Query"
+        message={`Delete query "${deleteConfirm.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

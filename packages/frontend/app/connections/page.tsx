@@ -8,14 +8,17 @@ import ConnectionForm from '@/components/ConnectionManager/ConnectionForm';
 import ConnectionList from '@/components/ConnectionManager/ConnectionList';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
 import { Plus, X } from 'lucide-react';
 
 export default function ConnectionsPage() {
+  const { showToast } = useToast();
   const [showForm, setShowForm] = useState(false);
-  const [notification, setNotification] = useState<{
-    type: 'success' | 'error';
-    message: string;
-  } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({
+    isOpen: false,
+    id: null,
+  });
 
   const { data: connections, error } = useSWR<Connection[]>(
     '/connections',
@@ -27,57 +30,35 @@ export default function ConnectionsPage() {
       await api.connections.create(data);
       mutate('/connections');
       setShowForm(false);
-      setNotification({
-        type: 'success',
-        message: 'Connection created successfully!',
-      });
-      setTimeout(() => setNotification(null), 3000);
+      showToast('Connection created successfully!', 'success');
     } catch (error: any) {
-      setNotification({
-        type: 'error',
-        message: error.message || 'Failed to create connection',
-      });
-      setTimeout(() => setNotification(null), 5000);
+      showToast(error.message || 'Failed to create connection', 'error');
       throw error;
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this connection?')) {
-      return;
-    }
+  const handleDelete = (id: string) => {
+    setDeleteConfirm({ isOpen: true, id });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm.id) return;
 
     try {
-      await api.connections.delete(id);
+      await api.connections.delete(deleteConfirm.id);
       mutate('/connections');
-      setNotification({
-        type: 'success',
-        message: 'Connection deleted successfully!',
-      });
-      setTimeout(() => setNotification(null), 3000);
+      showToast('Connection deleted successfully!', 'success');
     } catch (error: any) {
-      setNotification({
-        type: 'error',
-        message: error.message || 'Failed to delete connection',
-      });
-      setTimeout(() => setNotification(null), 5000);
+      showToast(error.message || 'Failed to delete connection', 'error');
     }
   };
 
   const handleTest = async (id: string) => {
     try {
       const result = await api.connections.test(id);
-      setNotification({
-        type: result.success ? 'success' : 'error',
-        message: result.message,
-      });
-      setTimeout(() => setNotification(null), 3000);
+      showToast(result.message, result.success ? 'success' : 'error');
     } catch (error: any) {
-      setNotification({
-        type: 'error',
-        message: error.message || 'Failed to test connection',
-      });
-      setTimeout(() => setNotification(null), 5000);
+      showToast(error.message || 'Failed to test connection', 'error');
     }
   };
 
@@ -102,19 +83,6 @@ export default function ConnectionsPage() {
           </Button>
         }
       />
-
-      {/* Notification */}
-      {notification && (
-        <div
-          className={`rounded-md p-4 border ${
-            notification.type === 'success'
-              ? 'bg-[#d1fae5] text-[#065f46] border-[#86efac]'
-              : 'bg-[#fee2e2] text-[#991b1b] border-[#fca5a5]'
-          }`}
-        >
-          <p className="text-sm font-medium">{notification.message}</p>
-        </div>
-      )}
 
       {/* Connection Form */}
       {showForm && (
@@ -151,6 +119,17 @@ export default function ConnectionsPage() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: null })}
+        onConfirm={confirmDelete}
+        title="Delete Connection"
+        message="Are you sure you want to delete this connection? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

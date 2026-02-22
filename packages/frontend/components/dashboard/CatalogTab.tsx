@@ -23,6 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface DatasetCatalogItem {
   id: string;
@@ -60,6 +61,10 @@ export function CatalogTab() {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showShareDetails, setShowShareDetails] = useState(false);
   const [selectedShare, setSelectedShare] = useState<DatasetShare | null>(null);
+  const [unshareConfirm, setUnshareConfirm] = useState<{ isOpen: boolean; dataset: DatasetCatalogItem | null }>({
+    isOpen: false,
+    dataset: null,
+  });
 
   const { data: catalog, isLoading: catalogLoading, mutate: mutateCatalog } = useSWR<DatasetCatalogItem[]>(
     '/dashboard/catalog',
@@ -88,12 +93,16 @@ export function CatalogTab() {
     }
   };
 
-  const handleUnshare = async (dataset: DatasetCatalogItem) => {
+  const handleUnshare = (dataset: DatasetCatalogItem) => {
     if (!dataset.shareId) return;
-    if (!confirm('Are you sure you want to stop sharing this dataset?')) return;
+    setUnshareConfirm({ isOpen: true, dataset });
+  };
+
+  const confirmUnshare = async () => {
+    if (!unshareConfirm.dataset?.shareId) return;
 
     try {
-      await api.dashboard.deleteShare(dataset.shareId);
+      await api.dashboard.deleteShare(unshareConfirm.dataset.shareId);
       await mutateCatalog();
       await mutateShares();
       showToast('Dataset unshared successfully', 'success');
@@ -313,6 +322,17 @@ export function CatalogTab() {
           }}
         />
       )}
+
+      {/* Unshare Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={unshareConfirm.isOpen}
+        onClose={() => setUnshareConfirm({ isOpen: false, dataset: null })}
+        onConfirm={confirmUnshare}
+        title="Stop Sharing Dataset"
+        message="Are you sure you want to stop sharing this dataset? All shared links and API keys will be invalidated."
+        confirmText="Stop Sharing"
+        variant="warning"
+      />
     </>
   );
 }
@@ -467,6 +487,8 @@ function ShareDetailsDialog({
 }) {
   const { showToast } = useToast();
   const [copying, setCopying] = useState<string | null>(null);
+  const [regenerateApiKeyConfirm, setRegenerateApiKeyConfirm] = useState(false);
+  const [regenerateShareTokenConfirm, setRegenerateShareTokenConfirm] = useState(false);
 
   const handleCopy = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
@@ -474,8 +496,11 @@ function ShareDetailsDialog({
     setTimeout(() => setCopying(null), 2000);
   };
 
-  const handleRegenerateApiKey = async () => {
-    if (!confirm('Are you sure? This will invalidate the current API key.')) return;
+  const handleRegenerateApiKey = () => {
+    setRegenerateApiKeyConfirm(true);
+  };
+
+  const confirmRegenerateApiKey = async () => {
     try {
       await api.dashboard.regenerateApiKey(share.id);
       showToast('API key regenerated successfully', 'success');
@@ -486,8 +511,11 @@ function ShareDetailsDialog({
     }
   };
 
-  const handleRegenerateShareToken = async () => {
-    if (!confirm('Are you sure? This will invalidate the current share token.')) return;
+  const handleRegenerateShareToken = () => {
+    setRegenerateShareTokenConfirm(true);
+  };
+
+  const confirmRegenerateShareToken = async () => {
     try {
       await api.dashboard.regenerateShareToken(share.id);
       showToast('Share token regenerated successfully', 'success');
@@ -652,6 +680,28 @@ function ShareDetailsDialog({
             Close
           </Button>
         </div>
+
+        {/* Regenerate API Key Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={regenerateApiKeyConfirm}
+          onClose={() => setRegenerateApiKeyConfirm(false)}
+          onConfirm={confirmRegenerateApiKey}
+          title="Regenerate API Key"
+          message="Are you sure? This will invalidate the current API key and generate a new one. Any applications using the old API key will stop working."
+          confirmText="Regenerate"
+          variant="warning"
+        />
+
+        {/* Regenerate Share Token Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={regenerateShareTokenConfirm}
+          onClose={() => setRegenerateShareTokenConfirm(false)}
+          onConfirm={confirmRegenerateShareToken}
+          title="Regenerate Share Token"
+          message="Are you sure? This will invalidate the current share token and generate a new one. Any shared links using the old token will stop working."
+          confirmText="Regenerate"
+          variant="warning"
+        />
       </div>
     </div>
   );

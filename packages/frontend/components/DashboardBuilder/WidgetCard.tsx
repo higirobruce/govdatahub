@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { ChartWidget } from './types';
 import { LineChart, BarChart, PieChart, ScatterChart, AreaChart, RadarChart, HeatmapChart, GaugeChart, FunnelChart } from '@/components/charts';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { GripVertical, Settings, Trash2 } from 'lucide-react';
 
 interface WidgetCardProps {
@@ -12,6 +14,8 @@ interface WidgetCardProps {
 }
 
 export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode }: WidgetCardProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const renderChart = () => {
     const height = widget.config?.height || '100%';
 
@@ -124,9 +128,7 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode }: Widget
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                if (confirm('Delete this chart?')) {
-                  onDelete();
-                }
+                setShowDeleteConfirm(true);
               }}
               className="p-1.5 hover:bg-[#fee2e2] rounded transition-colors"
               title="Delete chart"
@@ -141,6 +143,17 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode }: Widget
       <div className="flex-1 p-4 overflow-hidden">
         {renderChart()}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={onDelete}
+        title="Delete Chart"
+        message={`Delete chart "${widget.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

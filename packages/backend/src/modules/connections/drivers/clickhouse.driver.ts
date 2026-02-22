@@ -79,7 +79,7 @@ export class ClickHouseDriver implements DatabaseDriver {
       query: 'SELECT name FROM system.databases ORDER BY name',
       format: 'JSONEachRow',
     });
-    const rows = await result.json<{ name: string }[]>();
+    const rows = (await result.json()) as Array<{ name: string }>;
 
     return rows
       .filter((r) => !['system', 'information_schema', 'INFORMATION_SCHEMA'].includes(r.name))
@@ -102,7 +102,7 @@ export class ClickHouseDriver implements DatabaseDriver {
       format: 'JSONEachRow',
     });
 
-    const rows = await result.json<{ name: string; engine: string }[]>();
+    const rows = (await result.json()) as Array<{ name: string; engine: string }>;
 
     return rows.map((r) => ({
       schema: db,
@@ -130,12 +130,12 @@ export class ClickHouseDriver implements DatabaseDriver {
       format: 'JSONEachRow',
     });
 
-    const rows = await result.json<{
+    const rows = (await result.json()) as Array<{
       name: string;
       type: string;
       default_expression: string;
       is_in_primary_key: number;
-    }[]>();
+    }>;
 
     return rows.map((r) => ({
       name: r.name,

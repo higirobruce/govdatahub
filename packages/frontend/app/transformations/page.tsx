@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface Transformation {
   id: string;
@@ -64,6 +65,10 @@ export default function TransformationsPage() {
   const [selectedResults, setSelectedResults] = useState<any>(null);
   const [resultsPage, setResultsPage] = useState(0);
   const [isExecuting, setIsExecuting] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({
+    isOpen: false,
+    id: null,
+  });
   const RESULTS_PER_PAGE = 50;
 
   // Fetch transformations
@@ -120,13 +125,16 @@ export default function TransformationsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this transformation? This will also delete all execution history.')) {
-      return;
-    }
+  const handleDelete = (id: string) => {
+    setDeleteConfirm({ isOpen: true, id });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm.id) return;
     try {
-      await api.transformations.delete(id);
+      await api.transformations.delete(deleteConfirm.id);
       mutate();
+      showToast('Transformation deleted successfully', 'success');
     } catch (error: any) {
       showToast(`Failed to delete: ${error.message}`, 'error');
     }
@@ -532,6 +540,17 @@ export default function TransformationsPage() {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: null })}
+        onConfirm={confirmDelete}
+        title="Delete Transformation"
+        message="Are you sure you want to delete this transformation? This will also delete all execution history. This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -123,10 +123,10 @@ export class SnowflakeDriver implements DatabaseDriver {
           resolve({
             rows: rows || [],
             rowCount: rows?.length || 0,
-            fields: columns.map((col) => ({
+            fields: columns?.map((col) => ({
               name: col.getName(),
               type: col.getType()?.toLowerCase() || 'text',
-            })),
+            })) || [],
           });
         },
       });
