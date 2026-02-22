@@ -68,11 +68,11 @@ export function ResultsViewer({ result }: ResultsViewerProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Query Results</h3>
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between flex-wrap gap-2" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
+        <h3 className="text-lg font-semibold text-gray-900 flex-shrink-0">Query Results</h3>
+        <div className="flex items-center gap-4 flex-wrap" style={{ minWidth: 0 }}>
           <Button
             onClick={() => setShowVisualization(true)}
             variant="outline"
@@ -137,8 +137,9 @@ export function ResultsViewer({ result }: ResultsViewerProps) {
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto border border-gray-200 rounded-md">
-        <table className="min-w-full divide-y divide-gray-200">
+      <div className="border border-gray-200 rounded-md" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+        <div style={{ width: '100%', maxWidth: '100%', overflowX: 'auto' }}>
+          <table className="divide-y divide-gray-200" style={{ width: '100%', tableLayout: 'auto' }}>
           <thead className="bg-gray-50">
             <tr>
               {columns.map((col, idx) => (
@@ -174,17 +175,20 @@ export function ResultsViewer({ result }: ResultsViewerProps) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Generated SQL */}
       {result.generatedSql && (
-        <details className="mt-4">
+        <details className="mt-4 min-w-0 max-w-full">
           <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
             View Generated SQL
           </summary>
-          <pre className="mt-2 text-xs font-mono bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto">
-            {result.generatedSql}
-          </pre>
+          <div className="mt-2 min-w-0 max-w-full overflow-auto">
+            <pre className="text-xs font-mono bg-gray-900 text-gray-100 p-3 rounded-md max-w-full whitespace-pre-wrap break-words">
+              {result.generatedSql}
+            </pre>
+          </div>
         </details>
       )}
 

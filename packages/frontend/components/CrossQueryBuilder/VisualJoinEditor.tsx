@@ -195,7 +195,7 @@ export function VisualJoinEditor({
   }
 
   return (
-    <>
+    <div className="w-full h-full relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -207,6 +207,7 @@ export function VisualJoinEditor({
         connectionMode={ConnectionMode.Loose}
         fitView
         fitViewOptions={{ padding: 0.2 }}
+        className="w-full h-full"
       >
         <Background />
         <Controls />
@@ -224,6 +225,6 @@ export function VisualJoinEditor({
           }}
         />
       )}
-    </>
+    </div>
   );
 }

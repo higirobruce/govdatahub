@@ -66,7 +66,7 @@ export default function CrossQueryPage() {
         const newWidth = e.clientX - containerRect.left;
 
         // Apply constraints: min 280px, max 600px
-        const clampedWidth = Math.min(Math.max(newWidth, 200), 600);
+        const clampedWidth = Math.min(Math.max(newWidth, 200), 400);
         setLeftPanelWidth(clampedWidth);
       });
     };
@@ -195,10 +195,10 @@ export default function CrossQueryPage() {
     (queryDefinition.tables.length === 1 || queryDefinition.joins.length > 0);
 
   return (
-    <div className="h-screen flex flex-col bg-[#f2f2f2]">
+    <div className="h-full w-full flex flex-col bg-[#f2f2f2] overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-white border-b px-6 py-4 flex-shrink-0 max-w-full">
+        <div className="flex items-center justify-between min-w-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <LinkIcon className="w-6 h-6 text-white" />
@@ -272,10 +272,10 @@ export default function CrossQueryPage() {
 
       {/* Error Alert */}
       {error && (
-        <div className="bg-[#fee2e2] border-b border-[#fca5a5] px-6 py-3">
-          <div className="flex">
+        <div className="bg-[#fee2e2] border-b border-[#fca5a5] px-6 py-3 flex-shrink-0 max-w-full">
+          <div className="flex min-w-0">
             <svg
-              className="h-5 w-5 text-[#ef4444]"
+              className="h-5 w-5 text-[#ef4444] flex-shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -287,15 +287,15 @@ export default function CrossQueryPage() {
                 d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <div className="ml-3">
-              <p className="text-sm text-[#991b1b]">{error}</p>
+            <div className="ml-3 min-w-0 flex-1">
+              <p className="text-sm text-[#991b1b] break-words">{error}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Main Content */}
-      <div ref={containerRef} className="flex-1 flex overflow-hidden">
+      <div ref={containerRef} className="flex-1 flex overflow-hidden w-full max-w-full">
         {/* Left Sidebar */}
         <div
           className="bg-white border-r flex flex-col overflow-hidden flex-shrink-0"
@@ -510,9 +510,9 @@ export default function CrossQueryPage() {
         )}
 
         {/* Center/Right Content */}
-        <div className="flex flex-col overflow-hidden flex-1 min-w-0">
+        <div className="flex flex-col overflow-hidden flex-1 min-w-0 max-w-full">
           {/* Collapse/Expand Button Bar */}
-          <div className="bg-white border-b px-4 py-2 flex justify-end">
+          <div className="bg-white border-b px-4 py-2 flex justify-end flex-shrink-0">
             <button
               onClick={() => setIsRightContentCollapsed(!isRightContentCollapsed)}
               className="p-1 hover:bg-[#f8f8f8] rounded transition-colors"
@@ -536,19 +536,21 @@ export default function CrossQueryPage() {
 
           {/* Visual Join Editor */}
           {queryDefinition.tables.length > 0 && (
-            <div className="flex-1 bg-white border-b p-4 overflow-hidden">
-              <VisualJoinEditor
-                queryDefinition={queryDefinition}
-                onQueryChange={setQueryDefinition}
-              />
+            <div className="flex-1 bg-white border-b overflow-hidden min-w-0 max-w-full min-h-0">
+              <div className="w-full h-full p-4">
+                <VisualJoinEditor
+                  queryDefinition={queryDefinition}
+                  onQueryChange={setQueryDefinition}
+                />
+              </div>
             </div>
           )}
 
           {/* Bottom Section - Column Selector and Preview */}
           {queryDefinition.tables.length > 0 && (
-            <div className={`h-64 flex gap-4 p-4 bg-[#f2f2f2] flex-shrink-0 ${isSqlPreviewCollapsed ? '' : ''}`}>
+            <div className={`h-64 flex gap-4 p-4 bg-[#f2f2f2] flex-shrink-0 max-w-full ${isSqlPreviewCollapsed ? '' : ''}`}>
               {/* Column Selector */}
-              <div className={`bg-white border rounded-lg p-4 overflow-y-auto flex-shrink-0 min-w-0 ${isSqlPreviewCollapsed ? 'flex-1' : 'w-1/2'}`}>
+              <div className={`bg-white border rounded-lg p-4 overflow-y-auto flex-shrink min-w-0 ${isSqlPreviewCollapsed ? 'flex-1' : 'w-1/2'}`}>
                 <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3">
                   Select Columns
                 </h3>
@@ -560,7 +562,7 @@ export default function CrossQueryPage() {
 
               {/* Query Preview */}
               {queryDefinition.columns.length > 0 && (
-                <div className={`bg-white border rounded-lg flex flex-col transition-all flex-shrink-0 min-w-0 ${isSqlPreviewCollapsed ? 'w-12' : 'flex-1'}`}>
+                <div className={`bg-white border rounded-lg flex flex-col transition-all flex-shrink min-w-0 max-w-full ${isSqlPreviewCollapsed ? 'w-12' : 'flex-1'}`}>
                   <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
                     <h3 className={`text-sm font-semibold text-[#1a1a1a] ${isSqlPreviewCollapsed ? 'hidden' : ''}`}>
                       SQL Preview
@@ -586,7 +588,7 @@ export default function CrossQueryPage() {
                     </button>
                   </div>
                   {!isSqlPreviewCollapsed && (
-                    <div className="flex-1 p-4 overflow-auto min-h-0">
+                    <div className="flex-1 p-4 overflow-auto min-h-0 min-w-0 max-w-full">
                       <QueryPreview queryDefinition={queryDefinition} />
                     </div>
                   )}
@@ -597,8 +599,10 @@ export default function CrossQueryPage() {
 
           {/* Results Viewer */}
           {result && (
-            <div className="flex-1 bg-white p-4 overflow-auto">
-              <ResultsViewer result={result} />
+            <div className="bg-white overflow-hidden min-w-0 max-w-full flex flex-col">
+              <div className="overflow-y-auto p-4 max-w-[60rem] min-w-full">
+                <ResultsViewer result={result} />
+              </div>
             </div>
           )}
 

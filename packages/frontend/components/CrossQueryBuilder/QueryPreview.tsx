@@ -92,13 +92,13 @@ export function QueryPreview({ queryDefinition }: QueryPreviewProps) {
   const sql = generatePreviewSQL();
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-auto">
-        <pre className="text-xs font-mono bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto">
+    <div className="h-full flex flex-col min-w-0 max-w-full">
+      <div className="flex-1 overflow-auto min-w-0 max-w-full">
+        <pre className="text-xs font-mono bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words">
           {sql}
         </pre>
       </div>
-      <div className="mt-2 text-xs text-gray-500">
+      <div className="mt-2 text-xs text-gray-500 flex-shrink-0">
         Preview only - actual SQL may differ based on database type
       </div>
     </div>
