@@ -6,6 +6,7 @@ import { LineChart } from './LineChart';
 import { BarChart } from './BarChart';
 import { PieChart } from './PieChart';
 import { BarChart3, LineChart as LineChartIcon, PieChart as PieChartIcon, Download } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 
 interface ChartConfig {
   type: 'line' | 'bar' | 'pie';
@@ -23,6 +24,7 @@ interface ChartBuilderProps {
  * Allows users to create charts with a simple interface
  */
 export function ChartBuilder({ initialData, onSave }: ChartBuilderProps) {
+  const { showToast } = useToast();
   const [chartType, setChartType] = useState<'line' | 'bar' | 'pie'>('line');
   const [chartTitle, setChartTitle] = useState('My Chart');
   const [showArea, setShowArea] = useState(false);
@@ -58,7 +60,7 @@ export function ChartBuilder({ initialData, onSave }: ChartBuilderProps) {
 
   const handleExport = () => {
     // Export chart as PNG (ECharts built-in feature)
-    alert('Export feature - will download chart as PNG');
+    showToast('Export feature - will download chart as PNG', 'info');
   };
 
   const handleSave = () => {

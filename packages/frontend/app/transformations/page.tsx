@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
+import { useToast } from '@/components/ui/toast';
 
 interface Transformation {
   id: string;
@@ -54,6 +55,7 @@ interface Connection {
 }
 
 export default function TransformationsPage() {
+  const { showToast } = useToast();
   const [selectedTransformation, setSelectedTransformation] = useState<Transformation | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRunsModal, setShowRunsModal] = useState(false);
@@ -91,10 +93,10 @@ export default function TransformationsPage() {
     setIsExecuting(id);
     try {
       await api.transformations.execute(id);
-      alert('Transformation executed successfully!');
+      showToast('Transformation executed successfully!', 'success');
       mutate(); // Refresh list to update lastRunAt
     } catch (error: any) {
-      alert(`Execution failed: ${error.message}`);
+      showToast(`Execution failed: ${error.message}`, 'error');
     } finally {
       setIsExecuting(null);
     }
@@ -105,7 +107,7 @@ export default function TransformationsPage() {
       await api.transformations.pause(id);
       mutate();
     } catch (error: any) {
-      alert(`Failed to pause: ${error.message}`);
+      showToast(`Failed to pause: ${error.message}`, 'error');
     }
   };
 
@@ -114,7 +116,7 @@ export default function TransformationsPage() {
       await api.transformations.resume(id);
       mutate();
     } catch (error: any) {
-      alert(`Failed to resume: ${error.message}`);
+      showToast(`Failed to resume: ${error.message}`, 'error');
     }
   };
 
@@ -126,7 +128,7 @@ export default function TransformationsPage() {
       await api.transformations.delete(id);
       mutate();
     } catch (error: any) {
-      alert(`Failed to delete: ${error.message}`);
+      showToast(`Failed to delete: ${error.message}`, 'error');
     }
   };
 
@@ -137,7 +139,7 @@ export default function TransformationsPage() {
       setSelectedTransformation(transformation);
       setShowRunsModal(true);
     } catch (error: any) {
-      alert(`Failed to load runs: ${error.message}`);
+      showToast(`Failed to load runs: ${error.message}`, 'error');
     }
   };
 
@@ -400,7 +402,7 @@ export default function TransformationsPage() {
                             setShowRunsModal(false);
                             setShowResultsModal(true);
                           } catch (error: any) {
-                            alert(`Failed to load results: ${error.message}`);
+                            showToast(`Failed to load results: ${error.message}`, 'error');
                           }
                         }}
                       >

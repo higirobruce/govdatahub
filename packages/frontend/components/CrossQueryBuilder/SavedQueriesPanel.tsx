@@ -4,6 +4,7 @@ import { useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { api } from '@/lib/api';
 import { SavedCrossQuery, QueryDefinition } from '@/types';
+import { useToast } from '@/components/ui/toast';
 
 interface SavedQueriesPanelProps {
   onLoadQuery: (queryDefinition: QueryDefinition) => void;
@@ -14,6 +15,7 @@ export function SavedQueriesPanel({
   onLoadQuery,
   currentQuery,
 }: SavedQueriesPanelProps) {
+  const { showToast } = useToast();
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saveDescription, setSaveDescription] = useState('');
@@ -29,12 +31,12 @@ export function SavedQueriesPanel({
 
   const handleSaveQuery = async () => {
     if (!saveName.trim()) {
-      alert('Please enter a name for the query');
+      showToast('Please enter a name for the query', 'warning');
       return;
     }
 
     if (currentQuery.tables.length === 0) {
-      alert('Cannot save an empty query');
+      showToast('Cannot save an empty query', 'warning');
       return;
     }
 
@@ -55,9 +57,9 @@ export function SavedQueriesPanel({
       setSaveDescription('');
       setShowSaveDialog(false);
 
-      alert('Query saved successfully!');
+      showToast('Query saved successfully!', 'success');
     } catch (err: any) {
-      alert(`Failed to save query: ${err.message}`);
+      showToast(`Failed to save query: ${err.message}`, 'error');
     } finally {
       setIsSaving(false);
     }
@@ -77,9 +79,9 @@ export function SavedQueriesPanel({
     try {
       await api.crossQuery.deleteSaved(id);
       mutate('/cross-query/saved');
-      alert('Query deleted successfully');
+      showToast('Query deleted successfully', 'success');
     } catch (err: any) {
-      alert(`Failed to delete query: ${err.message}`);
+      showToast(`Failed to delete query: ${err.message}`, 'error');
     }
   };
 

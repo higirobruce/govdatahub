@@ -16,6 +16,7 @@ import 'reactflow/dist/style.css';
 import { QueryDefinition, JoinDefinition } from '@/types';
 import { TableNode } from './TableNode';
 import { JoinConfigDialog } from './JoinConfigDialog';
+import { useToast } from '@/components/ui/toast';
 
 const nodeTypes = {
   table: TableNode,
@@ -30,6 +31,7 @@ export function VisualJoinEditor({
   queryDefinition,
   onQueryChange,
 }: VisualJoinEditorProps) {
+  const { showToast } = useToast();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export function VisualJoinEditor({
       );
 
       if (joinExists) {
-        alert('A join already exists between these tables');
+        showToast('A join already exists between these tables', 'warning');
         return;
       }
 

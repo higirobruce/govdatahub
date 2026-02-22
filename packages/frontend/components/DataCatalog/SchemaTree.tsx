@@ -165,6 +165,23 @@ function TableNode({
     () => api.schema.getColumns(connectionId, table.name, table.schema)
   );
 
+  // Helper to determine if a column name needs quoting (has uppercase, special chars, or is a reserved word)
+  const needsQuoting = (columnName: string): boolean => {
+    // Check if contains uppercase letters
+    if (columnName !== columnName.toLowerCase()) {
+      return true;
+    }
+    // Check if contains special characters (anything other than lowercase letters, numbers, underscore)
+    if (!/^[a-z0-9_]+$/.test(columnName)) {
+      return true;
+    }
+    return false;
+  };
+
+  const formatColumnName = (columnName: string): string => {
+    return needsQuoting(columnName) ? `"${columnName}"` : columnName;
+  };
+
   return (
     <div className="my-1">
       <div className="flex items-center justify-between group p-2 hover:bg-gray-50 rounded">
@@ -208,29 +225,42 @@ function TableNode({
           {columns && columns.length === 0 && (
             <div className="text-gray-500 text-xs p-2">No columns found</div>
           )}
-          {columns && columns.map((column) => (
-            <div
-              key={column.name}
-              className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded text-xs"
-            >
-              <svg
-                className={`h-3 w-3 ${column.isPrimaryKey ? 'text-yellow-500' : 'text-gray-400'}`}
-                fill="currentColor"
-                viewBox="0 0 20 20"
+          {columns && columns.map((column) => {
+            const requiresQuoting = needsQuoting(column.name);
+            const displayName = formatColumnName(column.name);
+
+            return (
+              <div
+                key={column.name}
+                className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded text-xs group/col"
+                title={requiresQuoting ? `Use in SQL as: ${displayName}` : undefined}
               >
-                {column.isPrimaryKey ? (
-                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6z" />
-                ) : (
-                  <circle cx="10" cy="10" r="3" />
+                <svg
+                  className={`h-3 w-3 ${column.isPrimaryKey ? 'text-yellow-500' : 'text-gray-400'}`}
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  {column.isPrimaryKey ? (
+                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6z" />
+                  ) : (
+                    <circle cx="10" cy="10" r="3" />
+                  )}
+                </svg>
+                <span className={`font-mono ${requiresQuoting ? 'text-blue-700' : 'text-gray-700'}`}>
+                  {displayName}
+                </span>
+                {requiresQuoting && (
+                  <span className="text-[10px] text-blue-600 bg-blue-50 px-1 rounded">
+                    quote
+                  </span>
                 )}
-              </svg>
-              <span className="text-gray-700 font-mono">{column.name}</span>
-              <span className="text-gray-500">
-                {column.type}
-                {!column.nullable && <span className="text-red-600 ml-1">*</span>}
-              </span>
-            </div>
-          ))}
+                <span className="text-gray-500">
+                  {column.type}
+                  {!column.nullable && <span className="text-red-600 ml-1">*</span>}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

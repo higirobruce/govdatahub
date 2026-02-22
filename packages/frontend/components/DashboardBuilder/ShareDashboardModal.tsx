@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, Link as LinkIcon, Copy, Check, Mail, Download } from 'lucide-react';
 import { Dashboard } from './types';
+import { useToast } from '@/components/ui/toast';
 
 interface ShareDashboardModalProps {
   dashboard: Dashboard;
@@ -11,6 +12,7 @@ interface ShareDashboardModalProps {
 }
 
 export function ShareDashboardModal({ dashboard, onClose }: ShareDashboardModalProps) {
+  const { showToast } = useToast();
   const [copied, setCopied] = useState(false);
   const [shareMethod, setShareMethod] = useState<'link' | 'json' | 'email'>('link');
 
@@ -25,7 +27,7 @@ export function ShareDashboardModal({ dashboard, onClose }: ShareDashboardModalP
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      alert('Failed to copy link');
+      showToast('Failed to copy link', 'error');
     }
   };
 
@@ -36,7 +38,7 @@ export function ShareDashboardModal({ dashboard, onClose }: ShareDashboardModalP
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      alert('Failed to copy JSON');
+      showToast('Failed to copy JSON', 'error');
     }
   };
 

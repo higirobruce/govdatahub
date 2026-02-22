@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Play, AlertCircle, BarChart3, LayoutDashboard } from 'lucide-react';
 import { QueryVisualization } from '@/components/QueryVisualization';
 import { AddToDashboardModal } from '@/components/DashboardBuilder/AddToDashboardModal';
+import { useToast } from '@/components/ui/toast';
 
 type DataSource = 'connections' | 'staging';
 
@@ -23,6 +24,7 @@ interface StagingTable {
 }
 
 export default function QueryPage() {
+  const { showToast } = useToast();
   const searchParams = useSearchParams();
   const [dataSource, setDataSource] = useState<DataSource>('connections');
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
@@ -291,9 +293,19 @@ export default function QueryPage() {
             disabled={isExecuting}
           />
 
-          <p className="mt-2 text-xs text-[#aaaaaa]">
-            Tip: Press Ctrl+Enter (or Cmd+Enter on Mac) to execute the query
-          </p>
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-[#aaaaaa]">
+              <span className="font-medium">Tip:</span> Press Ctrl+Enter (or Cmd+Enter on Mac) to execute the query
+            </p>
+            <div className="flex items-start gap-2 bg-[#eff6ff] border border-[#bfdbfe] rounded-md px-3 py-2">
+              <AlertCircle className="w-4 h-4 text-[#3b82f6] flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-[#1e40af]">
+                <span className="font-semibold">Column Name Case Sensitivity:</span> PostgreSQL lowercases unquoted column names.
+                If your column has mixed case (e.g., <code className="bg-white px-1 py-0.5 rounded font-mono">employmentStatus</code>),
+                wrap it in double quotes: <code className="bg-white px-1 py-0.5 rounded font-mono">"employmentStatus"</code>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -369,7 +381,7 @@ export default function QueryPage() {
             existingCharts.push(chartConfig);
             localStorage.setItem('pendingDashboardCharts', JSON.stringify(existingCharts));
 
-            alert(`Chart "${chartConfig.title}" added! Go to Dashboard Builder to see it.`);
+            showToast(`Chart "${chartConfig.title}" added! Go to Dashboard Builder to see it.`, 'success');
             setShowAddToDashboard(false);
           }}
         />

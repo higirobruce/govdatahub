@@ -9,8 +9,10 @@ import { DashboardList } from '@/components/DashboardBuilder/DashboardList';
 import { ShareDashboardModal } from '@/components/DashboardBuilder/ShareDashboardModal';
 import { Plus, Save, FolderOpen, Eye, Settings, Bell, Share2 } from 'lucide-react';
 import { ChartWidget, DashboardLayout, Dashboard } from '@/components/DashboardBuilder/types';
+import { useToast } from '@/components/ui/toast';
 
 export default function DashboardsPage() {
+  const { showToast } = useToast();
   const [widgets, setWidgets] = useState<ChartWidget[]>([]);
   const [layout, setLayout] = useState<DashboardLayout[]>([]);
   const [selectedWidget, setSelectedWidget] = useState<ChartWidget | null>(null);
@@ -32,7 +34,7 @@ export default function DashboardsPage() {
     const pendingCharts = JSON.parse(localStorage.getItem('pendingDashboardCharts') || '[]');
 
     if (pendingCharts.length === 0) {
-      alert('No pending charts from queries');
+      showToast('No pending charts from queries', 'info');
       return;
     }
 
@@ -64,8 +66,8 @@ export default function DashboardsPage() {
     localStorage.removeItem('pendingDashboardCharts');
     setPendingChartsCount(0);
 
-    alert(`${pendingCharts.length} chart(s) added to dashboard!`);
-  }, [widgets, layout]);
+    showToast(`${pendingCharts.length} chart(s) added to dashboard!`, 'success');
+  }, [widgets, layout, showToast]);
 
   const handleAddWidget = useCallback(() => {
     const newWidget: ChartWidget = {
@@ -133,14 +135,14 @@ export default function DashboardsPage() {
     savedDashboards.push(dashboard);
     localStorage.setItem('dashboards', JSON.stringify(savedDashboards));
 
-    alert(`Dashboard "${dashboardName}" saved successfully!`);
+    showToast(`Dashboard "${dashboardName}" saved successfully!`, 'success');
   };
 
   const handleLoadDashboard = (dashboard: Dashboard) => {
     setDashboardName(dashboard.name);
     setWidgets(dashboard.widgets);
     setLayout(dashboard.layout);
-    alert(`Dashboard "${dashboard.name}" loaded successfully!`);
+    showToast(`Dashboard "${dashboard.name}" loaded successfully!`, 'success');
   };
 
   const handleShareDashboard = (dashboard?: Dashboard) => {

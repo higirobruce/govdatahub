@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { JoinDefinition, TableReference, JoinCondition } from '@/types';
+import { useToast } from '@/components/ui/toast';
 
 interface JoinConfigDialogProps {
   join: JoinDefinition;
@@ -18,6 +19,7 @@ export function JoinConfigDialog({
   onDelete,
   onClose,
 }: JoinConfigDialogProps) {
+  const { showToast } = useToast();
   const [editedJoin, setEditedJoin] = useState<JoinDefinition>(join);
 
   const leftTable = tables.find((t) => t.alias === join.leftTable);
@@ -51,7 +53,7 @@ export function JoinConfigDialog({
 
   const handleRemoveCondition = (index: number) => {
     if (editedJoin.conditions.length === 1) {
-      alert('At least one condition is required');
+      showToast('At least one condition is required', 'warning');
       return;
     }
     setEditedJoin({
@@ -67,7 +69,7 @@ export function JoinConfigDialog({
     );
 
     if (!isValid) {
-      alert('Please fill in all join conditions');
+      showToast('Please fill in all join conditions', 'warning');
       return;
     }
 

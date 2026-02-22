@@ -24,6 +24,7 @@ import {
 import { ImportProgress } from '@/components/DataIngestion/ImportProgress';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/page-header';
+import { useToast } from '@/components/ui/toast';
 
 type Step = 'upload' | 'preview' | 'target' | 'mapping' | 'progress';
 type ImportTab = 'file' | 'database' | 'url';
@@ -63,6 +64,7 @@ const steps: StepConfig[] = [
 ];
 
 export default function DataIngestionPage() {
+  const { showToast } = useToast();
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
@@ -122,7 +124,7 @@ export default function DataIngestionPage() {
       setCurrentStep('preview');
     } catch (error) {
       console.error('Preview error:', error);
-      alert('Failed to generate preview. Please try again.');
+      showToast('Failed to generate preview. Please try again.', 'error');
     } finally {
       setPreviewLoading(false);
     }
@@ -144,7 +146,7 @@ export default function DataIngestionPage() {
       setCurrentStep('progress');
     } catch (error) {
       console.error('Import error:', error);
-      alert('Failed to start import. Please try again.');
+      showToast('Failed to start import. Please try again.', 'error');
     }
   };
 

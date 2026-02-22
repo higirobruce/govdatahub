@@ -33,8 +33,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { LineChart, BarChart, PieChart } from '@/components/charts';
+import { useToast } from '@/components/ui/toast';
 
 export function AnalyticsTab() {
+  const { showToast } = useToast();
   const [showCharts, setShowCharts] = useState(true);
 
   // Fetch all analytics data
@@ -98,7 +100,7 @@ export function AnalyticsTab() {
   // Export handlers
   const handleExportCSV = () => {
     if (!queryPerf || !sharedDatasets || !dataFreshness || !connectionHealth) {
-      alert('Please wait for data to load before exporting');
+      showToast('Please wait for data to load before exporting', 'warning');
       return;
     }
     exportAnalyticsToCsv({
@@ -111,7 +113,7 @@ export function AnalyticsTab() {
 
   const handleExportPDF = () => {
     if (!queryPerf || !sharedDatasets || !dataFreshness || !connectionHealth) {
-      alert('Please wait for data to load before exporting');
+      showToast('Please wait for data to load before exporting', 'warning');
       return;
     }
     exportAnalyticsToPdf({

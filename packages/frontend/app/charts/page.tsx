@@ -5,8 +5,10 @@ import { ChartBuilder } from '@/components/charts/ChartBuilder';
 import { LineChart, BarChart, PieChart } from '@/components/charts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BarChart3, TrendingUp, PieChart as PieChartIcon } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 
 export default function ChartsPage() {
+  const { showToast } = useToast();
   const [savedCharts, setSavedCharts] = useState<any[]>([]);
 
   // Sample data for example charts
@@ -46,7 +48,7 @@ export default function ChartsPage() {
 
   const handleSaveChart = (config: any) => {
     setSavedCharts([...savedCharts, { ...config, id: Date.now() }]);
-    alert('Chart saved successfully!');
+    showToast('Chart saved successfully!', 'success');
   };
 
   return (

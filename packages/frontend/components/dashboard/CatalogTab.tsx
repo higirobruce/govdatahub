@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useToast } from '@/components/ui/toast';
 
 interface DatasetCatalogItem {
   id: string;
@@ -54,6 +55,7 @@ interface DatasetShare {
 }
 
 export function CatalogTab() {
+  const { showToast } = useToast();
   const [selectedDataset, setSelectedDataset] = useState<DatasetCatalogItem | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showShareDetails, setShowShareDetails] = useState(false);
@@ -82,7 +84,7 @@ export function CatalogTab() {
       setShowShareDetails(true);
     } catch (error) {
       console.error('Failed to load share details:', error);
-      alert('Failed to load share details');
+      showToast('Failed to load share details', 'error');
     }
   };
 
@@ -94,10 +96,10 @@ export function CatalogTab() {
       await api.dashboard.deleteShare(dataset.shareId);
       await mutateCatalog();
       await mutateShares();
-      alert('Dataset unshared successfully');
+      showToast('Dataset unshared successfully', 'success');
     } catch (error) {
       console.error('Failed to unshare:', error);
-      alert('Failed to unshare dataset');
+      showToast('Failed to unshare dataset', 'error');
     }
   };
 
@@ -323,6 +325,7 @@ function ShareDatasetDialog({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     name: dataset.name,
     description: dataset.description,
@@ -347,11 +350,11 @@ function ShareDatasetDialog({
         generateApiKey: formData.generateApiKey,
         generateShareToken: formData.generateShareToken,
       });
-      alert('Dataset shared successfully!');
+      showToast('Dataset shared successfully!', 'success');
       onSuccess();
     } catch (error) {
       console.error('Failed to share dataset:', error);
-      alert('Failed to share dataset');
+      showToast('Failed to share dataset', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -460,6 +463,7 @@ function ShareDetailsDialog({
   onClose: () => void;
   onUpdate: () => void;
 }) {
+  const { showToast } = useToast();
   const [copying, setCopying] = useState<string | null>(null);
 
   const handleCopy = async (text: string, label: string) => {
@@ -472,11 +476,11 @@ function ShareDetailsDialog({
     if (!confirm('Are you sure? This will invalidate the current API key.')) return;
     try {
       await api.dashboard.regenerateApiKey(share.id);
-      alert('API key regenerated successfully');
+      showToast('API key regenerated successfully', 'success');
       onUpdate();
     } catch (error) {
       console.error('Failed to regenerate API key:', error);
-      alert('Failed to regenerate API key');
+      showToast('Failed to regenerate API key', 'error');
     }
   };
 
@@ -484,11 +488,11 @@ function ShareDetailsDialog({
     if (!confirm('Are you sure? This will invalidate the current share token.')) return;
     try {
       await api.dashboard.regenerateShareToken(share.id);
-      alert('Share token regenerated successfully');
+      showToast('Share token regenerated successfully', 'success');
       onUpdate();
     } catch (error) {
       console.error('Failed to regenerate share token:', error);
-      alert('Failed to regenerate share token');
+      showToast('Failed to regenerate share token', 'error');
     }
   };
 
