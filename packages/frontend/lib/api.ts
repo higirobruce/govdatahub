@@ -441,6 +441,36 @@ export const api = {
       }),
   },
 
+  // Settings
+  settings: {
+    get: (): Promise<any> => request('/settings'),
+    update: (data: any): Promise<any> =>
+      request('/settings', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    getAiProviders: (): Promise<any> => request('/settings/ai-providers'),
+  },
+
+  // NL2SQL
+  nl2sql: {
+    generateSql: (data: {
+      query: string;
+      connectionIds?: string[];
+      autoExecute?: boolean;
+      conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    }): Promise<any> =>
+      request('/nl2sql/generate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    explainSql: (data: { sql: string; connectionIds?: string[] }): Promise<any> =>
+      request('/nl2sql/explain', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
+
   lineage: {
     getGraph: (params?: any): Promise<any> => {
       const searchParams = new URLSearchParams();

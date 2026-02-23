@@ -19,6 +19,7 @@ import {
   StagedData,
   DatasetShare,
 } from './database/entities';
+import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
 import { ConnectionsModule } from './modules/connections/connections.module';
 import { SchemaModule } from './modules/schema/schema.module';
@@ -29,6 +30,9 @@ import { CrossQueryModule } from './modules/cross-query/cross-query.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { LineageModule } from './modules/lineage/lineage.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { AiModule } from './modules/ai/ai.module';
+import { Nl2sqlModule } from './modules/nl2sql/nl2sql.module';
 
 @Module({
   imports: [
@@ -61,6 +65,7 @@ import { LineageModule } from './modules/lineage/lineage.module';
           ImportJob,
           StagedData,
           DatasetShare,
+          OrganizationSettings,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -86,6 +91,9 @@ import { LineageModule } from './modules/lineage/lineage.module';
     // Feature modules
     EncryptionModule,
     AuthModule,
+    SettingsModule,
+    AiModule,
+    Nl2sqlModule,
     ConnectionsModule,
     SchemaModule,
     QueriesModule,

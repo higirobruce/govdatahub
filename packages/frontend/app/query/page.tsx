@@ -9,12 +9,15 @@ import SQLEditor from '@/components/QueryInterface/SQLEditor';
 import ResultsTable from '@/components/QueryInterface/ResultsTable';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { Play, AlertCircle, BarChart3, LayoutDashboard, Search } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Play, AlertCircle, BarChart3, LayoutDashboard, Search, Sparkles, Code } from 'lucide-react';
 import { QueryVisualization } from '@/components/QueryVisualization';
 import { AddToDashboardModal } from '@/components/DashboardBuilder/AddToDashboardModal';
 import { useToast } from '@/components/ui/toast';
+import { OrganizationSettings } from '@/types/settings';
 
 type DataSource = 'connections' | 'staging';
+type EditorMode = 'sql' | 'nl';
 
 interface StagingTable {
   name: string;
@@ -36,6 +39,13 @@ export default function QueryPage() {
   const [showVisualization, setShowVisualization] = useState(false);
   const [showAddToDashboard, setShowAddToDashboard] = useState(false);
 
+  // NL2SQL state
+  const [editorMode, setEditorMode] = useState<EditorMode>('sql');
+  const [nlQuery, setNlQuery] = useState('');
+  const [isGeneratingSql, setIsGeneratingSql] = useState(false);
+  const [aiReasoning, setAiReasoning] = useState<string | null>(null);
+  const [sqlWarnings, setSqlWarnings] = useState<string[]>([]);
+
   const { data: connections } = useSWR<Connection[]>('/connections', async () => {
     const result = await api.connections.list();
     return result as Connection[];
@@ -48,6 +58,9 @@ export default function QueryPage() {
       return result as StagingTable[];
     }
   );
+
+  // Fetch organization settings for NL2SQL
+  const { data: settings } = useSWR<OrganizationSettings>('/settings', () => api.settings.get());
 
   // Handle URL parameters from catalog
   useEffect(() => {
@@ -117,6 +130,62 @@ export default function QueryPage() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleExecute();
+    }
+  };
+
+  const handleGenerateSql = async () => {
+    if (!nlQuery.trim()) {
+      setError('Please enter a natural language query');
+      return;
+    }
+
+    if (!settings?.nl2sqlEnabled) {
+      setError('NL2SQL feature is not enabled. Please enable it in Settings.');
+      return;
+    }
+
+    if (dataSource === 'connections' && !selectedConnectionId) {
+      setError('Please select a connection');
+      return;
+    }
+
+    setIsGeneratingSql(true);
+    setError(null);
+    setAiReasoning(null);
+    setSqlWarnings([]);
+
+    try {
+      const response = await api.nl2sql.generateSql({
+        query: nlQuery,
+        connectionIds: selectedConnectionId ? [selectedConnectionId] : undefined,
+        autoExecute: false,
+      });
+
+      // Set generated SQL
+      setSql(response.sql);
+
+      // Show reasoning if available
+      if (response.reasoning) {
+        setAiReasoning(response.reasoning);
+      }
+
+      // Show warnings if any
+      if (response.warnings && response.warnings.length > 0) {
+        setSqlWarnings(response.warnings);
+      }
+
+      // Show validation errors if any
+      if (response.validationErrors && response.validationErrors.length > 0) {
+        setError(`SQL Validation Failed:\n${response.validationErrors.join('\n')}`);
+      } else {
+        showToast('SQL generated successfully! Review and execute when ready.', 'success');
+        // Switch to SQL mode to show generated query
+        setEditorMode('sql');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to generate SQL');
+    } finally {
+      setIsGeneratingSql(false);
     }
   };
 
@@ -240,73 +309,191 @@ export default function QueryPage() {
         </div>
       </div>
 
-      {/* SQL Editor */}
+      {/* Query Editor */}
       <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
-        <div className="px-6 py-5">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-base font-semibold text-[#1a1a1a]">
-              SQL Editor
-            </h3>
-            <Button
-              onClick={handleExecute}
-              disabled={
-                isExecuting ||
-                (dataSource === 'connections' && !selectedConnectionId) ||
-                (dataSource === 'staging' && !selectedStagingTable)
-              }
+        {/* Mode Toggle */}
+        <div className="border-b border-[#f0f0f0]">
+          <nav className="-mb-px flex" aria-label="Editor Mode">
+            <button
+              onClick={() => setEditorMode('sql')}
+              className={`flex-1 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
+                editorMode === 'sql'
+                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
+              }`}
             >
-              {isExecuting ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Executing...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  Execute (Ctrl+Enter)
-                </>
+              <Code className="w-4 h-4" />
+              SQL Editor
+            </button>
+            <button
+              onClick={() => setEditorMode('nl')}
+              className={`flex-1 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
+                editorMode === 'nl'
+                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
+              }`}
+              disabled={!settings?.nl2sqlEnabled}
+              title={!settings?.nl2sqlEnabled ? 'NL2SQL is not enabled. Enable it in Settings.' : ''}
+            >
+              <Sparkles className="w-4 h-4" />
+              Natural Language {!settings?.nl2sqlEnabled && '(Disabled)'}
+            </button>
+          </nav>
+        </div>
+
+        <div className="px-6 py-5">
+          {editorMode === 'sql' ? (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-base font-semibold text-[#1a1a1a]">SQL Editor</h3>
+                <Button
+                  onClick={handleExecute}
+                  disabled={
+                    isExecuting ||
+                    (dataSource === 'connections' && !selectedConnectionId) ||
+                    (dataSource === 'staging' && !selectedStagingTable)
+                  }
+                >
+                  {isExecuting ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                      Executing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" />
+                      Execute (Ctrl+Enter)
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <SQLEditor
+                value={sql}
+                onChange={setSql}
+                onKeyDown={handleKeyDown}
+                disabled={isExecuting}
+              />
+
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-[#aaaaaa]">
+                  <span className="font-medium">Tip:</span> Press Ctrl+Enter (or Cmd+Enter on Mac) to execute the query
+                </p>
+                <div className="flex items-start gap-2 bg-[#eff6ff] border border-[#bfdbfe] rounded-md px-3 py-2">
+                  <AlertCircle className="w-4 h-4 text-[#3b82f6] flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-[#1e40af]">
+                    <span className="font-semibold">Column Name Case Sensitivity:</span> PostgreSQL lowercases unquoted column names.
+                    If your column has mixed case (e.g., <code className="bg-white px-1 py-0.5 rounded font-mono">employmentStatus</code>),
+                    wrap it in double quotes: <code className="bg-white px-1 py-0.5 rounded font-mono">"employmentStatus"</code>
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Natural Language Editor */}
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-base font-semibold text-[#1a1a1a]">Natural Language Query</h3>
+                <Button
+                  onClick={handleGenerateSql}
+                  disabled={
+                    isGeneratingSql ||
+                    (dataSource === 'connections' && !selectedConnectionId) ||
+                    (dataSource === 'staging' && !selectedStagingTable)
+                  }
+                >
+                  {isGeneratingSql ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                      Generating SQL...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Generate SQL
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <Textarea
+                value={nlQuery}
+                onChange={(e) => setNlQuery(e.target.value)}
+                placeholder="Describe what data you want to retrieve in plain English...&#10;&#10;Example: Show me all customers who made purchases in the last 30 days"
+                className="min-h-[120px] text-sm"
+                disabled={isGeneratingSql}
+              />
+
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-[#aaaaaa]">
+                  <span className="font-medium">Tip:</span> Be specific about what data you want, filters, and sorting
+                </p>
+                <div className="flex items-start gap-2 bg-[#f0fdf4] border border-[#bbf7d0] rounded-md px-3 py-2">
+                  <Sparkles className="w-4 h-4 text-[#16a34a] flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-[#15803d]">
+                    <span className="font-semibold">AI-Powered:</span> Your natural language query will be converted to SQL using AI.
+                    Review the generated SQL before executing.
+                  </p>
+                </div>
+              </div>
+
+              {/* AI Reasoning Display */}
+              {aiReasoning && (
+                <div className="mt-4 bg-[#fef3c7] border border-[#fde047] rounded-md p-3">
+                  <p className="text-xs font-semibold text-[#854d0e] mb-1">AI Reasoning:</p>
+                  <p className="text-xs text-[#854d0e] whitespace-pre-wrap">{aiReasoning}</p>
+                </div>
               )}
-            </Button>
-          </div>
 
-          <SQLEditor
-            value={sql}
-            onChange={setSql}
-            onKeyDown={handleKeyDown}
-            disabled={isExecuting}
-          />
-
-          <div className="mt-3 space-y-2">
-            <p className="text-xs text-[#aaaaaa]">
-              <span className="font-medium">Tip:</span> Press Ctrl+Enter (or Cmd+Enter on Mac) to execute the query
-            </p>
-            <div className="flex items-start gap-2 bg-[#eff6ff] border border-[#bfdbfe] rounded-md px-3 py-2">
-              <AlertCircle className="w-4 h-4 text-[#3b82f6] flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-[#1e40af]">
-                <span className="font-semibold">Column Name Case Sensitivity:</span> PostgreSQL lowercases unquoted column names.
-                If your column has mixed case (e.g., <code className="bg-white px-1 py-0.5 rounded font-mono">employmentStatus</code>),
-                wrap it in double quotes: <code className="bg-white px-1 py-0.5 rounded font-mono">"employmentStatus"</code>
-              </p>
-            </div>
-          </div>
+              {/* SQL Warnings */}
+              {sqlWarnings.length > 0 && (
+                <div className="mt-4 bg-[#fef3c7] border border-[#fde047] rounded-md p-3">
+                  <p className="text-xs font-semibold text-[#854d0e] mb-1">Warnings:</p>
+                  <ul className="text-xs text-[#854d0e] list-disc list-inside space-y-1">
+                    {sqlWarnings.map((warning, idx) => (
+                      <li key={idx}>{warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
