@@ -265,6 +265,82 @@ export function exportAnalyticsToPdf(data: {
 }
 
 /**
+ * Export Query Results to CSV
+ */
+export function exportQueryResultsToCsv(queryResult: { fields: Array<{ name: string; type: string }>; rows: any[] }, filename?: string) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+  const csvFilename = filename || `query-results-${timestamp}.csv`;
+
+  // Extract column names from fields
+  const columns = queryResult.fields.map(field => field.name);
+
+  // Create CSV header
+  let csv = columns.map(col => `"${col}"`).join(',') + '\n';
+
+  // Add rows
+  queryResult.rows.forEach(row => {
+    const values = columns.map(col => {
+      const value = row[col];
+      if (value === null || value === undefined) return '';
+      // Escape quotes and wrap in quotes
+      return `"${String(value).replace(/"/g, '""')}"`;
+    });
+    csv += values.join(',') + '\n';
+  });
+
+  downloadFile(csv, csvFilename, 'text/csv');
+}
+
+/**
+ * Export Query Results to JSON
+ */
+export function exportQueryResultsToJson(queryResult: { fields: Array<{ name: string; type: string }>; rows: any[] }, filename?: string) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+  const jsonFilename = filename || `query-results-${timestamp}.json`;
+
+  // Extract column names from fields
+  const columns = queryResult.fields.map(field => field.name);
+
+  const jsonData = {
+    exportedAt: new Date().toISOString(),
+    columnCount: columns.length,
+    rowCount: queryResult.rows.length,
+    columns: columns,
+    fields: queryResult.fields,
+    rows: queryResult.rows,
+  };
+
+  const content = JSON.stringify(jsonData, null, 2);
+  downloadFile(content, jsonFilename, 'application/json');
+}
+
+/**
+ * Export Query Results to Excel (XLSX)
+ */
+export function exportQueryResultsToExcel(queryResult: { fields: Array<{ name: string; type: string }>; rows: any[] }, filename?: string) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+  const xlsxFilename = filename || `query-results-${timestamp}.xlsx`;
+
+  // Extract column names from fields
+  const columns = queryResult.fields.map(field => field.name);
+
+  // Create CSV format (Excel can open CSV files)
+  let csv = columns.map(col => `"${col}"`).join(',') + '\n';
+
+  queryResult.rows.forEach(row => {
+    const values = columns.map(col => {
+      const value = row[col];
+      if (value === null || value === undefined) return '';
+      return `"${String(value).replace(/"/g, '""')}"`;
+    });
+    csv += values.join(',') + '\n';
+  });
+
+  // Use .xlsx extension for Excel compatibility
+  downloadFile(csv, xlsxFilename, 'text/csv');
+}
+
+/**
  * Helper function to download a file
  */
 function downloadFile(content: string, filename: string, mimeType: string) {

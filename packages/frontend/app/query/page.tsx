@@ -10,11 +10,13 @@ import ResultsTable from '@/components/QueryInterface/ResultsTable';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Play, AlertCircle, BarChart3, LayoutDashboard, Search, Sparkles, Code } from 'lucide-react';
+import { Play, AlertCircle, BarChart3, LayoutDashboard, Search, Sparkles, Code, Download } from 'lucide-react';
 import { QueryVisualization } from '@/components/QueryVisualization';
 import { AddToDashboardModal } from '@/components/DashboardBuilder/AddToDashboardModal';
 import { useToast } from '@/components/ui/toast';
 import { OrganizationSettings } from '@/types/settings';
+import { exportQueryResultsToCsv, exportQueryResultsToJson, exportQueryResultsToExcel } from '@/lib/export-utils';
+import { DropdownMenu, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 type DataSource = 'connections' | 'staging';
 type EditorMode = 'sql' | 'nl';
@@ -539,6 +541,24 @@ export default function QueryPage() {
                   <LayoutDashboard className="h-4 w-4" />
                   Add to Dashboard
                 </Button>
+                <DropdownMenu
+                  trigger={
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Download className="h-4 w-4" />
+                      Export
+                    </Button>
+                  }
+                >
+                  <DropdownMenuItem onClick={() => exportQueryResultsToCsv(queryResult)}>
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportQueryResultsToJson(queryResult)}>
+                    Export as JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportQueryResultsToExcel(queryResult)}>
+                    Export as Excel
+                  </DropdownMenuItem>
+                </DropdownMenu>
                 <div className="text-sm text-[#aaaaaa]">
                   {queryResult.rowCount} rows in {queryResult.executionTimeMs}ms
                 </div>

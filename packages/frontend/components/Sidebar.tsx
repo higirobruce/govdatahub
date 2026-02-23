@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { UserMenu } from '@/components/UserMenu';
 import {
   Home,
   Database,
@@ -190,6 +191,11 @@ export function Sidebar() {
             {item.label}
           </Link>
         ))}
+
+        {/* User Profile Section */}
+        <div className="mt-3 pt-3 border-t border-[#f0f0f0]">
+          <UserMenu />
+        </div>
       </div>
       </aside>
     </>
