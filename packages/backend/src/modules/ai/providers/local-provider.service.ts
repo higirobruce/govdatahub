@@ -242,7 +242,7 @@ INSTRUCTIONS:
     let formatted = '';
 
     for (const connection of schemaContext.connections) {
-      formatted += `\n--- ${connection.name} (${connection.type}) ---\n`;
+      formatted += `\n--- ${connection.connectionName} (${connection.databaseType}) ---\n`;
 
       for (const table of connection.tables) {
         formatted += `\nTable: ${table.schema ? table.schema + '.' : ''}${table.name}\n`;

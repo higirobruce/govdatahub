@@ -7,5 +7,6 @@ import { ConnectionsModule } from '../connections/connections.module';
   imports: [ConnectionsModule],
   controllers: [SchemaController, StagingSchemaController],
   providers: [SchemaService],
+  exports: [SchemaService],
 })
 export class SchemaModule {}

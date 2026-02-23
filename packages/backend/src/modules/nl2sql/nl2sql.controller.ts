@@ -1,6 +1,6 @@
 import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Nl2sqlService } from './nl2sql.service';
 import { GenerateSqlDto, ExplainSqlDto } from './dto/nl2sql-request.dto';
 import { GenerateSqlResponseDto, ExplainSqlResponseDto } from './dto/nl2sql-response.dto';
@@ -16,7 +16,7 @@ import { GenerateSqlResponseDto, ExplainSqlResponseDto } from './dto/nl2sql-resp
 @ApiTags('NL2SQL')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('api/nl2sql')
+@Controller('nl2sql')
 export class Nl2sqlController {
   constructor(private readonly nl2sqlService: Nl2sqlService) {}
 

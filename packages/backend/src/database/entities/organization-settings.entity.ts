@@ -23,7 +23,7 @@ export class OrganizationSettings {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'organization_id', type: 'uuid' })
+  @Column({ name: 'organization_id', type: 'text' })
   organizationId: string;
 
   @ManyToOne(() => Organization, { onDelete: 'CASCADE' })
@@ -97,14 +97,14 @@ export class OrganizationSettings {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  @Column({ name: 'created_by', type: 'text', nullable: true })
   createdBy?: string;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'created_by' })
   creator?: User;
 
-  @Column({ name: 'updated_by', type: 'uuid', nullable: true })
+  @Column({ name: 'updated_by', type: 'text', nullable: true })
   updatedBy?: string;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })

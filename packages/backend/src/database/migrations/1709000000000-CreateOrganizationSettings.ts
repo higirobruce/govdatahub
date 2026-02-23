@@ -15,7 +15,7 @@ export class CreateOrganizationSettings1709000000000 implements MigrationInterfa
           },
           {
             name: 'organization_id',
-            type: 'uuid',
+            type: 'text',
             isNullable: false,
           },
           // AI Provider Configuration
@@ -88,8 +88,7 @@ export class CreateOrganizationSettings1709000000000 implements MigrationInterfa
           {
             name: 'allowed_sql_operations',
             type: 'text',
-            isArray: true,
-            default: "'{SELECT}'",
+            default: "'SELECT'",
           },
           {
             name: 'max_rows_limit',
@@ -126,12 +125,12 @@ export class CreateOrganizationSettings1709000000000 implements MigrationInterfa
           },
           {
             name: 'created_by',
-            type: 'uuid',
+            type: 'text',
             isNullable: true,
           },
           {
             name: 'updated_by',
-            type: 'uuid',
+            type: 'text',
             isNullable: true,
           },
         ],
@@ -180,7 +179,7 @@ export class CreateOrganizationSettings1709000000000 implements MigrationInterfa
       new TableForeignKey({
         columnNames: ['updated_by'],
         referencedColumnNames: ['id'],
-        referencedTableName: ['users'],
+        referencedTableName: 'users',
         onDelete: 'SET NULL',
       })
     );

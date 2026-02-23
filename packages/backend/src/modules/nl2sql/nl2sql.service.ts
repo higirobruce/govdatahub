@@ -125,10 +125,12 @@ export class Nl2sqlService {
         if (firstConnectionId) {
           const startTime = Date.now();
           const result = await this.queriesService.executeQuery(
-            firstConnectionId,
-            organizationId,
-            userId,
-            { sql: finalSql }
+            {
+              connectionId: firstConnectionId,
+              sql: finalSql,
+              cacheResults: false,
+            },
+            organizationId
           );
           const executionTime = Date.now() - startTime;
 

@@ -97,10 +97,10 @@ export class SchemaContextBuilderService {
       maxColumnsPerTable: number;
     }
   ): Promise<ConnectionSchema> {
-    const { includeSampleData, maxTablesPerConnection, maxColumnsPerTable } = options;
+    const { maxTablesPerConnection, maxColumnsPerTable } = options;
 
     // Get tables for this connection
-    const tablesResponse = await this.schemaService.getTables(connection.id);
+    const tablesResponse = await this.schemaService.getTables(connection.id, connection.organizationId);
     const tables = tablesResponse.slice(0, maxTablesPerConnection);
 
     const tableSchemas: TableSchema[] = [];
@@ -110,45 +110,25 @@ export class SchemaContextBuilderService {
         // Get columns for this table
         const columnsResponse = await this.schemaService.getColumns(
           connection.id,
-          table.schemaName,
-          table.tableName
+          table.schema,
+          table.name
         );
         const columns = columnsResponse.slice(0, maxColumnsPerTable);
 
         const columnSchemas: ColumnSchema[] = columns.map(col => ({
-          name: col.columnName,
-          type: col.dataType,
-          nullable: col.isNullable === 'YES',
+          name: col.name,
+          type: col.type,
+          nullable: col.nullable,
           primaryKey: col.isPrimaryKey || false,
-          foreignKey: col.isForeignKey
-            ? {
-                referencedTable: col.referencedTable,
-                referencedColumn: col.referencedColumn,
-              }
-            : undefined,
         }));
 
-        // Optionally fetch sample data
-        let sampleData: any[] | undefined;
-        if (includeSampleData) {
-          try {
-            const sampleQuery = `SELECT * FROM ${table.schemaName ? `"${table.schemaName}".` : ''}"${table.tableName}" LIMIT 3`;
-            const result = await this.schemaService.executeQuery(connection.id, sampleQuery);
-            sampleData = result.rows;
-          } catch (error) {
-            this.logger.warn(`Failed to fetch sample data for ${table.tableName}:`, error.message);
-          }
-        }
-
         tableSchemas.push({
-          name: table.tableName,
-          schema: table.schemaName,
+          name: table.name,
+          schema: table.schema,
           columns: columnSchemas,
-          rowCount: table.rowCount,
-          sampleData,
         });
       } catch (error) {
-        this.logger.error(`Failed to build schema for table ${table.tableName}:`, error);
+        this.logger.error(`Failed to build schema for table ${table.name}:`, error);
         // Continue with other tables
       }
     }
@@ -177,11 +157,11 @@ export class SchemaContextBuilderService {
       return { connections: [] };
     }
 
-    const tablesResponse = await this.schemaService.getTables(connectionId);
+    const tablesResponse = await this.schemaService.getTables(connectionId, connection.organizationId);
     let tables = tablesResponse;
 
     if (tableNames && tableNames.length > 0) {
-      tables = tables.filter(t => tableNames.includes(t.tableName));
+      tables = tables.filter(t => tableNames.includes(t.name));
     }
 
     const tableSchemas: TableSchema[] = [];
@@ -189,20 +169,20 @@ export class SchemaContextBuilderService {
     for (const table of tables.slice(0, 10)) {
       const columnsResponse = await this.schemaService.getColumns(
         connectionId,
-        table.schemaName,
-        table.tableName
+        table.schema,
+        table.name
       );
 
       const columnSchemas: ColumnSchema[] = columnsResponse.map(col => ({
-        name: col.columnName,
-        type: col.dataType,
-        nullable: col.isNullable === 'YES',
+        name: col.name,
+        type: col.type,
+        nullable: col.nullable,
         primaryKey: col.isPrimaryKey || false,
       }));
 
       tableSchemas.push({
-        name: table.tableName,
-        schema: table.schemaName,
+        name: table.name,
+        schema: table.schema,
         columns: columnSchemas,
       });
     }

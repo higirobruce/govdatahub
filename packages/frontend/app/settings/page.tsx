@@ -11,10 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/toast';
 import { Settings, Save, RefreshCw, Bot, Database, Shield, Clock } from 'lucide-react';
 import { OrganizationSettings, AiProviderInfo, AiProvider, UpdateSettingsDto } from '@/types/settings';
-import PageHeader from '@/components/PageHeader';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -130,7 +130,7 @@ export default function SettingsPage() {
   return (
     <div className="h-screen flex flex-col">
       <PageHeader
-        icon={<Settings className="w-6 h-6 text-gray-600" />}
+        icon={Settings}
         title="Organization Settings"
         subtitle="Configure AI providers, NL2SQL features, and query settings"
         actions={
@@ -258,7 +258,7 @@ export default function SettingsPage() {
 
               {/* Temperature */}
               <div>
-                <Label htmlFor="aiTemperature">Temperature: {formData.aiTemperature?.toFixed(1) || '0.0'}</Label>
+                <Label htmlFor="aiTemperature">Temperature: {typeof formData.aiTemperature === 'number' ? formData.aiTemperature.toFixed(1) : '0.1'}</Label>
                 <Slider
                   id="aiTemperature"
                   min={0}

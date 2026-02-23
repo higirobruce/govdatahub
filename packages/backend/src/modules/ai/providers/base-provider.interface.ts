@@ -8,8 +8,9 @@ export interface SchemaContext {
 }
 
 export interface ConnectionSchema {
-  name: string;
-  type: string; // 'postgres', 'mysql', etc.
+  connectionId: string;
+  connectionName: string;
+  databaseType: string; // 'postgres', 'mysql', etc.
   tables: TableSchema[];
 }
 

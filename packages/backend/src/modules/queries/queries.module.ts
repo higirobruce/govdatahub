@@ -12,5 +12,6 @@ import { ConnectionsModule } from '../connections/connections.module';
   ],
   controllers: [QueriesController],
   providers: [QueriesService],
+  exports: [QueriesService],
 })
 export class QueriesModule {}
