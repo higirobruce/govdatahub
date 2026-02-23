@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import useSWR, { mutate } from 'swr';
+import useSWR from 'swr';
 import { api } from '@/lib/api';
 import { Connection, QueryResult } from '@/types';
 import SQLEditor from '@/components/QueryInterface/SQLEditor';
@@ -10,7 +10,7 @@ import ResultsTable from '@/components/QueryInterface/ResultsTable';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Play, AlertCircle, BarChart3, LayoutDashboard, Search, Sparkles, Code, Download } from 'lucide-react';
+import { Play, AlertCircle, BarChart3, LayoutDashboard, Search, Sparkles, Code, Download, Database, FileText, ChevronDown } from 'lucide-react';
 import { QueryVisualization } from '@/components/QueryVisualization';
 import { AddToDashboardModal } from '@/components/DashboardBuilder/AddToDashboardModal';
 import { useToast } from '@/components/ui/toast';
@@ -48,6 +48,11 @@ export default function QueryPage() {
   const [aiReasoning, setAiReasoning] = useState<string | null>(null);
   const [sqlWarnings, setSqlWarnings] = useState<string[]>([]);
 
+  // Sidebar state
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(['data-sources'])
+  );
+
   const { data: connections } = useSWR<Connection[]>('/connections', async () => {
     const result = await api.connections.list();
     return result as Connection[];
@@ -63,6 +68,16 @@ export default function QueryPage() {
 
   // Fetch organization settings for NL2SQL
   const { data: settings } = useSWR<OrganizationSettings>('/settings', () => api.settings.get());
+
+  const toggleSection = (section: string) => {
+    const newSet = new Set(expandedSections);
+    if (newSet.has(section)) {
+      newSet.delete(section);
+    } else {
+      newSet.add(section);
+    }
+    setExpandedSections(newSet);
+  };
 
   // Handle URL parameters from catalog
   useEffect(() => {
@@ -82,21 +97,30 @@ export default function QueryPage() {
     } else if (connection && table) {
       setDataSource('connections');
       setSelectedConnectionId(connection);
-      setSql(`SELECT * FROM ${table} LIMIT 100;`);
+      if (schema) {
+        setSql(`SELECT * FROM ${schema}."${table}" LIMIT 100;`);
+      } else {
+        setSql(`SELECT * FROM ${table} LIMIT 100;`);
+      }
     }
   }, [searchParams]);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleExecute();
+    }
+  };
+
   const handleExecute = async () => {
     if (dataSource === 'connections' && !selectedConnectionId) {
-      setError('Please select a connection');
+      setError('Please select a database connection');
       return;
     }
-
     if (dataSource === 'staging' && !selectedStagingTable) {
       setError('Please select a staging table');
       return;
     }
-
     if (!sql.trim()) {
       setError('Please enter a SQL query');
       return;
@@ -107,31 +131,36 @@ export default function QueryPage() {
     setQueryResult(null);
 
     try {
-      let result: QueryResult;
-      if (dataSource === 'staging') {
-        result = await api.queries.executeStaging(sql.trim()) as QueryResult;
-      } else {
-        result = await api.queries.execute({
+      if (dataSource === 'connections') {
+        const result = await api.queries.execute({
           connectionId: selectedConnectionId,
           sql: sql.trim(),
           cacheResults: false,
-        }) as QueryResult;
+        });
+        setQueryResult(result);
+        showToast(
+          `Query executed successfully: ${result.rowCount} rows returned in ${result.executionTimeMs}ms`,
+          'success'
+        );
+      } else {
+        const result = await api.queries.executeStaging({
+          stagingTable: selectedStagingTable,
+          sql: sql.trim(),
+        });
+        setQueryResult(result);
+        showToast(
+          `Query executed successfully: ${result.rowCount} rows returned in ${result.executionTimeMs}ms`,
+          'success'
+        );
       }
-
-      setQueryResult(result);
-      mutate('/query/history');
     } catch (err: any) {
-      setError(err.message || 'Query execution failed');
+      setError(err.message || 'Failed to execute query');
+      showToast(
+        `Query failed: ${err.message || 'An error occurred'}`,
+        'error'
+      );
     } finally {
       setIsExecuting(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Execute query with Ctrl/Cmd + Enter
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      handleExecute();
     }
   };
 
@@ -141,62 +170,55 @@ export default function QueryPage() {
       return;
     }
 
-    if (!settings?.nl2sqlEnabled) {
-      setError('NL2SQL feature is not enabled. Please enable it in Settings.');
-      return;
-    }
-
-    if (dataSource === 'connections' && !selectedConnectionId) {
-      setError('Please select a connection');
-      return;
-    }
-
     setIsGeneratingSql(true);
     setError(null);
     setAiReasoning(null);
     setSqlWarnings([]);
 
     try {
-      const response = await api.nl2sql.generateSql({
+      const connectionIds = dataSource === 'connections' && selectedConnectionId
+        ? [selectedConnectionId]
+        : undefined;
+
+      const result = await api.nl2sql.generateSql({
         query: nlQuery,
-        connectionIds: selectedConnectionId ? [selectedConnectionId] : undefined,
-        autoExecute: false,
+        connectionIds,
+        autoExecute: settings?.nl2sqlAutoExecute || false,
       });
 
-      // Set generated SQL
-      setSql(response.sql);
-
-      // Show reasoning if available
-      if (response.reasoning) {
-        setAiReasoning(response.reasoning);
+      setSql(result.sql);
+      if (result.reasoning) {
+        setAiReasoning(result.reasoning);
+      }
+      if (result.warnings && result.warnings.length > 0) {
+        setSqlWarnings(result.warnings);
       }
 
-      // Show warnings if any
-      if (response.warnings && response.warnings.length > 0) {
-        setSqlWarnings(response.warnings);
+      // If auto-execute is enabled and we got results
+      if (settings?.nl2sqlAutoExecute && result.queryResult) {
+        setQueryResult(result.queryResult);
       }
 
-      // Show validation errors if any
-      if (response.validationErrors && response.validationErrors.length > 0) {
-        setError(`SQL Validation Failed:\n${response.validationErrors.join('\n')}`);
-      } else {
-        showToast('SQL generated successfully! Review and execute when ready.', 'success');
-        // Switch to SQL mode to show generated query
-        setEditorMode('sql');
-      }
+      showToast(
+        'SQL generated successfully - Review and execute when ready',
+        'success'
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to generate SQL');
+      showToast(
+        `SQL generation failed: ${err.message || 'An error occurred'}`,
+        'error'
+      );
     } finally {
       setIsGeneratingSql(false);
     }
   };
 
-  const handleStagingTableChange = (tableKey: string) => {
-    setSelectedStagingTable(tableKey);
-    if (tableKey) {
-      const [schemaName, tableName] = tableKey.split('.');
-      const fullTableName = `${schemaName}."${tableName}"`;
-      setSql(`SELECT * FROM ${fullTableName} LIMIT 100;`);
+  const handleStagingTableChange = (value: string) => {
+    setSelectedStagingTable(value);
+    if (value) {
+      const [schema, tableName] = value.split('.');
+      setSql(`SELECT * FROM ${schema}."${tableName}" LIMIT 100;`);
     }
   };
 
@@ -209,366 +231,333 @@ export default function QueryPage() {
   };
 
   return (
-    <div className="w-full max-w-full">
-      <PageHeader
-        title="SQL Query"
-        subtitle="Execute SQL queries on your databases and staging data"
-        icon={Search}
-      />
-
-      {/* Data Source Selector */}
-      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
-        <div className="border-b border-[#f0f0f0]">
-          <nav className="-mb-px flex" aria-label="Tabs">
-            <button
-              onClick={() => {
-                setDataSource('connections');
-                setSelectedStagingTable('');
-                setError(null);
-              }}
-              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${dataSource === 'connections'
-                ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
-                }`}
-            >
-              Database Connections
-            </button>
-            <button
-              onClick={() => {
-                setDataSource('staging');
-                setSelectedConnectionId('');
-                setError(null);
-              }}
-              className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors ${dataSource === 'staging'
-                ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
-                }`}
-            >
-              Staging Data
-            </button>
-          </nav>
-        </div>
-
-        <div className="p-6">
-          {dataSource === 'connections' ? (
-            <>
-              <label className="block text-sm font-medium text-[#555555] mb-2">
-                Select Database Connection *
-              </label>
-              <select
-                value={selectedConnectionId}
-                onChange={(e) => setSelectedConnectionId(e.target.value)}
-                className="block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
-              >
-                <option value="">-- Select a connection --</option>
-                {connections?.map((conn) => (
-                  <option key={conn.id} value={conn.id}>
-                    {conn.name} ({conn.type} - {conn.database})
-                  </option>
-                ))}
-              </select>
-              {!connections || connections.length === 0 ? (
-                <p className="mt-2 text-sm text-[#aaaaaa]">
-                  No connections available.{' '}
-                  <a href="/connections" className="text-[#1a1a1a] hover:underline font-medium">
-                    Create one first
-                  </a>
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <label className="block text-sm font-medium text-[#555555] mb-2">
-                Select Staging Table *
-              </label>
-              <select
-                value={selectedStagingTable}
-                onChange={(e) => handleStagingTableChange(e.target.value)}
-                className="block w-full rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
-                title="Select a staging table"
-              >
-                <option value="">-- Select a staging table --</option>
-                {stagingTables?.map((table) => (
-                  <option
-                    key={`${table.schema}.${table.name}`}
-                    value={`${table.schema}.${table.name}`}
-                    title={`Full table name: ${table.schema}.${table.name}`}
-                  >
-                    {table.name} ({formatBytes(table.sizeBytes)}{table.rowCount ? `, ${table.rowCount.toLocaleString()} rows` : ''})
-                  </option>
-                ))}
-              </select>
-              {!stagingTables || stagingTables.length === 0 ? (
-                <p className="mt-2 text-sm text-[#aaaaaa]">
-                  No staging tables available.{' '}
-                  <a href="/ingestion" className="text-[#1a1a1a] hover:underline font-medium">
-                    Upload data to staging
-                  </a>
-                </p>
-              ) : null}
-            </>
-          )}
-        </div>
+    <div className="w-full h-screen flex flex-col bg-[#f2f2f2] overflow-hidden">
+      {/* Header */}
+      <div className="flex-shrink-0 px-6 pt-6">
+        <PageHeader
+          title="SQL Query"
+          subtitle="Execute SQL queries on your databases and staging data"
+          icon={Search}
+          className="mb-0"
+        />
       </div>
 
-      {/* Query Editor */}
-      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
-        {/* Mode Toggle */}
-        <div className="border-b border-[#f0f0f0]">
-          <nav className="-mb-px flex" aria-label="Editor Mode">
-            <button
-              onClick={() => setEditorMode('sql')}
-              className={`flex-1 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
-                editorMode === 'sql'
-                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
-              }`}
-            >
-              <Code className="w-4 h-4" />
-              SQL Editor
-            </button>
-            <button
-              onClick={() => setEditorMode('nl')}
-              className={`flex-1 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
-                editorMode === 'nl'
-                  ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                  : 'border-transparent text-[#555555] hover:text-[#1a1a1a] hover:border-[#e8e8e8]'
-              }`}
-              disabled={!settings?.nl2sqlEnabled}
-              title={!settings?.nl2sqlEnabled ? 'NL2SQL is not enabled. Enable it in Settings.' : ''}
-            >
-              <Sparkles className="w-4 h-4" />
-              Natural Language {!settings?.nl2sqlEnabled && '(Disabled)'}
-            </button>
-          </nav>
-        </div>
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden w-full max-w-full min-h-0 px-6 pb-6 pt-4">
+        {/* Left Sidebar */}
+        <div className="bg-white border border-[#e8e8e8] rounded-l-xl flex flex-col overflow-hidden flex-shrink-0 w-[280px] shadow-sm">
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {/* DATA SOURCES Section */}
+            <div className="border-b border-[#f0f0f0]">
+              <button
+                onClick={() => toggleSection('data-sources')}
+                className="w-full px-4 py-3 bg-[#fafafa] hover:bg-[#f5f5f5] transition-colors flex items-center justify-between"
+              >
+                <span className="text-xs font-bold text-[#1a1a1a] tracking-wide">DATA SOURCES</span>
+                <ChevronDown
+                  className={`w-4 h-4 text-[#555555] transition-transform ${
+                    expandedSections.has('data-sources') ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
 
-        <div className="px-6 py-5">
-          {editorMode === 'sql' ? (
-            <>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-base font-semibold text-[#1a1a1a]">SQL Editor</h3>
-                <Button
-                  onClick={handleExecute}
-                  disabled={
-                    isExecuting ||
-                    (dataSource === 'connections' && !selectedConnectionId) ||
-                    (dataSource === 'staging' && !selectedStagingTable)
-                  }
-                >
-                  {isExecuting ? (
-                    <>
-                      <svg
-                        className="animate-spin -ml-1 mr-2 h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
+              {expandedSections.has('data-sources') && (
+                <div className="p-4 space-y-3">
+                  {/* Connection/Staging Toggle */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        setDataSource('connections');
+                        setSelectedStagingTable('');
+                        setError(null);
+                      }}
+                      className={`w-full px-3 py-2 text-sm rounded-md transition-colors text-left flex items-center gap-2 ${
+                        dataSource === 'connections'
+                          ? 'bg-[#1a1a1a] text-white'
+                          : 'bg-[#f5f5f5] text-[#555555] hover:bg-[#eeeeee]'
+                      }`}
+                    >
+                      <Database className="w-4 h-4" />
+                      Connections
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDataSource('staging');
+                        setSelectedConnectionId('');
+                        setError(null);
+                      }}
+                      className={`w-full px-3 py-2 text-sm rounded-md transition-colors text-left flex items-center gap-2 ${
+                        dataSource === 'staging'
+                          ? 'bg-[#1a1a1a] text-white'
+                          : 'bg-[#f5f5f5] text-[#555555] hover:bg-[#eeeeee]'
+                      }`}
+                    >
+                      <FileText className="w-4 h-4" />
+                      Staging Data
+                    </button>
+                  </div>
+
+                  {/* Selection Dropdown */}
+                  {dataSource === 'connections' ? (
+                    <div>
+                      <label className="block text-xs font-medium text-[#777777] mb-2">
+                        Select Connection
+                      </label>
+                      <select
+                        value={selectedConnectionId}
+                        onChange={(e) => setSelectedConnectionId(e.target.value)}
+                        className="block w-full rounded-md border border-[#e0e0e0] px-2 py-1.5 text-xs focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none bg-white"
                       >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      Executing...
-                    </>
+                        <option value="">-- Select --</option>
+                        {connections?.map((conn) => (
+                          <option key={conn.id} value={conn.id}>
+                            {conn.name}
+                          </option>
+                        ))}
+                      </select>
+                      {(!connections || connections.length === 0) && (
+                        <p className="mt-2 text-xs text-[#aaaaaa]">
+                          <a href="/connections" className="text-[#1a1a1a] hover:underline font-medium">
+                            Create connection →
+                          </a>
+                        </p>
+                      )}
+                      {selectedConnectionId && connections && (
+                        <div className="mt-2 text-xs text-[#777777]">
+                          {connections.find(c => c.id === selectedConnectionId)?.type} • {connections.find(c => c.id === selectedConnectionId)?.database}
+                        </div>
+                      )}
+                    </div>
                   ) : (
-                    <>
-                      <Play className="h-4 w-4" />
-                      Execute (Ctrl+Enter)
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              <SQLEditor
-                value={sql}
-                onChange={setSql}
-                onKeyDown={handleKeyDown}
-                disabled={isExecuting}
-              />
-
-              <div className="mt-3 space-y-2">
-                <p className="text-xs text-[#aaaaaa]">
-                  <span className="font-medium">Tip:</span> Press Ctrl+Enter (or Cmd+Enter on Mac) to execute the query
-                </p>
-                <div className="flex items-start gap-2 bg-[#eff6ff] border border-[#bfdbfe] rounded-md px-3 py-2">
-                  <AlertCircle className="w-4 h-4 text-[#3b82f6] flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-[#1e40af]">
-                    <span className="font-semibold">Column Name Case Sensitivity:</span> PostgreSQL lowercases unquoted column names.
-                    If your column has mixed case (e.g., <code className="bg-white px-1 py-0.5 rounded font-mono">employmentStatus</code>),
-                    wrap it in double quotes: <code className="bg-white px-1 py-0.5 rounded font-mono">"employmentStatus"</code>
-                  </p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Natural Language Editor */}
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-base font-semibold text-[#1a1a1a]">Natural Language Query</h3>
-                <Button
-                  onClick={handleGenerateSql}
-                  disabled={
-                    isGeneratingSql ||
-                    (dataSource === 'connections' && !selectedConnectionId) ||
-                    (dataSource === 'staging' && !selectedStagingTable)
-                  }
-                >
-                  {isGeneratingSql ? (
-                    <>
-                      <svg
-                        className="animate-spin -ml-1 mr-2 h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
+                    <div>
+                      <label className="block text-xs font-medium text-[#777777] mb-2">
+                        Select Table
+                      </label>
+                      <select
+                        value={selectedStagingTable}
+                        onChange={(e) => handleStagingTableChange(e.target.value)}
+                        className="block w-full rounded-md border border-[#e0e0e0] px-2 py-1.5 text-xs focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none bg-white"
                       >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      Generating SQL...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      Generate SQL
-                    </>
+                        <option value="">-- Select --</option>
+                        {stagingTables?.map((table) => (
+                          <option key={`${table.schema}.${table.name}`} value={`${table.schema}.${table.name}`}>
+                            {table.name}
+                          </option>
+                        ))}
+                      </select>
+                      {(!stagingTables || stagingTables.length === 0) && (
+                        <p className="mt-2 text-xs text-[#aaaaaa]">
+                          <a href="/ingestion" className="text-[#1a1a1a] hover:underline font-medium">
+                            Upload data →
+                          </a>
+                        </p>
+                      )}
+                      {selectedStagingTable && stagingTables && (
+                        <div className="mt-2 text-xs text-[#777777]">
+                          {stagingTables.find(t => `${t.schema}.${t.name}` === selectedStagingTable)?.rowCount?.toLocaleString() || 0} rows
+                        </div>
+                      )}
+                    </div>
                   )}
-                </Button>
-              </div>
-
-              <Textarea
-                value={nlQuery}
-                onChange={(e) => setNlQuery(e.target.value)}
-                placeholder="Describe what data you want to retrieve in plain English...&#10;&#10;Example: Show me all customers who made purchases in the last 30 days"
-                className="min-h-[120px] text-sm"
-                disabled={isGeneratingSql}
-              />
-
-              <div className="mt-3 space-y-2">
-                <p className="text-xs text-[#aaaaaa]">
-                  <span className="font-medium">Tip:</span> Be specific about what data you want, filters, and sorting
-                </p>
-                <div className="flex items-start gap-2 bg-[#f0fdf4] border border-[#bbf7d0] rounded-md px-3 py-2">
-                  <Sparkles className="w-4 h-4 text-[#16a34a] flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-[#15803d]">
-                    <span className="font-semibold">AI-Powered:</span> Your natural language query will be converted to SQL using AI.
-                    Review the generated SQL before executing.
-                  </p>
-                </div>
-              </div>
-
-              {/* AI Reasoning Display */}
-              {aiReasoning && (
-                <div className="mt-4 bg-[#fef3c7] border border-[#fde047] rounded-md p-3">
-                  <p className="text-xs font-semibold text-[#854d0e] mb-1">AI Reasoning:</p>
-                  <p className="text-xs text-[#854d0e] whitespace-pre-wrap">{aiReasoning}</p>
                 </div>
               )}
-
-              {/* SQL Warnings */}
-              {sqlWarnings.length > 0 && (
-                <div className="mt-4 bg-[#fef3c7] border border-[#fde047] rounded-md p-3">
-                  <p className="text-xs font-semibold text-[#854d0e] mb-1">Warnings:</p>
-                  <ul className="text-xs text-[#854d0e] list-disc list-inside space-y-1">
-                    {sqlWarnings.map((warning, idx) => (
-                      <li key={idx}>{warning}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="bg-[#fee2e2] border border-[#fca5a5] rounded-md p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <AlertCircle className="h-5 w-5 text-[#ef4444]" />
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-[#991b1b]">Query Error</h3>
-              <div className="mt-2 text-sm text-[#991b1b]">{error}</div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Results */}
-      {queryResult && (
-        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card overflow-hidden">
-          <div className="px-6 py-5">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-base font-semibold text-[#1a1a1a]">
-                Query Results
-              </h3>
-              <div className="flex items-center gap-4">
-                <Button
-                  onClick={() => setShowVisualization(true)}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  Visualize
-                </Button>
-                <Button
-                  onClick={() => setShowAddToDashboard(true)}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                >
-                  <LayoutDashboard className="h-4 w-4" />
-                  Add to Dashboard
-                </Button>
-                <DropdownMenu
-                  trigger={
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Download className="h-4 w-4" />
-                      Export
-                    </Button>
-                  }
-                >
-                  <DropdownMenuItem onClick={() => exportQueryResultsToCsv(queryResult)}>
-                    Export as CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => exportQueryResultsToJson(queryResult)}>
-                    Export as JSON
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => exportQueryResultsToExcel(queryResult)}>
-                    Export as Excel
-                  </DropdownMenuItem>
-                </DropdownMenu>
-                <div className="text-sm text-[#aaaaaa]">
-                  {queryResult.rowCount} rows in {queryResult.executionTimeMs}ms
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-white border-r border-t border-b border-[#e8e8e8] rounded-r-xl shadow-sm">
+          {/* Editor Mode Tabs */}
+          <div className="border-b border-[#f0f0f0] bg-[#fafafa]">
+            <nav className="flex px-6" aria-label="Editor Mode">
+              <button
+                onClick={() => setEditorMode('sql')}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  editorMode === 'sql'
+                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
+                }`}
+              >
+                <Code className="w-4 h-4" />
+                SQL Editor
+              </button>
+              <button
+                onClick={() => setEditorMode('nl')}
+                disabled={!settings?.nl2sqlEnabled}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  editorMode === 'nl'
+                    ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                    : 'border-transparent text-[#555555] hover:text-[#1a1a1a]'
+                } ${!settings?.nl2sqlEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={!settings?.nl2sqlEnabled ? 'Enable in Settings' : ''}
+              >
+                <Sparkles className="w-4 h-4" />
+                Natural Language
+              </button>
+            </nav>
+          </div>
+
+          {/* Editor Content with Toolbar */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between px-6 py-3 border-b border-[#f0f0f0] bg-[#fafafa]">
+              <div className="flex items-center gap-3">
+                {editorMode === 'sql' ? (
+                  <>
+                    <span className="text-xs text-[#777777] font-mono">
+                      Press <kbd className="px-1.5 py-0.5 bg-white border border-[#e0e0e0] rounded text-[10px] font-semibold">Ctrl</kbd>+<kbd className="px-1.5 py-0.5 bg-white border border-[#e0e0e0] rounded text-[10px] font-semibold">Enter</kbd> to execute
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-xs text-[#777777]">Describe your query in plain English</span>
+                )}
+              </div>
+              <Button
+                onClick={editorMode === 'sql' ? handleExecute : handleGenerateSql}
+                disabled={
+                  (editorMode === 'sql' ? isExecuting : isGeneratingSql) ||
+                  (dataSource === 'connections' && !selectedConnectionId) ||
+                  (dataSource === 'staging' && !selectedStagingTable)
+                }
+                className="gap-2"
+              >
+                {(editorMode === 'sql' ? isExecuting : isGeneratingSql) ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    {editorMode === 'sql' ? 'Executing...' : 'Generating...'}
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    {editorMode === 'sql' ? 'Run Query' : 'Generate SQL'}
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Editor */}
+            <div className="flex-1 overflow-auto p-6">
+              {editorMode === 'sql' ? (
+                <>
+                  <SQLEditor
+                    value={sql}
+                    onChange={setSql}
+                    onKeyDown={handleKeyDown}
+                    disabled={isExecuting}
+                    height="400px"
+                    theme="dark"
+                  />
+                  <div className="mt-4 flex items-start gap-2 bg-[#f0f9ff] border border-[#bae6fd] rounded-lg px-4 py-3">
+                    <AlertCircle className="w-4 h-4 text-[#0284c7] flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-[#0284c7]">
+                      <span className="font-semibold">Tip:</span> PostgreSQL lowercases unquoted column names. Use double quotes for mixed case columns.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Textarea
+                    value={nlQuery}
+                    onChange={(e) => setNlQuery(e.target.value)}
+                    placeholder="Example: Show me the top 10 customers by revenue in the last month"
+                    className="min-h-[120px] font-normal"
+                    disabled={isGeneratingSql}
+                  />
+                  {aiReasoning && (
+                    <div className="mt-4 bg-[#f0fdf4] border border-[#86efac] rounded-lg p-4">
+                      <p className="text-xs font-semibold text-[#166534] mb-2">AI Reasoning:</p>
+                      <p className="text-xs text-[#166534]">{aiReasoning}</p>
+                    </div>
+                  )}
+                  {sqlWarnings.length > 0 && (
+                    <div className="mt-4 bg-[#fef3c7] border border-[#fde047] rounded-lg p-3">
+                      <p className="text-xs font-semibold text-[#854d0e] mb-1">Warnings:</p>
+                      <ul className="text-xs text-[#854d0e] list-disc list-inside space-y-1">
+                        {sqlWarnings.map((warning, idx) => (
+                          <li key={idx}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="mx-6 mb-4 bg-[#fee2e2] border border-[#fca5a5] rounded-lg p-4">
+                <div className="flex gap-3">
+                  <AlertCircle className="h-5 w-5 text-[#ef4444] flex-shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-medium text-[#991b1b]">Error</h3>
+                    <p className="mt-1 text-sm text-[#991b1b]">{error}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className='w-full max-w-[80vw] overflow-auto'>
-              <ResultsTable result={queryResult} /></div>
+            )}
+
+            {/* Results */}
+            {queryResult && (
+              <div className="border-t border-[#f0f0f0] overflow-auto">
+                <div className="px-6 py-4 min-w-0">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-semibold text-[#1a1a1a]">
+                      Query Results
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={() => setShowVisualization(true)}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <BarChart3 className="h-4 w-4" />
+                        Visualize
+                      </Button>
+                      <Button
+                        onClick={() => setShowAddToDashboard(true)}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <LayoutDashboard className="h-4 w-4" />
+                        Add to Dashboard
+                      </Button>
+                      <DropdownMenu
+                        trigger={
+                          <Button variant="outline" size="sm" className="gap-2">
+                            <Download className="h-4 w-4" />
+                            Export
+                          </Button>
+                        }
+                      >
+                        <DropdownMenuItem onClick={() => exportQueryResultsToCsv(queryResult)}>
+                          Export as CSV
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => exportQueryResultsToJson(queryResult)}>
+                          Export as JSON
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => exportQueryResultsToExcel(queryResult)}>
+                          Export as Excel
+                        </DropdownMenuItem>
+                      </DropdownMenu>
+                      <div className="text-xs text-[#aaaaaa]">
+                        {queryResult.rowCount} rows in {queryResult.executionTimeMs}ms
+                      </div>
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <ResultsTable result={queryResult} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Visualization Modal */}
       {showVisualization && queryResult && (
@@ -582,16 +571,8 @@ export default function QueryPage() {
       {showAddToDashboard && queryResult && (
         <AddToDashboardModal
           queryResult={queryResult}
+          sql={sql}
           onClose={() => setShowAddToDashboard(false)}
-          onAdd={(chartConfig) => {
-            // Save chart to localStorage for now (later: save to backend)
-            const existingCharts = JSON.parse(localStorage.getItem('pendingDashboardCharts') || '[]');
-            existingCharts.push(chartConfig);
-            localStorage.setItem('pendingDashboardCharts', JSON.stringify(existingCharts));
-
-            showToast(`Chart "${chartConfig.title}" added! Go to Dashboard Builder to see it.`, 'success');
-            setShowAddToDashboard(false);
-          }}
         />
       )}
     </div>

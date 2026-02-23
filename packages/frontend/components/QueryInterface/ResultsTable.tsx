@@ -28,7 +28,7 @@ export default function ResultsTable({ result }: ResultsTableProps) {
   const columns = result.fields.map((f) => f.name);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-5xl">
       {/* Pagination Info */}
       {totalPages > 1 && (
         <div className="flex justify-between items-center text-sm text-[#555555]">
@@ -62,10 +62,10 @@ export default function ResultsTable({ result }: ResultsTableProps) {
       )}
 
       {/* Scrollable Table Container */}
-      <div className="relative">
+      <div className="relative min-w-0">
         {/* Scroll indicator */}
-        <div className="overflow-x-auto border border-[#e8e8e8] rounded-lg max-w-full">
-          <table className="min-w-full divide-y divide-[#e8e8e8]">
+        <div className="overflow-x-auto border border-[#e8e8e8] rounded-lg">
+          <table className="w-full divide-y divide-[#e8e8e8]">
             <thead className="bg-[#f5f5f5]">
               <tr>
                 {columns.map((col, idx) => (
