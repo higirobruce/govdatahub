@@ -92,7 +92,7 @@ export default function LineagePage() {
   };
 
   return (
-    <div className="w-full flex flex-col h-full bg-gray-50 -m-4 md:-m-8 -mt-16 md:-mt-8">
+    <div className="w-full flex flex-col h-full">
       {/* Header */}
       <div className="px-6">
         <PageHeader

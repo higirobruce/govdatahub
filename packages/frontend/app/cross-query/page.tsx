@@ -197,7 +197,7 @@ export default function CrossQueryPage() {
     (queryDefinition.tables.length === 1 || queryDefinition.joins.length > 0);
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#f2f2f2] overflow-hidden -m-4 md:-m-8 -mt-16 md:-mt-8">
+    <div className="w-full h-full flex flex-col bg-[#f2f2f2] overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 px-6">
         <PageHeader
@@ -272,7 +272,7 @@ export default function CrossQueryPage() {
         {/* Left Sidebar */}
         <div
           className="bg-white border-r flex flex-col overflow-hidden flex-shrink-0"
-          style={{ width: isRightContentCollapsed ? '100%' : `${leftPanelWidth}px` }}
+          style={{ width: isRightContentCollapsed ? '60%' : `${leftPanelWidth}px` }}
         >
           {/* Sidebar Content - Grouped Sections */}
           <div className="flex-1 overflow-y-auto min-h-0">

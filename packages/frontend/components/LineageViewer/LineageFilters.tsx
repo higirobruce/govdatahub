@@ -43,7 +43,7 @@ export function LineageFilters({ selectedNodeTypes, onNodeTypesChange }: Lineage
     ALL_NODE_TYPES.length - selectedNodeTypes.length;
 
   return (
-    <div className="border-b border-gray-200 bg-white">
+    <div className="border-b border-gray-200 bg-white rounded-t-2xl">
       <div className="px-6 py-3">
         <div className="flex items-center justify-between mb-2">
           <button
