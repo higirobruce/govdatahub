@@ -7,6 +7,7 @@ import { LineageGraph, NodeType, LineageNode } from '@/types/lineage';
 import { LineageViewer } from '@/components/LineageViewer/LineageViewer';
 import { LineageFilters } from '@/components/LineageViewer/LineageFilters';
 import { NodeDetailsPanel } from '@/components/LineageViewer/NodeDetailsPanel';
+import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Download, Network } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
@@ -91,44 +92,38 @@ export default function LineagePage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="w-full flex flex-col h-full bg-gray-50 -m-4 md:-m-8 -mt-16 md:-mt-8">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <Network className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Data Lineage</h1>
-              <p className="text-sm text-gray-600">
-                Visualize how data flows through your system
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {filteredLineageGraph && (
-              <div className="text-sm text-gray-600 mr-4">
-                <span className="font-semibold">{filteredLineageGraph.nodes.length}</span> nodes,{' '}
-                <span className="font-semibold">{filteredLineageGraph.edges.length}</span> edges
-              </div>
-            )}
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={!filteredLineageGraph || filteredLineageGraph.nodes.length === 0}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
-          </div>
-        </div>
+      <div className="px-6">
+        <PageHeader
+          title="Data Lineage"
+          subtitle="Visualize how data flows through your system"
+          icon={Network}
+          className="mb-4"
+          actions={
+            <>
+              {filteredLineageGraph && (
+                <div className="text-sm text-gray-600 flex items-center">
+                  <span className="font-semibold">{filteredLineageGraph.nodes.length}</span> nodes,{' '}
+                  <span className="font-semibold ml-1">{filteredLineageGraph.edges.length}</span> edges
+                </div>
+              )}
+              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={!filteredLineageGraph || filteredLineageGraph.nodes.length === 0}
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+            </>
+          }
+        />
       </div>
 
       {/* Filters */}

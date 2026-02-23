@@ -109,7 +109,7 @@ export function Sidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          'w-[260px] h-screen bg-white py-5 flex flex-col flex-shrink-0 border-r border-[#f0f0f0]',
+          'w-[260px] h-screen bg-white py-5 flex flex-col flex-shrink-0',
           // Mobile styles
           'md:relative md:translate-x-0',
           isMobileMenuOpen

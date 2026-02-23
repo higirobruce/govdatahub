@@ -22,7 +22,10 @@ export default function ConnectionsPage() {
 
   const { data: connections, error } = useSWR<Connection[]>(
     '/connections',
-    () => api.connections.list()
+    async () => {
+      const result = await api.connections.list();
+      return result as Connection[];
+    }
   );
 
   const handleCreate = async (data: CreateConnectionDto) => {
@@ -37,8 +40,9 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string): Promise<void> => {
     setDeleteConfirm({ isOpen: true, id });
+    return;
   };
 
   const confirmDelete = async () => {
@@ -53,12 +57,14 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleTest = async (id: string) => {
+  const handleTest = async (id: string): Promise<void> => {
     try {
-      const result = await api.connections.test(id);
+      const result = await api.connections.test(id) as { success: boolean; message: string };
       showToast(result.message, result.success ? 'success' : 'error');
+      return;
     } catch (error: any) {
       showToast(error.message || 'Failed to test connection', 'error');
+      return;
     }
   };
 
@@ -111,13 +117,15 @@ export default function ConnectionsPage() {
           {!connections && !error && (
             <div className="text-[#aaaaaa] text-sm">Loading connections...</div>
           )}
-          {connections && (
+          {connections && connections.length > 0 ? (
             <ConnectionList
               connections={connections}
               onDelete={handleDelete}
               onTest={handleTest}
             />
-          )}
+          ) : connections && connections.length === 0 ? (
+            <div className="text-[#aaaaaa] text-sm">No connections yet. Add one to get started.</div>
+          ) : null}
         </div>
       </div>
 

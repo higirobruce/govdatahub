@@ -13,8 +13,10 @@ import { LimitBuilder } from '@/components/CrossQueryBuilder/LimitBuilder';
 import { QueryPreview } from '@/components/CrossQueryBuilder/QueryPreview';
 import { ResultsViewer } from '@/components/CrossQueryBuilder/ResultsViewer';
 import { SavedQueriesPanel } from '@/components/CrossQueryBuilder/SavedQueriesPanel';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { Link as LinkIcon } from 'lucide-react';
+import { Link as LinkIcon, Play } from 'lucide-react';
 
 export default function CrossQueryPage() {
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
@@ -195,79 +197,50 @@ export default function CrossQueryPage() {
     (queryDefinition.tables.length === 1 || queryDefinition.joins.length > 0);
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#f2f2f2] overflow-hidden">
+    <div className="w-full h-full flex flex-col bg-[#f2f2f2] overflow-hidden -m-4 md:-m-8 -mt-16 md:-mt-8">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4 flex-shrink-0 max-w-full">
-        <div className="flex items-center justify-between min-w-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <LinkIcon className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-[#1a1a1a]">
-                Cross-Database Query Builder
-              </h1>
-              <p className="text-sm text-[#555555] mt-1">
-                Join data from multiple databases using visual query builder
-              </p>
-            </div>
-          </div>
-          {canExecute && (
-            <button
-              onClick={handleExecute}
-              disabled={isExecuting}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-subtle text-white bg-[#1a1a1a] hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isExecuting ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Executing...
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="-ml-1 mr-2 h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  Execute Query
-                </>
-              )}
-            </button>
-          )}
-        </div>
+      <div className="flex-shrink-0 px-6">
+        <PageHeader
+          title="Cross-Database Query"
+          subtitle="Join data from multiple databases using visual query builder"
+          icon={LinkIcon}
+          className="mb-4"
+          actions={
+            canExecute ? (
+              <Button onClick={handleExecute} disabled={isExecuting}>
+                {isExecuting ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Executing...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    Execute Query
+                  </>
+                )}
+              </Button>
+            ) : undefined
+          }
+        />
       </div>
 
       {/* Error Alert */}
@@ -295,14 +268,14 @@ export default function CrossQueryPage() {
       )}
 
       {/* Main Content */}
-      <div ref={containerRef} className="flex-1 flex overflow-hidden w-full max-w-full">
+      <div ref={containerRef} className="flex-1 flex overflow-hidden w-full max-w-full min-h-0">
         {/* Left Sidebar */}
         <div
           className="bg-white border-r flex flex-col overflow-hidden flex-shrink-0"
           style={{ width: isRightContentCollapsed ? '100%' : `${leftPanelWidth}px` }}
         >
           {/* Sidebar Content - Grouped Sections */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0">
             {/* DATA SOURCES Section */}
             <div className="border-b">
               <button

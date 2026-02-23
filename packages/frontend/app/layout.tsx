@@ -31,11 +31,11 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-[#e8e8e8]">
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-white">
         {/* Optional: Add a top bar for user menu if needed */}
-        <div className="flex justify-end items-center px-6 py-3">
+        {/* <div className="flex justify-end items-center px-6 py-3">
           <UserMenu />
-        </div>
+        </div> */}
         <MainContent>{children}</MainContent>
       </div>
     </div>
