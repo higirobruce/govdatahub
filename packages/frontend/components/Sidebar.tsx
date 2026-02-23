@@ -20,6 +20,7 @@ import {
   BarChart3,
   LayoutDashboard,
   Network,
+  BookOpen,
 } from 'lucide-react';
 
 interface NavItem {
@@ -58,6 +59,7 @@ export function Sidebar() {
       items: [
         { id: 'query', label: 'SQL Query', href: '/query', icon: <Search /> },
         { id: 'cross-query', label: 'Cross-Query', href: '/cross-query', icon: <LinkIcon /> },
+        { id: 'notebooks', label: 'Notebooks', href: '/notebooks', icon: <BookOpen /> },
       ],
     },
     {

@@ -165,3 +165,6 @@ export interface SavedCrossQuery {
 
 // Lineage Types
 export * from './lineage';
+
+// Notebook Types
+export * from './notebook';

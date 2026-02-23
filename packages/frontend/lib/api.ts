@@ -497,6 +497,54 @@ export const api = {
       );
     },
   },
+
+  notebooks: {
+    list: (): Promise<any[]> => request('/notebooks'),
+
+    get: (id: string): Promise<any> => request(`/notebooks/${id}`),
+
+    create: (data: { name: string; description?: string }): Promise<any> =>
+      request('/notebooks', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    update: (
+      id: string,
+      data: { name?: string; description?: string; cells?: any[] },
+    ): Promise<any> =>
+      request(`/notebooks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: string): Promise<void> =>
+      request(`/notebooks/${id}`, { method: 'DELETE' }),
+
+    executeCell: (
+      notebookId: string,
+      cellId: string,
+      data: { connectionId: string; sql: string },
+    ): Promise<any> =>
+      request(`/notebooks/${notebookId}/cells/${cellId}/execute`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    saveAsTransformation: (
+      notebookId: string,
+      data: {
+        name: string;
+        description: string;
+        sourceConnectionId: string;
+        combinedSql: string;
+      },
+    ): Promise<any> =>
+      request(`/notebooks/${notebookId}/save-as-transformation`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
 };
 
 export { ApiError };

@@ -18,6 +18,7 @@ import {
   ImportJob,
   StagedData,
   DatasetShare,
+  Notebook,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -33,6 +34,7 @@ import { LineageModule } from './modules/lineage/lineage.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { AiModule } from './modules/ai/ai.module';
 import { Nl2sqlModule } from './modules/nl2sql/nl2sql.module';
+import { NotebooksModule } from './modules/notebooks/notebooks.module';
 
 @Module({
   imports: [
@@ -66,6 +68,7 @@ import { Nl2sqlModule } from './modules/nl2sql/nl2sql.module';
           StagedData,
           DatasetShare,
           OrganizationSettings,
+          Notebook,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -102,6 +105,7 @@ import { Nl2sqlModule } from './modules/nl2sql/nl2sql.module';
     IngestionModule,
     DashboardModule,
     LineageModule,
+    NotebooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -12,3 +12,5 @@ export { ImportJob, ImportJobStatus, ImportSourceType, ImportTargetType } from '
 export { StagedData } from './staged-data.entity';
 export { DatasetShare } from './dataset-share.entity';
 export type { DatasetType, ShareAccessLevel } from './dataset-share.entity';
+export { Notebook } from './notebook.entity';
+export type { PersistedCell } from './notebook.entity';
