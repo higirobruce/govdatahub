@@ -12,8 +12,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/components/ui/toast';
-import { Settings, Save, RefreshCw, Bot, Database, Shield, Clock } from 'lucide-react';
-import { OrganizationSettings, AiProviderInfo, AiProvider, UpdateSettingsDto } from '@/types/settings';
+import { Settings, Save, RefreshCw, Bot, Database, Shield, Clock, Library, Wifi } from 'lucide-react';
+import { OrganizationSettings, AiProviderInfo, AiProvider, UpdateSettingsDto, CatalogSyncResult } from '@/types/settings';
 import { PageHeader } from '@/components/ui/page-header';
 
 export default function SettingsPage() {
@@ -21,6 +21,13 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<UpdateSettingsDto>({});
+
+  // Catalog integration state
+  const [catalogForm, setCatalogForm] = useState({ enabled: false, host: '', jwtToken: '' });
+  const [isSavingCatalog, setIsSavingCatalog] = useState(false);
+  const [isTestingCatalog, setIsTestingCatalog] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [latestSyncResult, setLatestSyncResult] = useState<CatalogSyncResult | null>(null);
 
   // Fetch settings
   const { data: settings, error: settingsError, isLoading: loadingSettings } = useSWR<OrganizationSettings>(
@@ -54,6 +61,11 @@ export default function SettingsPage() {
         queryTimeoutSeconds: settings.queryTimeoutSeconds,
         enableQueryHistory: settings.enableQueryHistory,
         enableQuerySharing: settings.enableQuerySharing,
+      });
+      setCatalogForm({
+        enabled: settings.catalogConfig?.enabled ?? false,
+        host: settings.catalogConfig?.host ?? '',
+        jwtToken: '', // never pre-fill the masked token
       });
     }
   }, [settings]);
@@ -104,6 +116,62 @@ export default function SettingsPage() {
         enableQueryHistory: settings.enableQueryHistory,
         enableQuerySharing: settings.enableQuerySharing,
       });
+    }
+  };
+
+  // Catalog handlers
+  const handleCatalogSave = async () => {
+    setIsSavingCatalog(true);
+    try {
+      await api.settings.update({
+        catalogConfig: {
+          provider: 'openmetadata',
+          host: catalogForm.host,
+          ...(catalogForm.jwtToken ? { jwtToken: catalogForm.jwtToken } : {}),
+          enabled: catalogForm.enabled,
+        },
+      });
+      await mutate('/settings');
+      setCatalogForm(f => ({ ...f, jwtToken: '' }));
+      toast({ title: 'Catalog settings saved', description: 'Integration configuration updated.' });
+    } catch (error: any) {
+      toast({ title: 'Error saving catalog settings', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsSavingCatalog(false);
+    }
+  };
+
+  const handleTestCatalog = async () => {
+    setIsTestingCatalog(true);
+    try {
+      const result = await api.catalog.testConnection();
+      toast({
+        title: result.ok ? 'Connection successful' : 'Connection failed',
+        description: result.message,
+        variant: result.ok ? undefined : 'destructive',
+      });
+    } catch (error: any) {
+      toast({ title: 'Connection test failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsTestingCatalog(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setIsSyncing(true);
+    setLatestSyncResult(null);
+    try {
+      const result = await api.catalog.sync();
+      setLatestSyncResult(result);
+      await mutate('/settings');
+      toast({
+        title: 'Sync complete',
+        description: `Created ${result.created}, updated ${result.updated} entities`,
+      });
+    } catch (error: any) {
+      toast({ title: 'Sync failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -483,6 +551,155 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+          </Card>
+          {/* Catalog Integration */}
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Library className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-semibold">Catalog Integration</h2>
+            </div>
+
+            <div className="space-y-4">
+              {/* Enable toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="catalogEnabled">Enable Catalog Integration</Label>
+                  <p className="text-sm text-gray-500">Push metadata to your data catalog on sync</p>
+                </div>
+                <Switch
+                  id="catalogEnabled"
+                  checked={catalogForm.enabled}
+                  onCheckedChange={(checked) => setCatalogForm({ ...catalogForm, enabled: checked })}
+                />
+              </div>
+
+              {/* Provider selector */}
+              <div>
+                <Label>Catalog Provider</Label>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="flex items-center gap-2 p-3 rounded-lg border-2 border-indigo-500 bg-indigo-50">
+                    <span className="font-medium text-sm text-indigo-700">OpenMetadata</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-3 rounded-lg border-2 border-gray-200 bg-gray-50 opacity-50">
+                    <span className="font-medium text-sm text-gray-500">
+                      DataHub <span className="text-xs font-normal">(coming soon)</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Host URL */}
+              <div>
+                <Label htmlFor="catalogHost">OpenMetadata Host</Label>
+                <Input
+                  id="catalogHost"
+                  type="url"
+                  placeholder="https://your-openmetadata.example.com"
+                  value={catalogForm.host}
+                  onChange={(e) => setCatalogForm({ ...catalogForm, host: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+
+              {/* JWT Token */}
+              <div>
+                <Label htmlFor="catalogToken">Bot JWT Token</Label>
+                <Input
+                  id="catalogToken"
+                  type="password"
+                  placeholder={settings.catalogConfig?.jwtToken ? '••••••••' : 'Enter bot JWT token'}
+                  value={catalogForm.jwtToken}
+                  onChange={(e) => setCatalogForm({ ...catalogForm, jwtToken: e.target.value })}
+                  className="mt-1"
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  {settings.catalogConfig?.jwtToken
+                    ? 'Token is set — leave blank to keep existing'
+                    : 'JWT token from OpenMetadata Settings → Bots'}
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestCatalog}
+                  disabled={isTestingCatalog || !catalogForm.host}
+                >
+                  {isTestingCatalog
+                    ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    : <Wifi className="w-4 h-4 mr-2" />}
+                  Test Connection
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleCatalogSave}
+                  disabled={isSavingCatalog}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {isSavingCatalog ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Sync Status Panel */}
+            {(settings.catalogConfig || latestSyncResult) && (
+              <div className="mt-6 pt-6 border-t space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium text-sm">Sync Status</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncNow}
+                    disabled={isSyncing || !settings.catalogConfig?.enabled}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                    {isSyncing ? 'Syncing...' : 'Sync Now'}
+                  </Button>
+                </div>
+
+                <p className="text-sm text-gray-500">
+                  {settings.catalogConfig?.lastSyncAt
+                    ? `Last synced: ${new Date(settings.catalogConfig.lastSyncAt).toLocaleString()}`
+                    : 'Never synced'}
+                </p>
+
+                {(() => {
+                  const r = latestSyncResult ?? settings.catalogConfig?.lastSyncResult;
+                  if (!r) return null;
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex gap-3 text-sm">
+                        <span className="text-green-700 bg-green-50 px-2 py-1 rounded">
+                          Created: {r.created}
+                        </span>
+                        <span className="text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                          Updated: {r.updated}
+                        </span>
+                        {r.errors.length > 0 && (
+                          <span className="text-red-700 bg-red-50 px-2 py-1 rounded">
+                            Errors: {r.errors.length}
+                          </span>
+                        )}
+                      </div>
+                      {r.errors.length > 0 && (
+                        <details className="text-sm">
+                          <summary className="cursor-pointer text-red-600 font-medium">
+                            {r.errors.length} error{r.errors.length > 1 ? 's' : ''}
+                          </summary>
+                          <ul className="mt-2 space-y-1 pl-4 text-red-600">
+                            {r.errors.map((err, i) => (
+                              <li key={i}>• {err}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </Card>
         </div>
       </div>

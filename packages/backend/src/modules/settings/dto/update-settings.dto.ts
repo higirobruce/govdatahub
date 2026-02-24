@@ -84,4 +84,13 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   enableQuerySharing?: boolean;
+
+  // Catalog Integration
+  @IsOptional()
+  catalogConfig?: {
+    provider: 'openmetadata';
+    host: string;
+    jwtToken?: string; // plaintext on write; encrypted at rest
+    enabled: boolean;
+  } | null;
 }

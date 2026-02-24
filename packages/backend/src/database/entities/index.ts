@@ -18,3 +18,4 @@ export { Pipeline } from './pipeline.entity';
 export type { PipelineStep, PipelineEdge, PipelineDefinition } from './pipeline.entity';
 export { PipelineRun } from './pipeline-run.entity';
 export type { StepRunResult } from './pipeline-run.entity';
+export { OrganizationSettings, AiProvider } from './organization-settings.entity';

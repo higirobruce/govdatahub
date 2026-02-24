@@ -6,6 +6,21 @@ export enum AiProvider {
   CUSTOM = 'CUSTOM',
 }
 
+export interface CatalogSyncResult {
+  created: number;
+  updated: number;
+  errors: string[];
+}
+
+export interface CatalogConfig {
+  provider: 'openmetadata';
+  host: string;
+  jwtToken?: string; // masked on read (••••••••), plaintext on write
+  enabled: boolean;
+  lastSyncAt?: string;
+  lastSyncResult?: CatalogSyncResult;
+}
+
 export interface OrganizationSettings {
   id: string;
   organizationId: string;
@@ -34,6 +49,9 @@ export interface OrganizationSettings {
   queryTimeoutSeconds: number;
   enableQueryHistory: boolean;
   enableQuerySharing: boolean;
+
+  // Catalog Integration
+  catalogConfig?: CatalogConfig | null;
 
   // Audit
   createdAt: Date;
@@ -74,4 +92,10 @@ export interface UpdateSettingsDto {
   queryTimeoutSeconds?: number;
   enableQueryHistory?: boolean;
   enableQuerySharing?: boolean;
+  catalogConfig?: {
+    provider: 'openmetadata';
+    host: string;
+    jwtToken?: string;
+    enabled: boolean;
+  } | null;
 }

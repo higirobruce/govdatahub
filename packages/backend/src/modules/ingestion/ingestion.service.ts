@@ -4,6 +4,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -49,7 +50,20 @@ export class IngestionService {
     private readonly databaseImporter: DatabaseImporterService,
     private readonly urlImporter: UrlImporterService,
     private readonly databaseSourceImporter: DatabaseSourceImporterService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  private triggerCatalogSchemaSync(organizationId: string) {
+    setImmediate(async () => {
+      try {
+        const { CatalogService } = await import('../catalog/catalog.service.js');
+        const catalogService = this.moduleRef.get(CatalogService, { strict: false });
+        await catalogService.syncSchemas(organizationId);
+      } catch {
+        // Catalog not configured or unavailable — ignore
+      }
+    });
+  }
 
   /**
    * Generate preview of file data without importing
@@ -653,6 +667,7 @@ export class IngestionService {
       this.logger.log(
         `Database import job ${importJobId} completed: ${result.rowCount} rows`
       );
+      this.triggerCatalogSchemaSync(organizationId);
     } catch (error) {
       // Update job status to failed
       importJob.status = ImportJobStatus.FAILED;

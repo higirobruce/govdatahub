@@ -8,7 +8,9 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ConnectionsService } from './connections.service';
@@ -24,7 +26,25 @@ import { User } from '../../database/entities';
 @UseGuards(JwtAuthGuard, ThrottlerGuard)
 @ApiBearerAuth()
 export class ConnectionsController {
-  constructor(private readonly connectionsService: ConnectionsService) {}
+  private readonly logger = new Logger(ConnectionsController.name);
+
+  constructor(
+    private readonly connectionsService: ConnectionsService,
+    private readonly moduleRef: ModuleRef,
+  ) {}
+
+  /** Fire-and-forget catalog sync — errors are swallowed so they never block the request. */
+  private triggerCatalogSync(organizationId: string, method: 'syncConnections') {
+    setImmediate(async () => {
+      try {
+        const { CatalogService } = await import('../catalog/catalog.service.js');
+        const catalogService = this.moduleRef.get(CatalogService, { strict: false });
+        await catalogService[method](organizationId);
+      } catch {
+        // Catalog not configured or unavailable — ignore
+      }
+    });
+  }
 
   @Post()
   @ApiOperation({
@@ -44,11 +64,13 @@ export class ConnectionsController {
     status: 401,
     description: 'Unauthorized',
   })
-  create(
+  async create(
     @Body() createConnectionDto: CreateConnectionDto,
     @CurrentUser() user: User,
   ): Promise<ConnectionResponseDto> {
-    return this.connectionsService.create(createConnectionDto, user.organizationId);
+    const result = await this.connectionsService.create(createConnectionDto, user.organizationId);
+    this.triggerCatalogSync(user.organizationId, 'syncConnections');
+    return result;
   }
 
   @Get()
@@ -120,7 +142,8 @@ export class ConnectionsController {
     description: 'Unauthorized',
   })
   async remove(@Param('id') id: string, @CurrentUser() user: User): Promise<void> {
-    return this.connectionsService.remove(id, user.organizationId);
+    await this.connectionsService.remove(id, user.organizationId);
+    this.triggerCatalogSync(user.organizationId, 'syncConnections');
   }
 
   @Post(':id/test')

@@ -582,6 +582,16 @@ export const api = {
     getRun: (pipelineId: string, runId: string): Promise<any> =>
       request(`/pipelines/${pipelineId}/runs/${runId}`),
   },
+
+  catalog: {
+    getStatus: (): Promise<any> => request('/catalog/status'),
+
+    testConnection: (): Promise<{ ok: boolean; message: string }> =>
+      request('/catalog/test-connection', { method: 'POST' }),
+
+    sync: (): Promise<{ created: number; updated: number; errors: string[] }> =>
+      request('/catalog/sync', { method: 'POST' }),
+  },
 };
 
 export { ApiError };

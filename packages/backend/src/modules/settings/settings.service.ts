@@ -79,6 +79,26 @@ export class SettingsService {
       settings.aiApiKey = await this.encryptionService.encrypt(dto.aiApiKey);
     }
 
+    // Handle catalogConfig: encrypt JWT token on write, preserve existing token if not re-supplied
+    if (dto.catalogConfig !== undefined) {
+      if (dto.catalogConfig === null) {
+        settings.catalogConfig = null;
+      } else {
+        const existing = settings.catalogConfig;
+        const tokenToStore = dto.catalogConfig.jwtToken
+          ? this.encryptionService.encrypt(dto.catalogConfig.jwtToken)
+          : existing?.jwtToken ?? '';
+        settings.catalogConfig = {
+          provider: dto.catalogConfig.provider,
+          host: dto.catalogConfig.host,
+          jwtToken: tokenToStore,
+          enabled: dto.catalogConfig.enabled,
+          lastSyncAt: existing?.lastSyncAt,
+          lastSyncResult: existing?.lastSyncResult,
+        };
+      }
+    }
+
     settings = await this.settingsRepository.save(settings);
 
     return this.sanitizeSettings(settings);
@@ -221,6 +241,11 @@ export class SettingsService {
     // Replace encrypted API key with masked version
     if (sanitized.aiApiKey) {
       sanitized.aiApiKey = '••••••••';
+    }
+
+    // Mask the catalog JWT token
+    if (sanitized.catalogConfig?.jwtToken) {
+      sanitized.catalogConfig = { ...sanitized.catalogConfig, jwtToken: '••••••••' };
     }
 
     return sanitized;

@@ -80,6 +80,18 @@ export class OrganizationSettings {
   @Column({ name: 'max_rows_limit', type: 'integer', default: 10000 })
   maxRowsLimit: number;
 
+  // Catalog Integration (OpenMetadata / DataHub)
+  // jwtToken inside this JSONB is stored encrypted via EncryptionService
+  @Column({ name: 'catalog_config', type: 'jsonb', nullable: true })
+  catalogConfig?: {
+    provider: 'openmetadata';
+    host: string;
+    jwtToken: string; // encrypted
+    enabled: boolean;
+    lastSyncAt?: string;
+    lastSyncResult?: { created: number; updated: number; errors: string[] };
+  } | null;
+
   // General Settings
   @Column({ name: 'query_timeout_seconds', type: 'integer', default: 30 })
   queryTimeoutSeconds: number;

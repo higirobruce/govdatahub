@@ -38,6 +38,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { Nl2sqlModule } from './modules/nl2sql/nl2sql.module';
 import { NotebooksModule } from './modules/notebooks/notebooks.module';
 import { PipelinesModule } from './modules/pipelines/pipelines.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 
 @Module({
   imports: [
@@ -112,6 +113,7 @@ import { PipelinesModule } from './modules/pipelines/pipelines.module';
     LineageModule,
     NotebooksModule,
     PipelinesModule,
+    CatalogModule,
   ],
   controllers: [AppController],
   providers: [AppService],

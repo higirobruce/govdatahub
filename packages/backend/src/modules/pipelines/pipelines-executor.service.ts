@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,7 +30,21 @@ export class PipelinesExecutorService implements OnModuleInit {
     private crossQueryExecutorService: CrossQueryExecutorService,
     private databaseSourceImporter: DatabaseSourceImporterService,
     private schedulerService: PipelinesSchedulerService,
+    private moduleRef: ModuleRef,
   ) {}
+
+  private triggerCatalogSync(organizationId: string) {
+    setImmediate(async () => {
+      try {
+        const { CatalogService } = await import('../catalog/catalog.service.js');
+        const catalogService = this.moduleRef.get(CatalogService, { strict: false });
+        await catalogService.syncPipelines(organizationId);
+        await catalogService.syncLineage(organizationId);
+      } catch {
+        // Catalog not configured or unavailable — ignore
+      }
+    });
+  }
 
   onModuleInit() {
     // Register executor with scheduler to avoid circular dependency
@@ -149,7 +164,9 @@ export class PipelinesExecutorService implements OnModuleInit {
       );
     }
 
-    return this.runsRepository.findOne({ where: { id: runId } }) as Promise<PipelineRun>;
+    const finalRun = await this.runsRepository.findOne({ where: { id: runId } }) as PipelineRun;
+    this.triggerCatalogSync(organizationId);
+    return finalRun;
   }
 
   private async executeStep(
