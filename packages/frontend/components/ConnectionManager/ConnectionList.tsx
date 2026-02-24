@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Connection, ConnectionType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Database } from 'lucide-react';
+import { getCapabilityChips } from '@/lib/connection-capabilities';
 
 const TYPE_COLORS: Record<ConnectionType, string> = {
   postgresql: 'bg-[#60a5fa]',
@@ -101,6 +102,21 @@ export default function ConnectionList({
                     <p className="text-xs text-[#aaaaaa] mt-1">
                       Created: {new Date(connection.createdAt).toLocaleString()}
                     </p>
+                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                      {getCapabilityChips(connection.type).map((chip) => (
+                        <span
+                          key={chip.label}
+                          title={chip.title}
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                            chip.variant === 'green'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-400'
+                          }`}
+                        >
+                          {chip.label}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

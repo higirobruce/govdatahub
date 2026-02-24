@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
+import { Connection } from '@/types';
+import { supportsIngestionWrite } from '@/lib/connection-capabilities';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -75,6 +78,13 @@ export default function DataIngestionPage() {
   const [connectionId, setConnectionId] = useState('');
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [importJobId, setImportJobId] = useState<string | null>(null);
+
+  const { data: connections } = useSWR<Connection[]>('/connections', () =>
+    api.connections.list() as Promise<Connection[]>
+  );
+  const writeableConnections = (connections ?? []).filter((c) =>
+    supportsIngestionWrite(c.type)
+  );
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
@@ -344,12 +354,17 @@ export default function DataIngestionPage() {
                           <SelectValue placeholder="Select connection" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="conn-1">
-                            PostgreSQL - Production
-                          </SelectItem>
-                          <SelectItem value="conn-2">
-                            PostgreSQL - Staging
-                          </SelectItem>
+                          {writeableConnections.length === 0 ? (
+                            <SelectItem value="" disabled>
+                              No SQL connections available
+                            </SelectItem>
+                          ) : (
+                            writeableConnections.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name} ({c.type})
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>

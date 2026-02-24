@@ -10,6 +10,7 @@ interface SQLEditorProps {
   disabled?: boolean;
   height?: string;
   theme?: 'light' | 'dark';
+  language?: string;
 }
 
 export default function SQLEditor({
@@ -19,6 +20,7 @@ export default function SQLEditor({
   disabled = false,
   height = '400px',
   theme = 'dark',
+  language = 'sql',
 }: SQLEditorProps) {
   const editorRef = useRef<any>(null);
 
@@ -73,7 +75,7 @@ export default function SQLEditor({
     <div className="border border-[#2d2d2d] rounded-lg overflow-hidden">
       <Editor
         height={height}
-        defaultLanguage="sql"
+        language={language}
         value={value}
         onChange={handleEditorChange}
         onMount={handleEditorDidMount}

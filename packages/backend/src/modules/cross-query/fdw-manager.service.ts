@@ -70,6 +70,23 @@ export class FdwManagerService {
       organizationId,
     );
 
+    // Only SQL-based connection types can participate in cross-queries via FDW.
+    // NoSQL databases (MongoDB, etc.) have no PostgreSQL FDW adapter.
+    const FDW_TYPE_MAP: Partial<Record<string, string>> = {
+      postgresql: 'postgres_fdw',
+      redshift: 'postgres_fdw',
+      mysql: 'mysql_fdw',
+      sqlserver: 'tds_fdw',
+    };
+    const fdwType = FDW_TYPE_MAP[connection.type];
+    if (!fdwType) {
+      throw new BadRequestException(
+        `Connection type "${connection.type}" cannot be used in cross-queries. ` +
+        `Only SQL-compatible connections (PostgreSQL, MySQL, Redshift) support FDW-based joins. ` +
+        `For MongoDB and other NoSQL databases, use the Query page instead.`,
+      );
+    }
+
     // Generate unique server name (org-scoped)
     const serverName = `org_${organizationId}_conn_${connectionId}`
       .replace(/-/g, '_')
@@ -81,8 +98,7 @@ export class FdwManagerService {
       await queryRunner.connect();
 
       // Create FDW server
-      const fdwType =
-        connection.type === 'postgresql' ? 'postgres_fdw' : 'mysql_fdw';
+      const fdwType = FDW_TYPE_MAP[connection.type]!;
 
       await queryRunner.query(`
         CREATE SERVER IF NOT EXISTS ${this.quoteIdent(serverName)}

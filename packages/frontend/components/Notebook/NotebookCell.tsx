@@ -46,6 +46,9 @@ export function NotebookCell({
 }: NotebookCellProps) {
   const [mdEditing, setMdEditing] = useState(false);
 
+  const selectedConnection = connections.find((c) => c.id === cell.connectionId);
+  const isMongoDB = selectedConnection?.type === 'mongodb';
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -86,7 +89,7 @@ export function NotebookCell({
               : 'bg-[#f0f0f0] text-[#555555]'
           }`}>
             {cell.type === 'sql' ? <Code className="w-2.5 h-2.5" /> : <FileText className="w-2.5 h-2.5" />}
-            {cell.type}
+            {cell.type === 'sql' ? (isMongoDB ? 'nosql' : 'sql') : 'md'}
           </span>
 
           {/* Connection selector (SQL cells only) */}
@@ -122,13 +125,24 @@ export function NotebookCell({
       {/* Cell body */}
       <div className="p-3">
         {cell.type === 'sql' ? (
-          <SQLEditor
-            value={cell.content}
-            onChange={onContentChange}
-            onKeyDown={handleKeyDown}
-            height="160px"
-            theme="dark"
-          />
+          <>
+            <SQLEditor
+              value={cell.content}
+              onChange={onContentChange}
+              onKeyDown={handleKeyDown}
+              height="160px"
+              theme="dark"
+              language={isMongoDB ? 'json' : 'sql'}
+            />
+            {isMongoDB && (
+              <p className="mt-1.5 text-[11px] text-[#888888]">
+                Format:{' '}
+                <code className="bg-[#f0f0f0] px-1 rounded font-mono">
+                  {'{"collection":"...","filter":{},"limit":100}'}
+                </code>
+              </p>
+            )}
+          </>
         ) : mdEditing ? (
           <textarea
             value={cell.content}

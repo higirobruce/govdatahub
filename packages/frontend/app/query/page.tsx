@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
@@ -21,6 +21,9 @@ import { DropdownMenu, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 type DataSource = 'connections' | 'staging';
 type EditorMode = 'sql' | 'nl';
 
+const MONGO_DEFAULT = '{\n  "collection": "",\n  "filter": {},\n  "limit": 100\n}';
+const SQL_DEFAULT = 'SELECT * FROM ';
+
 interface StagingTable {
   name: string;
   schema: string;
@@ -34,7 +37,7 @@ export default function QueryPage() {
   const [dataSource, setDataSource] = useState<DataSource>('connections');
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
   const [selectedStagingTable, setSelectedStagingTable] = useState<string>('');
-  const [sql, setSql] = useState('SELECT * FROM ');
+  const [sql, setSql] = useState(SQL_DEFAULT);
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -105,6 +108,33 @@ export default function QueryPage() {
     }
   }, [searchParams]);
 
+  const selectedConnection = connections?.find((c) => c.id === selectedConnectionId) ?? null;
+  const isMongoDB = selectedConnection?.type === 'mongodb';
+
+  // Track previous connection type to reset query only when switching between mongo/sql
+  const prevConnectionTypeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedConnectionId || !selectedConnection) return;
+    const prevType = prevConnectionTypeRef.current;
+    const currentType = selectedConnection.type;
+    prevConnectionTypeRef.current = currentType;
+    const wasMongoDb = prevType === 'mongodb';
+    const isNowMongoDb = currentType === 'mongodb';
+    if (prevType === null) {
+      // First connection load — if MongoDB, override any placeholder SQL default
+      if (isNowMongoDb) {
+        setSql(MONGO_DEFAULT);
+        setQueryResult(null);
+        setError(null);
+      }
+    } else if (wasMongoDb !== isNowMongoDb) {
+      // Switching between MongoDB and SQL — reset to appropriate default
+      setSql(isNowMongoDb ? MONGO_DEFAULT : SQL_DEFAULT);
+      setQueryResult(null);
+      setError(null);
+    }
+  }, [selectedConnectionId, selectedConnection]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -122,7 +152,7 @@ export default function QueryPage() {
       return;
     }
     if (!sql.trim()) {
-      setError('Please enter a SQL query');
+      setError('Please enter a query');
       return;
     }
 
@@ -232,8 +262,8 @@ export default function QueryPage() {
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-6">
         <PageHeader
-          title="SQL Query"
-          subtitle="Execute SQL queries on your databases and staging data"
+          title="Query"
+          subtitle="Query your databases and staging data"
           icon={Search}
           className="mb-0"
         />
@@ -376,7 +406,7 @@ export default function QueryPage() {
                 }`}
               >
                 <Code className="w-4 h-4" />
-                SQL Editor
+                Query Editor
               </button>
               <button
                 onClick={() => setEditorMode('nl')}
@@ -395,9 +425,9 @@ export default function QueryPage() {
           </div>
 
           {/* Editor Content with Toolbar */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             {/* Toolbar */}
-            <div className="flex items-center justify-between px-6 py-3 border-b border-[#f0f0f0] bg-[#fafafa]">
+            <div className="flex items-center justify-between px-6 py-3 border-b border-[#f0f0f0] bg-[#fafafa] flex-shrink-0">
               <div className="flex items-center gap-3">
                 {editorMode === 'sql' ? (
                   <>
@@ -436,7 +466,7 @@ export default function QueryPage() {
             </div>
 
             {/* Editor */}
-            <div className="flex-1 overflow-auto p-6">
+            <div className="flex-shrink-0 p-6 border-b border-[#f0f0f0]">
               {editorMode === 'sql' ? (
                 <>
                   <SQLEditor
@@ -444,14 +474,23 @@ export default function QueryPage() {
                     onChange={setSql}
                     onKeyDown={handleKeyDown}
                     disabled={isExecuting}
-                    height="400px"
+                    height="220px"
                     theme="dark"
+                    language={isMongoDB ? 'json' : 'sql'}
                   />
                   <div className="mt-4 flex items-start gap-2 bg-[#f0f9ff] border border-[#bae6fd] rounded-lg px-4 py-3">
                     <AlertCircle className="w-4 h-4 text-[#0284c7] flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-[#0284c7]">
-                      <span className="font-semibold">Tip:</span> PostgreSQL lowercases unquoted column names. Use double quotes for mixed case columns.
-                    </p>
+                    {isMongoDB ? (
+                      <p className="text-xs text-[#0284c7]">
+                        <span className="font-semibold">MongoDB:</span> Enter a JSON find query{' '}
+                        <code className="font-mono">{'{"collection":"...","filter":{},"limit":100}'}</code>{' '}
+                        or aggregate <code className="font-mono">{'{"collection":"...","pipeline":[{"$match":{}}]}'}</code>
+                      </p>
+                    ) : (
+                      <p className="text-xs text-[#0284c7]">
+                        <span className="font-semibold">Tip:</span> PostgreSQL lowercases unquoted column names. Use double quotes for mixed case columns.
+                      </p>
+                    )}
                   </div>
                 </>
               ) : (
@@ -483,9 +522,11 @@ export default function QueryPage() {
               )}
             </div>
 
+            {/* Results / Error area — fills remaining space */}
+            <div className="flex-1 overflow-auto min-h-0">
             {/* Error Display */}
             {error && (
-              <div className="mx-6 mb-4 bg-[#fee2e2] border border-[#fca5a5] rounded-lg p-4">
+              <div className="mx-6 mt-4 mb-2 bg-[#fee2e2] border border-[#fca5a5] rounded-lg p-4">
                 <div className="flex gap-3">
                   <AlertCircle className="h-5 w-5 text-[#ef4444] flex-shrink-0" />
                   <div>
@@ -498,7 +539,7 @@ export default function QueryPage() {
 
             {/* Results */}
             {queryResult && (
-              <div className="border-t border-[#f0f0f0] overflow-auto">
+              <div className="min-w-0">
                 <div className="px-6 py-4 min-w-0">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-sm font-semibold text-[#1a1a1a]">
@@ -552,6 +593,7 @@ export default function QueryPage() {
                 </div>
               </div>
             )}
+            </div>{/* end results/error flex-1 wrapper */}
           </div>
         </div>
       </div>

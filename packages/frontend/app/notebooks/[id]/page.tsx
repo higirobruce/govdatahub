@@ -23,6 +23,8 @@ import {
 import Link from 'next/link';
 
 const DEFAULT_RUNTIME: CellRuntimeState = { status: 'idle', result: null, error: null };
+const MONGO_DEFAULT = '{\n  "collection": "",\n  "filter": {},\n  "limit": 100\n}';
+const SQL_DEFAULT = 'SELECT ';
 
 export default function NotebookEditorPage() {
   const params = useParams();
@@ -89,11 +91,13 @@ export default function NotebookEditorPage() {
 
   const addCell = (type: CellType, afterOrder?: number) => {
     const newOrder = afterOrder !== undefined ? afterOrder + 1 : cells.length;
+    const defaultConn = connections?.[0];
+    const isMongoDB = defaultConn?.type === 'mongodb';
     const newCell: PersistedCell = {
       id: uuidv4(),
       type,
-      content: type === 'sql' ? 'SELECT ' : '',
-      connectionId: connections?.[0]?.id,
+      content: type === 'sql' ? (isMongoDB ? MONGO_DEFAULT : SQL_DEFAULT) : '',
+      connectionId: defaultConn?.id,
       order: newOrder,
     };
     setCells((prev) => {
@@ -139,7 +143,23 @@ export default function NotebookEditorPage() {
   };
 
   const updateCellConnection = (cellId: string, connectionId: string) => {
-    setCells((prev) => prev.map((c) => (c.id === cellId ? { ...c, connectionId } : c)));
+    setCells((prev) => prev.map((c) => {
+      if (c.id !== cellId) return c;
+      const prevType = connections?.find((cn) => cn.id === c.connectionId)?.type;
+      const nextType = connections?.find((cn) => cn.id === connectionId)?.type;
+      const wasMongoDb = prevType === 'mongodb';
+      const isNowMongoDb = nextType === 'mongodb';
+      let content = c.content;
+      if (wasMongoDb !== isNowMongoDb) {
+        const trimmed = content.trim();
+        if (isNowMongoDb && (trimmed === 'SELECT ' || trimmed === 'SELECT' || trimmed === '')) {
+          content = MONGO_DEFAULT;
+        } else if (!isNowMongoDb && (trimmed === MONGO_DEFAULT.trim() || trimmed === '')) {
+          content = SQL_DEFAULT;
+        }
+      }
+      return { ...c, connectionId, content };
+    }));
     markDirty();
   };
 
@@ -148,7 +168,7 @@ export default function NotebookEditorPage() {
   const executeCell = async (cellId: string) => {
     const cell = cells.find((c) => c.id === cellId);
     if (!cell || cell.type !== 'sql' || !cell.connectionId || !cell.content.trim()) {
-      showToast('Select a connection and enter SQL to run', 'warning');
+      showToast('Select a connection and enter a query to run', 'warning');
       return;
     }
     setRuntimeState((prev) => ({
@@ -263,7 +283,7 @@ export default function NotebookEditorPage() {
           {selectionMode ? (
             <>
               <span className="text-xs text-[#777777]">
-                {selectedSqlCells.length} SQL cell{selectedSqlCells.length !== 1 ? 's' : ''} selected
+                {selectedSqlCells.length} query cell{selectedSqlCells.length !== 1 ? 's' : ''} selected
               </span>
               {selectedSqlCells.length > 0 && (
                 <Button
@@ -292,7 +312,7 @@ export default function NotebookEditorPage() {
               variant="outline"
               onClick={toggleSelectionMode}
               className="gap-2"
-              title="Select SQL cells to save as a Transformation"
+              title="Select Query cells to save as a Transformation"
             >
               <CheckSquare className="w-3.5 h-3.5" />
               Save as Transformation
@@ -327,7 +347,7 @@ export default function NotebookEditorPage() {
                 className="flex items-center gap-2 px-3 py-2 text-xs text-[#1a1a1a] border border-[#e8e8e8] rounded-lg hover:bg-[#f5f5f5] transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                SQL cell
+                Query cell
               </button>
               <button
                 onClick={() => addCell('markdown')}
@@ -365,10 +385,10 @@ export default function NotebookEditorPage() {
         <div className="flex-1 overflow-auto p-6 min-w-0">
           {cells.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 gap-4 text-center">
-              <p className="text-sm text-[#aaaaaa]">No cells yet. Add a SQL or Markdown cell to get started.</p>
+              <p className="text-sm text-[#aaaaaa]">No cells yet. Add a Query or Markdown cell to get started.</p>
               <div className="flex gap-2">
                 <Button size="sm" onClick={() => addCell('sql')} className="gap-2">
-                  <Plus className="w-3.5 h-3.5" /> SQL cell
+                  <Plus className="w-3.5 h-3.5" /> Query cell
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => addCell('markdown')} className="gap-2">
                   <Plus className="w-3.5 h-3.5" /> Markdown cell
@@ -405,7 +425,7 @@ export default function NotebookEditorPage() {
                   onClick={() => addCell('sql')}
                   className="flex items-center gap-1.5 px-4 py-2 text-xs text-[#777777] border border-dashed border-[#d0d0d0] rounded-lg hover:border-violet-400 hover:text-violet-600 transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5" /> SQL cell
+                  <Plus className="w-3.5 h-3.5" /> Query cell
                 </button>
                 <button
                   onClick={() => addCell('markdown')}

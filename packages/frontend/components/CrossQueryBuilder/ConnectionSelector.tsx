@@ -5,6 +5,9 @@ import useSWR from 'swr';
 import { api } from '@/lib/api';
 import { Connection } from '@/types';
 
+// Connection types that have no PostgreSQL FDW adapter and cannot join cross-queries
+const UNSUPPORTED_TYPES = new Set(['mongodb', 'clickhouse', 'bigquery', 'snowflake', 'sqlite']);
+
 interface ConnectionSelectorProps {
   selectedConnections: string[];
   onSelectionChange: (connectionIds: string[]) => void;
@@ -51,7 +54,7 @@ export function ConnectionSelector({
 
   const handleSelectAll = () => {
     if (connections) {
-      onSelectionChange(connections.map((c) => c.id));
+      onSelectionChange(connections.filter((c) => !UNSUPPORTED_TYPES.has(c.type)).map((c) => c.id));
     }
   };
 
@@ -129,30 +132,40 @@ export function ConnectionSelector({
 
       {/* Connection List */}
       <div className="space-y-2 max-h-60 overflow-y-auto">
-        {connections.map((connection) => (
-          <label
-            key={connection.id}
-            className="flex items-start gap-2 p-2 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer transition-colors"
-          >
-            <input
-              type="checkbox"
-              checked={selectedConnections.includes(connection.id)}
-              onChange={() => handleToggleConnection(connection.id)}
-              className="mt-0.5"
-            />
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm text-gray-900 truncate">
-                {connection.name}
+        {connections.map((connection) => {
+          const unsupported = connection.type === 'mongodb' || connection.type === 'clickhouse' || connection.type === 'bigquery' || connection.type === 'snowflake' || connection.type === 'sqlite';
+          return (
+            <label
+              key={connection.id}
+              className={`flex items-start gap-2 p-2 border rounded-md transition-colors ${
+                unsupported
+                  ? 'border-[#e8e8e8] bg-[#fafafa] opacity-60 cursor-not-allowed'
+                  : 'border-gray-200 hover:bg-gray-50 cursor-pointer'
+              }`}
+              title={unsupported ? `${connection.type} connections cannot be used in cross-queries (no FDW support). Use the Query page instead.` : undefined}
+            >
+              <input
+                type="checkbox"
+                checked={selectedConnections.includes(connection.id)}
+                onChange={() => !unsupported && handleToggleConnection(connection.id)}
+                disabled={unsupported}
+                className="mt-0.5 disabled:cursor-not-allowed"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm text-gray-900 truncate">
+                  {connection.name}
+                </div>
+                <div className="text-xs text-gray-500 truncate">
+                  {connection.type} - {connection.database}
+                  {unsupported && <span className="ml-1 text-[#aaaaaa]">(not supported in cross-queries)</span>}
+                </div>
+                <div className="text-xs text-gray-400 truncate">
+                  {connection.host}:{connection.port}
+                </div>
               </div>
-              <div className="text-xs text-gray-500 truncate">
-                {connection.type} - {connection.database}
-              </div>
-              <div className="text-xs text-gray-400 truncate">
-                {connection.host}:{connection.port}
-              </div>
-            </div>
-          </label>
-        ))}
+            </label>
+          );
+        })}
       </div>
 
       {/* Summary */}

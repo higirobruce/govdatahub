@@ -58,7 +58,7 @@ export function Sidebar() {
     {
       title: 'QUERY TOOLS',
       items: [
-        { id: 'query', label: 'SQL Query', href: '/query', icon: <Search /> },
+        { id: 'query', label: 'Query', href: '/query', icon: <Search /> },
         { id: 'cross-query', label: 'Cross-Query', href: '/cross-query', icon: <LinkIcon /> },
         { id: 'notebooks', label: 'Notebooks', href: '/notebooks', icon: <BookOpen /> },
       ],

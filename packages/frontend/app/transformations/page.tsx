@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import useSWR from 'swr';
+import { supportsTransformations } from '@/lib/connection-capabilities';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -636,12 +637,23 @@ function CreateTransformationForm({
           required
         >
           <option value="">Select a connection</option>
-          {connections.map((conn) => (
-            <option key={conn.id} value={conn.id}>
-              {conn.name} ({conn.type})
-            </option>
-          ))}
+          {connections.map((conn) => {
+            const supported = supportsTransformations(conn.type);
+            return (
+              <option key={conn.id} value={conn.id} disabled={!supported}>
+                {conn.name} ({conn.type}){!supported ? ' — not supported' : ''}
+              </option>
+            );
+          })}
         </select>
+        {sourceConnectionId && !supportsTransformations(
+          connections.find((c) => c.id === sourceConnectionId)?.type ?? ''
+        ) && (
+          <p className="text-xs text-amber-600 mt-1">
+            This connection type cannot be used as a transformation source.
+            Use the Query page to explore this data instead.
+          </p>
+        )}
       </div>
 
       <div>
