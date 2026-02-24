@@ -589,8 +589,11 @@ export const api = {
     testConnection: (): Promise<{ ok: boolean; message: string }> =>
       request('/catalog/test-connection', { method: 'POST' }),
 
-    sync: (): Promise<{ created: number; updated: number; errors: string[] }> =>
-      request('/catalog/sync', { method: 'POST' }),
+    sync: (): Promise<{
+      synced: number;
+      errors: string[];
+      categories: { connections: number; tables: number; pipelines: number; lineage: number; queries: number };
+    }> => request('/catalog/sync', { method: 'POST' }),
   },
 };
 

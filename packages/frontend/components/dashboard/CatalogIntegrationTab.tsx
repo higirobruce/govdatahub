@@ -23,25 +23,79 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 
+interface SyncCategories {
+  connections: number;
+  tables: number;
+  pipelines: number;
+  lineage: number;
+  queries: number;
+}
+
+interface SyncResult {
+  synced: number;
+  errors: string[];
+  categories: SyncCategories;
+}
+
 interface CatalogStatus {
   configured: boolean;
   provider?: string;
   host?: string;
   enabled?: boolean;
   lastSyncAt?: string | null;
-  lastSyncResult?: {
-    created: number;
-    updated: number;
-    errors: string[];
-  } | null;
+  lastSyncResult?: SyncResult | null;
 }
+
+const CATEGORY_META: Array<{
+  key: keyof SyncCategories;
+  icon: React.ElementType;
+  label: string;
+  detail: string;
+  color: string;
+}> = [
+  {
+    key: 'connections',
+    icon: Database,
+    label: 'Database Services',
+    detail: 'One service per DataGate connection',
+    color: 'text-blue-500',
+  },
+  {
+    key: 'tables',
+    icon: Table2,
+    label: 'Schemas & Tables',
+    detail: 'Full column metadata included',
+    color: 'text-green-500',
+  },
+  {
+    key: 'pipelines',
+    icon: GitBranch,
+    label: 'Pipelines & Transformations',
+    detail: 'Pushed under "datagate-pipelines"',
+    color: 'text-orange-500',
+  },
+  {
+    key: 'lineage',
+    icon: Share2,
+    label: 'Lineage edges',
+    detail: 'Table-level lineage graph',
+    color: 'text-purple-500',
+  },
+  {
+    key: 'queries',
+    icon: Clock,
+    label: 'Query usage (last 7 days)',
+    detail: 'Improves column popularity scores',
+    color: 'text-indigo-500',
+  },
+];
 
 export function CatalogIntegrationTab() {
   const router = useRouter();
   const { showToast } = useToast();
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [latestSyncResult, setLatestSyncResult] = useState<CatalogStatus['lastSyncResult'] | null>(null);
+  const [latestSyncResult, setLatestSyncResult] = useState<SyncResult | null>(null);
 
   const { data: status, isLoading, mutate } = useSWR<CatalogStatus>(
     '/catalog/status',
@@ -56,7 +110,7 @@ export function CatalogIntegrationTab() {
       const result = await api.catalog.sync();
       setLatestSyncResult(result);
       await mutate();
-      showToast(`Sync complete — ${result.created} created, ${result.updated} updated`, 'success');
+      showToast(`Sync complete — ${result.synced} entities pushed`, 'success');
     } catch (err: any) {
       showToast(err.message || 'Sync failed', 'error');
     } finally {
@@ -82,7 +136,6 @@ export function CatalogIntegrationTab() {
     );
   }
 
-  // Not configured at all
   if (!status?.configured) {
     return (
       <div className="bg-white rounded-xl border border-[#e8e8e8] p-10 text-center">
@@ -94,10 +147,7 @@ export function CatalogIntegrationTab() {
           Connect DataGate to OpenMetadata to push your schemas, pipelines, and
           lineage into your enterprise data catalog.
         </p>
-        <Button
-          onClick={() => router.push('/settings')}
-          className="gap-2"
-        >
+        <Button onClick={() => router.push('/settings')} className="gap-2">
           <Settings className="h-4 w-4" />
           Configure in Settings
         </Button>
@@ -105,7 +155,8 @@ export function CatalogIntegrationTab() {
     );
   }
 
-  const syncResult = latestSyncResult ?? status.lastSyncResult;
+  const syncResult = latestSyncResult ?? status.lastSyncResult ?? null;
+  const hasErrors = (syncResult?.errors?.length ?? 0) > 0;
 
   return (
     <div className="space-y-4">
@@ -171,43 +222,70 @@ export function CatalogIntegrationTab() {
         </div>
 
         {/* Last sync line */}
-        <div className="mt-4 pt-4 border-t border-[#f0f0f0] flex items-center gap-2 text-xs text-[#aaaaaa]">
-          <Clock className="h-3.5 w-3.5" />
-          {status.lastSyncAt
-            ? `Last synced ${new Date(status.lastSyncAt).toLocaleString()}`
-            : 'Never synced'}
+        <div className="mt-4 pt-4 border-t border-[#f0f0f0] flex items-center justify-between text-xs text-[#aaaaaa]">
+          <span className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            {status.lastSyncAt
+              ? `Last synced ${new Date(status.lastSyncAt).toLocaleString()}`
+              : 'Never synced'}
+          </span>
+          {syncResult && (
+            <span className={`flex items-center gap-1 font-medium ${hasErrors ? 'text-red-500' : 'text-green-600'}`}>
+              {hasErrors
+                ? <><AlertTriangle className="h-3.5 w-3.5" />{syncResult.errors.length} error{syncResult.errors.length !== 1 ? 's' : ''}</>
+                : <><CheckCircle2 className="h-3.5 w-3.5" />{syncResult.synced} synced</>}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Sync result stats */}
-      {syncResult && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-xl border border-[#e8e8e8] p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{syncResult.created}</div>
-            <div className="text-xs text-[#aaaaaa] mt-1">Entities created</div>
+      {/* Per-category breakdown — only after a sync has run */}
+      <div className="bg-white rounded-xl border border-[#e8e8e8] overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#f0f0f0] flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-[#1a1a1a]">What's pushed to the catalog</h3>
+            <p className="text-xs text-[#aaaaaa] mt-0.5">
+              Each sync pushes the following assets to {status.provider ?? 'OpenMetadata'}
+            </p>
           </div>
-          <div className="bg-white rounded-xl border border-[#e8e8e8] p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{syncResult.updated}</div>
-            <div className="text-xs text-[#aaaaaa] mt-1">Entities updated</div>
-          </div>
-          <div className="bg-white rounded-xl border border-[#e8e8e8] p-4 text-center">
-            <div className={`text-2xl font-bold ${syncResult.errors.length > 0 ? 'text-red-500' : 'text-[#1a1a1a]'}`}>
-              {syncResult.errors.length}
-            </div>
-            <div className="text-xs text-[#aaaaaa] mt-1">Errors</div>
-          </div>
+          {syncResult && (
+            <span className="text-xs font-semibold text-[#555555] bg-[#f5f5f5] px-2.5 py-1 rounded-full">
+              {syncResult.synced} total
+            </span>
+          )}
         </div>
-      )}
+        <div className="divide-y divide-[#f0f0f0]">
+          {CATEGORY_META.map(({ key, icon: Icon, label, detail, color }) => {
+            const count = syncResult?.categories?.[key];
+            return (
+              <div key={key} className="flex items-center gap-3 px-5 py-3">
+                <Icon className={`h-4 w-4 ${color} shrink-0`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[#1a1a1a]">{label}</div>
+                  <div className="text-xs text-[#aaaaaa]">{detail}</div>
+                </div>
+                {count !== undefined && (
+                  <span className={`text-sm font-semibold tabular-nums shrink-0 ${count > 0 ? 'text-[#1a1a1a]' : 'text-[#cccccc]'}`}>
+                    {count}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Error list */}
-      {syncResult && syncResult.errors.length > 0 && (
+      {hasErrors && (
         <div className="bg-white rounded-xl border border-red-200 p-4">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="h-4 w-4 text-red-500" />
-            <span className="text-sm font-medium text-red-700">Sync errors</span>
+            <span className="text-sm font-medium text-red-700">
+              {syncResult!.errors.length} sync error{syncResult!.errors.length !== 1 ? 's' : ''}
+            </span>
           </div>
           <ul className="space-y-1.5">
-            {syncResult.errors.map((err, i) => (
+            {syncResult!.errors.map((err, i) => (
               <li key={i} className="text-xs text-red-600 font-mono bg-red-50 px-3 py-1.5 rounded">
                 {err}
               </li>
@@ -215,58 +293,6 @@ export function CatalogIntegrationTab() {
           </ul>
         </div>
       )}
-
-      {/* What gets synced */}
-      <div className="bg-white rounded-xl border border-[#e8e8e8] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#f0f0f0]">
-          <h3 className="text-sm font-semibold text-[#1a1a1a]">What's pushed to the catalog</h3>
-          <p className="text-xs text-[#aaaaaa] mt-0.5">
-            Each sync pushes the following assets to {status.provider ?? 'OpenMetadata'}
-          </p>
-        </div>
-        <div className="divide-y divide-[#f0f0f0]">
-          {[
-            {
-              icon: Database,
-              label: 'Database Services',
-              detail: 'One service per DataGate connection',
-              color: 'text-blue-500',
-            },
-            {
-              icon: Table2,
-              label: 'Databases, Schemas & Tables',
-              detail: 'Full column metadata included',
-              color: 'text-green-500',
-            },
-            {
-              icon: GitBranch,
-              label: 'Pipelines & Transformations',
-              detail: 'Pushed as Pipeline entities under "datagate-pipelines"',
-              color: 'text-orange-500',
-            },
-            {
-              icon: Share2,
-              label: 'Lineage graph',
-              detail: 'Table-level lineage edges',
-              color: 'text-purple-500',
-            },
-            {
-              icon: Clock,
-              label: 'Query usage (last 7 days)',
-              detail: 'Improves column popularity scores in the catalog',
-              color: 'text-indigo-500',
-            },
-          ].map(({ icon: Icon, label, detail, color }) => (
-            <div key={label} className="flex items-center gap-3 px-5 py-3">
-              <Icon className={`h-4 w-4 ${color} shrink-0`} />
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-[#1a1a1a]">{label}</div>
-                <div className="text-xs text-[#aaaaaa]">{detail}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Disabled notice */}
       {!status.enabled && (

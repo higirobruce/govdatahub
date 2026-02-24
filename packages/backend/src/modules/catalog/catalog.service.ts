@@ -110,13 +110,13 @@ export class CatalogService {
             COALESCE("catalog_config", '{}'::jsonb),
             '{lastSyncAt}',
             '"${new Date().toISOString()}"'
-          ), '{lastSyncResult}', '${JSON.stringify({ created: result.created, updated: result.updated, errors: result.errors })}'::jsonb)`,
+          ), '{lastSyncResult}', '${JSON.stringify({ synced: result.synced, errors: result.errors, categories: result.categories })}'::jsonb)`,
       })
       .where('organization_id = :organizationId', { organizationId })
       .execute();
 
     this.logger.log(
-      `Catalog sync done for org ${organizationId}: +${result.created} created, ${result.updated} updated, ${result.errors.length} errors`,
+      `Catalog sync done for org ${organizationId}: ${result.synced} synced (conn=${result.categories.connections} tables=${result.categories.tables} pipelines=${result.categories.pipelines} lineage=${result.categories.lineage} queries=${result.categories.queries}), ${result.errors.length} errors`,
     );
     return result;
   }
@@ -141,7 +141,8 @@ export class CatalogService {
               },
             },
           });
-          result.updated++;
+          result.synced++;
+          result.categories.connections++;
         } catch (err: any) {
           result.errors.push(`connection ${conn.id}: ${err.message}`);
         }
@@ -167,7 +168,8 @@ export class CatalogService {
                 service: `datagate-${conn.id}`,
                 displayName: schema.name,
               });
-              result.updated++;
+              result.synced++;
+              result.categories.tables++;
             } catch (err: any) {
               result.errors.push(`database ${conn.id}.${schema.name}: ${err.message}`);
             }
@@ -206,7 +208,8 @@ export class CatalogService {
                     constraint: col.isPrimaryKey ? 'PRIMARY_KEY' : col.nullable ? 'NULL' : 'NOT_NULL',
                   })),
                 });
-                result.updated++;
+                result.synced++;
+                result.categories.tables++;
               } catch (err: any) {
                 result.errors.push(`table ${conn.id}.${schema.name}.${table.name}: ${err.message}`);
               }
@@ -242,7 +245,8 @@ export class CatalogService {
             service: 'datagate-pipelines',
             description: t.description ?? '',
           });
-          result.updated++;
+          result.synced++;
+          result.categories.pipelines++;
         } catch (err: any) {
           result.errors.push(`transformation ${t.id}: ${err.message}`);
         }
@@ -258,7 +262,8 @@ export class CatalogService {
             description: p.description ?? '',
             pipelineStatus: p.status === 'active' ? 'Successful' : 'Skipped',
           });
-          result.updated++;
+          result.synced++;
+          result.categories.pipelines++;
         } catch (err: any) {
           result.errors.push(`pipeline ${p.id}: ${err.message}`);
         }
@@ -281,7 +286,8 @@ export class CatalogService {
               toEntity: { id: edge.target, type: 'table' },
             },
           });
-          result.updated++;
+          result.synced++;
+          result.categories.lineage++;
         } catch (err: any) {
           result.errors.push(`lineage edge ${edge.id}: ${err.message}`);
         }
@@ -312,7 +318,8 @@ export class CatalogService {
               queryDate: new Date(q.executedAt).getTime(),
               duration: q.executionTimeMs,
             });
-            result.updated++;
+            result.synced++;
+          result.categories.queries++;
           } catch {
             // query history sync is best-effort — skip individual failures silently
           }
