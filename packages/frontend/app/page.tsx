@@ -11,12 +11,14 @@ import {
   GitBranch,
   BarChart3,
   FolderKanban,
+  Library,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CatalogTab } from '@/components/dashboard/CatalogTab';
 import { AnalyticsTab } from '@/components/dashboard/AnalyticsTab';
+import { CatalogIntegrationTab } from '@/components/dashboard/CatalogIntegrationTab';
 
 interface DashboardStats {
   totalDatasets: number;
@@ -35,17 +37,12 @@ export default function Dashboard() {
     () => api.dashboard.getStats()
   );
 
-  // Keyboard shortcuts: Alt+1 for Catalog, Alt+2 for Analytics
+  // Keyboard shortcuts: Alt+1 Catalog, Alt+2 Analytics, Alt+3 OM Integration
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && e.key === '1') {
-        e.preventDefault();
-        setActiveTab('catalog');
-      }
-      if (e.altKey && e.key === '2') {
-        e.preventDefault();
-        setActiveTab('analytics');
-      }
+      if (e.altKey && e.key === '1') { e.preventDefault(); setActiveTab('catalog'); }
+      if (e.altKey && e.key === '2') { e.preventDefault(); setActiveTab('analytics'); }
+      if (e.altKey && e.key === '3') { e.preventDefault(); setActiveTab('om-catalog'); }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -118,6 +115,11 @@ export default function Dashboard() {
             <span>Analytics</span>
             <span className="text-[11px] text-[#aaaaaa] ml-1">(Alt+2)</span>
           </TabsTrigger>
+          <TabsTrigger value="om-catalog" className="gap-2">
+            <Library className="h-4 w-4" />
+            <span>OM Integration</span>
+            <span className="text-[11px] text-[#aaaaaa] ml-1">(Alt+3)</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="catalog">
@@ -126,6 +128,10 @@ export default function Dashboard() {
 
         <TabsContent value="analytics">
           <AnalyticsTab />
+        </TabsContent>
+
+        <TabsContent value="om-catalog">
+          <CatalogIntegrationTab />
         </TabsContent>
       </Tabs>
     </div>
