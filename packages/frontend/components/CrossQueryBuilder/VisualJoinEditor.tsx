@@ -13,7 +13,7 @@ import ReactFlow, {
   ConnectionMode,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { QueryDefinition, JoinDefinition } from '@/types';
+import { QueryDefinition, JoinDefinition, Connection as AppConnection } from '@/types';
 import { TableNode } from './TableNode';
 import { JoinConfigDialog } from './JoinConfigDialog';
 import { useToast } from '@/components/ui/toast';
@@ -25,11 +25,13 @@ const nodeTypes = {
 interface VisualJoinEditorProps {
   queryDefinition: QueryDefinition;
   onQueryChange: (definition: QueryDefinition) => void;
+  connections?: AppConnection[];
 }
 
 export function VisualJoinEditor({
   queryDefinition,
   onQueryChange,
+  connections = [],
 }: VisualJoinEditorProps) {
   const { showToast } = useToast();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -39,21 +41,33 @@ export function VisualJoinEditor({
 
   // Convert query definition tables to nodes
   useEffect(() => {
-    const newNodes: Node[] = queryDefinition.tables.map((table, index) => ({
-      id: table.alias,
-      type: 'table',
-      position: {
-        x: 50 + (index % 3) * 300,
-        y: 50 + Math.floor(index / 3) * 250,
-      },
-      data: {
-        table,
-        onRemove: () => handleRemoveTable(table.alias),
-      },
-    }));
+    const newNodes: Node[] = queryDefinition.tables.map((table, index) => {
+      const connType = connections.find((c) => c.id === table.connectionId)?.type;
+      return {
+        id: table.alias,
+        type: 'table',
+        position: {
+          x: 50 + (index % 3) * 300,
+          y: 50 + Math.floor(index / 3) * 250,
+        },
+        data: {
+          table,
+          connectionType: connType,
+          onRemove: () => handleRemoveTable(table.alias),
+          onSourceQueryChange: (query: string) => {
+            onQueryChange({
+              ...queryDefinition,
+              tables: queryDefinition.tables.map((t) =>
+                t.alias === table.alias ? { ...t, sourceQuery: query } : t,
+              ),
+            });
+          },
+        },
+      };
+    });
 
     setNodes(newNodes);
-  }, [queryDefinition.tables]);
+  }, [queryDefinition.tables, connections]);
 
   // Convert query definition joins to edges
   useEffect(() => {

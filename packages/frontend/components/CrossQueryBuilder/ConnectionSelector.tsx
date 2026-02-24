@@ -4,9 +4,7 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
 import { Connection } from '@/types';
-
-// Connection types that have no PostgreSQL FDW adapter and cannot join cross-queries
-const UNSUPPORTED_TYPES = new Set(['mongodb', 'clickhouse', 'bigquery', 'snowflake', 'sqlite']);
+import { usesFdw } from '@/lib/connection-capabilities';
 
 interface ConnectionSelectorProps {
   selectedConnections: string[];
@@ -42,19 +40,17 @@ export function ConnectionSelector({
     setStagingEnabled(newStagingEnabled);
 
     if (newStagingEnabled) {
-      // Add 'staging' to selected connections
       if (!selectedConnections.includes('staging')) {
         onSelectionChange([...selectedConnections, 'staging']);
       }
     } else {
-      // Remove 'staging' from selected connections
       onSelectionChange(selectedConnections.filter((id) => id !== 'staging'));
     }
   };
 
   const handleSelectAll = () => {
     if (connections) {
-      onSelectionChange(connections.filter((c) => !UNSUPPORTED_TYPES.has(c.type)).map((c) => c.id));
+      onSelectionChange(connections.map((c) => c.id));
     }
   };
 
@@ -133,23 +129,17 @@ export function ConnectionSelector({
       {/* Connection List */}
       <div className="space-y-2 max-h-60 overflow-y-auto">
         {connections.map((connection) => {
-          const unsupported = connection.type === 'mongodb' || connection.type === 'clickhouse' || connection.type === 'bigquery' || connection.type === 'snowflake' || connection.type === 'sqlite';
+          const fdw = usesFdw(connection.type);
           return (
             <label
               key={connection.id}
-              className={`flex items-start gap-2 p-2 border rounded-md transition-colors ${
-                unsupported
-                  ? 'border-[#e8e8e8] bg-[#fafafa] opacity-60 cursor-not-allowed'
-                  : 'border-gray-200 hover:bg-gray-50 cursor-pointer'
-              }`}
-              title={unsupported ? `${connection.type} connections cannot be used in cross-queries (no FDW support). Use the Query page instead.` : undefined}
+              className="flex items-start gap-2 p-2 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer transition-colors"
             >
               <input
                 type="checkbox"
                 checked={selectedConnections.includes(connection.id)}
-                onChange={() => !unsupported && handleToggleConnection(connection.id)}
-                disabled={unsupported}
-                className="mt-0.5 disabled:cursor-not-allowed"
+                onChange={() => handleToggleConnection(connection.id)}
+                className="mt-0.5"
               />
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm text-gray-900 truncate">
@@ -157,7 +147,9 @@ export function ConnectionSelector({
                 </div>
                 <div className="text-xs text-gray-500 truncate">
                   {connection.type} - {connection.database}
-                  {unsupported && <span className="ml-1 text-[#aaaaaa]">(not supported in cross-queries)</span>}
+                  {!fdw && (
+                    <span className="ml-1 text-amber-600">(materialized join)</span>
+                  )}
                 </div>
                 <div className="text-xs text-gray-400 truncate">
                   {connection.host}:{connection.port}

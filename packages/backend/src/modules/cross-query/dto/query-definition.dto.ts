@@ -15,7 +15,6 @@ import { Type } from 'class-transformer';
 export class TableReferenceDto {
   @ApiProperty({ example: 'uuid-conn-a' })
   @IsString()
-  @IsUUID()
   connectionId: string;
 
   @ApiProperty({ example: 'public' })
@@ -29,6 +28,15 @@ export class TableReferenceDto {
   @ApiProperty({ example: 'users' })
   @IsString()
   alias: string;
+
+  @ApiProperty({
+    example: '{"collection":"orders","filter":{},"limit":10000}',
+    required: false,
+    description: 'Source query for non-FDW connections (MongoDB JSON or SQL). Auto-generated if omitted.',
+  })
+  @IsOptional()
+  @IsString()
+  sourceQuery?: string;
 }
 
 export enum JoinType {

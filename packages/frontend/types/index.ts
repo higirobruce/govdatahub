@@ -92,6 +92,7 @@ export interface TableReference {
   schemaName: string;
   tableName: string;
   alias: string;
+  sourceQuery?: string;
   columns?: ColumnInfo[];
 }
 

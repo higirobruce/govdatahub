@@ -10,6 +10,7 @@ export interface TableReference {
   schemaName: string;
   tableName: string;
   alias: string;
+  sourceQuery?: string;
 }
 
 export interface JoinCondition {

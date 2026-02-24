@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { QueryDefinition, CrossQueryResult } from '@/types';
+import useSWR from 'swr';
+import { QueryDefinition, CrossQueryResult, Connection } from '@/types';
 import { ConnectionSelector } from '@/components/CrossQueryBuilder/ConnectionSelector';
 import { TableBrowser } from '@/components/CrossQueryBuilder/TableBrowser';
 import { VisualJoinEditor } from '@/components/CrossQueryBuilder/VisualJoinEditor';
@@ -40,6 +41,10 @@ export default function CrossQueryPage() {
   const isResizingRef = useRef(false);
   const animationFrameRef = useRef<number>();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const { data: connections } = useSWR<Connection[]>('/connections', () =>
+    api.connections.list() as Promise<Connection[]>
+  );
 
   // Handle resizing with smooth animation
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -514,6 +519,7 @@ export default function CrossQueryPage() {
                 <VisualJoinEditor
                   queryDefinition={queryDefinition}
                   onQueryChange={setQueryDefinition}
+                  connections={connections ?? []}
                 />
               </div>
             </div>

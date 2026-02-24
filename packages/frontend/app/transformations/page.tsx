@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import useSWR from 'swr';
-import { supportsTransformations } from '@/lib/connection-capabilities';
+import SQLEditor from '@/components/QueryInterface/SQLEditor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -566,11 +566,27 @@ function CreateTransformationForm({
   connections: Connection[];
   onSuccess: () => void;
 }) {
+  const MONGO_DEFAULT = '{\n  "collection": "",\n  "filter": {},\n  "limit": 10000\n}';
+  const SQL_DEFAULT = '';
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [sourceConnectionId, setSourceConnectionId] = useState('');
   const [sqlQuery, setSqlQuery] = useState('');
   const [maxRows, setMaxRows] = useState(10000);
+
+  const selectedConn = connections.find((c) => c.id === sourceConnectionId);
+  const isMongoDB = selectedConn?.type === 'mongodb';
+
+  const handleConnectionChange = (id: string) => {
+    const prev = connections.find((c) => c.id === sourceConnectionId);
+    const next = connections.find((c) => c.id === id);
+    setSourceConnectionId(id);
+    // Reset query when switching between MongoDB and SQL modes
+    if (prev?.type !== next?.type) {
+      setSqlQuery(next?.type === 'mongodb' ? MONGO_DEFAULT : SQL_DEFAULT);
+    }
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -632,44 +648,34 @@ function CreateTransformationForm({
         </label>
         <select
           value={sourceConnectionId}
-          onChange={(e) => setSourceConnectionId(e.target.value)}
+          onChange={(e) => handleConnectionChange(e.target.value)}
           className="w-full px-3 py-2 border border-[#dddddd] rounded-md text-[13px] focus:outline-none focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a]"
           required
         >
           <option value="">Select a connection</option>
-          {connections.map((conn) => {
-            const supported = supportsTransformations(conn.type);
-            return (
-              <option key={conn.id} value={conn.id} disabled={!supported}>
-                {conn.name} ({conn.type}){!supported ? ' — not supported' : ''}
-              </option>
-            );
-          })}
+          {connections.map((conn) => (
+            <option key={conn.id} value={conn.id}>
+              {conn.name} ({conn.type})
+            </option>
+          ))}
         </select>
-        {sourceConnectionId && !supportsTransformations(
-          connections.find((c) => c.id === sourceConnectionId)?.type ?? ''
-        ) && (
-          <p className="text-xs text-amber-600 mt-1">
-            This connection type cannot be used as a transformation source.
-            Use the Query page to explore this data instead.
-          </p>
-        )}
       </div>
 
       <div>
         <label className="block text-sm font-medium text-[#555555] mb-1">
-          SQL Query *
+          {isMongoDB ? 'Query (MongoDB JSON) *' : 'SQL Query *'}
         </label>
-        <textarea
+        <SQLEditor
           value={sqlQuery}
-          onChange={(e) => setSqlQuery(e.target.value)}
-          className="w-full px-3 py-2 border border-[#dddddd] rounded-md text-[13px] focus:outline-none focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] font-mono"
-          rows={8}
-          placeholder="SELECT user_id, COUNT(*) as count FROM events GROUP BY user_id"
-          required
+          onChange={setSqlQuery}
+          height="200px"
+          theme="dark"
+          language={isMongoDB ? 'json' : 'sql'}
         />
         <p className="text-xs text-[#aaaaaa] mt-1">
-          Write a SELECT query to transform your data
+          {isMongoDB
+            ? 'Enter a MongoDB JSON query. Format: {"collection":"...","filter":{},"limit":10000}'
+            : 'Write a SELECT query to transform your data'}
         </p>
       </div>
 

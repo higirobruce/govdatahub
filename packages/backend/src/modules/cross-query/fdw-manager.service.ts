@@ -244,6 +244,44 @@ export class FdwManagerService {
           continue;
         }
 
+        // Determine if this connection type supports FDW
+        const { connection: conn } = await this.connectionsService.getConnectionConfig(
+          table.connectionId,
+          organizationId,
+        );
+
+        if (!FdwManagerService.FDW_TYPES.has(conn.type)) {
+          // Non-FDW connection (MongoDB, BigQuery, Snowflake, ClickHouse, SQLite):
+          // materialize data into a temporary PostgreSQL table and join from there.
+          const localTableName = `ft_${table.alias}_${Date.now()}`;
+          const sourceQuery =
+            table.sourceQuery ??
+            this.defaultSourceQuery(conn.type, table.schemaName, table.tableName);
+          try {
+            await this.materializeTable(
+              queryRunner,
+              table.connectionId,
+              organizationId,
+              sourceQuery,
+              orgSchema,
+              localTableName,
+            );
+            foreignTableMap.set(
+              table.alias,
+              `${this.quoteIdent(orgSchema)}.${this.quoteIdent(localTableName)}`,
+            );
+            this.logger.log(
+              `Materialized ${conn.type} table as ${orgSchema}.${localTableName} for ${table.alias}`,
+            );
+          } catch (error) {
+            this.logger.error(`Failed to materialize ${conn.type} table ${table.tableName}`, error);
+            throw new BadRequestException(
+              `Failed to materialize data from ${conn.type} connection: ${error.message}`,
+            );
+          }
+          continue;
+        }
+
         // Get or create FDW server for this connection
         let fdwServer = await this.fdwServerRepository.findOne({
           where: { connectionId: table.connectionId, organizationId },
@@ -306,17 +344,19 @@ export class FdwManagerService {
     try {
       await queryRunner.connect();
 
-      for (const foreignTableName of foreignTableMap.values()) {
+      for (const tableName of foreignTableMap.values()) {
         try {
-          await queryRunner.query(
-            `DROP FOREIGN TABLE IF EXISTS ${foreignTableName}`,
-          );
-          this.logger.log(`Foreign table dropped: ${foreignTableName}`);
-        } catch (error) {
-          this.logger.warn(
-            `Failed to drop foreign table ${foreignTableName}`,
-            error,
-          );
+          // Try as a foreign table first (FDW path)
+          await queryRunner.query(`DROP FOREIGN TABLE IF EXISTS ${tableName}`);
+          this.logger.log(`Dropped foreign table: ${tableName}`);
+        } catch {
+          // Fall back to regular table drop (materialization path)
+          try {
+            await queryRunner.query(`DROP TABLE IF EXISTS ${tableName}`);
+            this.logger.log(`Dropped materialized table: ${tableName}`);
+          } catch (error) {
+            this.logger.warn(`Failed to drop table ${tableName}`, error);
+          }
         }
       }
     } finally {
@@ -432,6 +472,111 @@ export class FdwManagerService {
       `Failed to import table ${remoteTable} after ${maxRetries} attempts. ` +
       `Last error: ${lastError.message}`,
     );
+  }
+
+  /**
+   * Connection types that support FDW-based cross-queries
+   */
+  private static readonly FDW_TYPES = new Set([
+    'postgresql',
+    'redshift',
+    'mysql',
+    'sqlserver',
+  ]);
+
+  /**
+   * Materialize data from a non-FDW connection into a temporary PostgreSQL table
+   * so it can participate in cross-database JOINs.
+   */
+  private async materializeTable(
+    queryRunner: any,
+    connectionId: string,
+    organizationId: string,
+    sourceQuery: string,
+    orgSchema: string,
+    localTableName: string,
+  ): Promise<void> {
+    const driver = await this.connectionsService.getDriver(connectionId, organizationId);
+    let result: { rows: any[]; fields: Array<{ name: string; type: string }> };
+
+    try {
+      result = await driver.query(sourceQuery);
+    } finally {
+      await driver.disconnect().catch(() => {});
+    }
+
+    const { rows, fields } = result;
+
+    // Derive column names from fields (or first row keys as fallback)
+    const columnNames: string[] =
+      fields.length > 0
+        ? fields.map((f) => f.name)
+        : rows.length > 0
+          ? Object.keys(rows[0])
+          : [];
+
+    if (columnNames.length === 0) {
+      throw new BadRequestException(
+        `Source query returned no columns from connection ${connectionId}`,
+      );
+    }
+
+    // Create temporary table with all columns as TEXT
+    const colDefs = columnNames
+      .map((c) => `${this.quoteIdent(c)} TEXT`)
+      .join(', ');
+    await queryRunner.query(
+      `CREATE TABLE ${this.quoteIdent(orgSchema)}.${this.quoteIdent(localTableName)} (${colDefs})`,
+    );
+
+    if (rows.length === 0) {
+      this.logger.log(`Materialized empty table ${localTableName} (0 rows)`);
+      return;
+    }
+
+    // Bulk INSERT in batches of 500
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const placeholders: string[] = [];
+      const values: any[] = [];
+      let paramIdx = 1;
+
+      for (const row of batch) {
+        const rowPlaceholders = columnNames.map(() => `$${paramIdx++}`);
+        placeholders.push(`(${rowPlaceholders.join(', ')})`);
+        for (const col of columnNames) {
+          const val = row[col];
+          values.push(val === null || val === undefined ? null : String(val));
+        }
+      }
+
+      await queryRunner.query(
+        `INSERT INTO ${this.quoteIdent(orgSchema)}.${this.quoteIdent(localTableName)} VALUES ${placeholders.join(', ')}`,
+        values,
+      );
+    }
+
+    this.logger.log(
+      `Materialized ${rows.length} rows from connection ${connectionId} into ${orgSchema}.${localTableName}`,
+    );
+  }
+
+  /**
+   * Generate a default source query for non-FDW connections
+   */
+  private defaultSourceQuery(
+    type: string,
+    schemaName: string,
+    tableName: string,
+  ): string {
+    if (type === 'mongodb') {
+      return JSON.stringify({ collection: tableName, filter: {}, limit: 10000 });
+    }
+    const fqTable = schemaName
+      ? `${this.quoteIdent(schemaName)}.${this.quoteIdent(tableName)}`
+      : this.quoteIdent(tableName);
+    return `SELECT * FROM ${fqTable} LIMIT 10000`;
   }
 
   /**
