@@ -192,7 +192,7 @@ export class StagingImporterService {
 
     const createTableSql = `
       CREATE TABLE IF NOT EXISTS ${fullTableName} (
-        id SERIAL PRIMARY KEY,
+        _staging_id SERIAL PRIMARY KEY,
         ${columns}
       )
     `;

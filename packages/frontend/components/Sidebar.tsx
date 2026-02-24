@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   Network,
   BookOpen,
+  Workflow,
 } from 'lucide-react';
 
 interface NavItem {
@@ -73,6 +74,7 @@ export function Sidebar() {
       title: 'DATA OPERATIONS',
       items: [
         { id: 'transformations', label: 'Transformations', href: '/transformations', icon: <GitBranch /> },
+        { id: 'pipelines', label: 'Pipelines', href: '/pipelines', icon: <Workflow /> },
         { id: 'lineage', label: 'Data Lineage', href: '/lineage', icon: <Network /> },
       ],
     },

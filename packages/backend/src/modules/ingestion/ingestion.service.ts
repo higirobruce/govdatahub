@@ -355,7 +355,6 @@ export class IngestionService {
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,
-      relations: ['importJob'],
     });
 
     return { datasets, total };
@@ -370,7 +369,6 @@ export class IngestionService {
   ): Promise<StagedData> {
     const stagedData = await this.stagedDataRepository.findOne({
       where: { id: stagedDataId, organizationId },
-      relations: ['importJob'],
     });
 
     if (!stagedData) {

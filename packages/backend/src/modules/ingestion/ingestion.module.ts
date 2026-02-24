@@ -28,6 +28,6 @@ import { DatabaseSourceImporterService } from './importers/database-source-impor
     UrlImporterService,
     DatabaseSourceImporterService,
   ],
-  exports: [IngestionService],
+  exports: [IngestionService, DatabaseSourceImporterService],
 })
 export class IngestionModule {}

@@ -143,10 +143,7 @@ export default function QueryPage() {
           'success'
         );
       } else {
-        const result = await api.queries.executeStaging({
-          stagingTable: selectedStagingTable,
-          sql: sql.trim(),
-        });
+        const result = await api.queries.executeStaging(sql.trim());
         setQueryResult(result);
         showToast(
           `Query executed successfully: ${result.rowCount} rows returned in ${result.executionTimeMs}ms`,

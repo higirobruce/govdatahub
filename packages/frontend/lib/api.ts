@@ -545,6 +545,43 @@ export const api = {
         body: JSON.stringify(data),
       }),
   },
+
+  pipelines: {
+    list: (): Promise<any[]> => request('/pipelines'),
+
+    get: (id: string): Promise<any> => request(`/pipelines/${id}`),
+
+    create: (data: { name: string; description?: string; schedule?: string; stopOnError?: boolean }): Promise<any> =>
+      request('/pipelines', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    update: (id: string, data: {
+      name?: string;
+      description?: string;
+      schedule?: string | null;
+      stopOnError?: boolean;
+      status?: 'active' | 'paused';
+      definition?: { steps: any[]; edges: any[] };
+    }): Promise<any> =>
+      request(`/pipelines/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: string): Promise<void> =>
+      request(`/pipelines/${id}`, { method: 'DELETE' }),
+
+    run: (id: string): Promise<any> =>
+      request(`/pipelines/${id}/run`, { method: 'POST' }),
+
+    getRuns: (id: string, limit?: number): Promise<any[]> =>
+      request(`/pipelines/${id}/runs${limit ? `?limit=${limit}` : ''}`),
+
+    getRun: (pipelineId: string, runId: string): Promise<any> =>
+      request(`/pipelines/${pipelineId}/runs/${runId}`),
+  },
 };
 
 export { ApiError };

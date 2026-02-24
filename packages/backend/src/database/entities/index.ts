@@ -14,3 +14,7 @@ export { DatasetShare } from './dataset-share.entity';
 export type { DatasetType, ShareAccessLevel } from './dataset-share.entity';
 export { Notebook } from './notebook.entity';
 export type { PersistedCell } from './notebook.entity';
+export { Pipeline } from './pipeline.entity';
+export type { PipelineStep, PipelineEdge, PipelineDefinition } from './pipeline.entity';
+export { PipelineRun } from './pipeline-run.entity';
+export type { StepRunResult } from './pipeline-run.entity';

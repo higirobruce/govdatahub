@@ -190,11 +190,13 @@ export class DatabaseSourceImporterService {
     }
 
     if (typeof value === 'string') {
-      // Try to detect date strings
-      if (!isNaN(Date.parse(value))) {
+      // Only treat strings as timestamps if they match a strict ISO 8601 pattern.
+      // Date.parse() is too permissive — strings like "REG-2023-001" can pass it in V8.
+      const isoPattern =
+        /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+      if (isoPattern.test(value)) {
         const parsed = new Date(value);
-        // Check if it's a valid date (not just a number)
-        if (parsed.getFullYear() > 1900) {
+        if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900) {
           return 'timestamp';
         }
       }

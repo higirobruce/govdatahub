@@ -8,7 +8,6 @@ import {
   Index,
 } from 'typeorm';
 import { Organization } from './organization.entity';
-import { ImportJob } from './import-job.entity';
 
 @Entity('staged_data')
 @Index(['organizationId', 'importJobId'])
@@ -24,12 +23,10 @@ export class StagedData {
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 
+  // Plain text tracking ID — no FK constraint so both file-based import job IDs
+  // and pipeline step IDs can be stored here without requiring an ImportJob record.
   @Column('text', { name: 'import_job_id' })
   importJobId: string;
-
-  @ManyToOne(() => ImportJob, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'import_job_id' })
-  importJob: ImportJob;
 
   @Column('text', { name: 'table_name' })
   tableName: string;

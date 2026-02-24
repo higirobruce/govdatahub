@@ -22,6 +22,6 @@ import { TransformationsCleanupService } from './transformations-cleanup.service
     TransformationsExecutorService,
     TransformationsCleanupService,
   ],
-  exports: [TransformationsService], // For potential future use
+  exports: [TransformationsService, TransformationsExecutorService],
 })
 export class TransformationsModule {}

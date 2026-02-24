@@ -36,7 +36,7 @@ export class TransformationsExecutorService {
 
   async execute(
     transformationId: string,
-    triggerType: 'manual',
+    triggerType: 'manual' | 'scheduled',
   ): Promise<TransformationRunResponseDto> {
     const runId = uuidv4();
     const startTime = Date.now();

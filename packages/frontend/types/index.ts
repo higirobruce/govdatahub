@@ -168,3 +168,6 @@ export * from './lineage';
 
 // Notebook Types
 export * from './notebook';
+
+// Pipeline Types
+export * from './pipeline';

@@ -19,6 +19,8 @@ import {
   StagedData,
   DatasetShare,
   Notebook,
+  Pipeline,
+  PipelineRun,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -35,6 +37,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { AiModule } from './modules/ai/ai.module';
 import { Nl2sqlModule } from './modules/nl2sql/nl2sql.module';
 import { NotebooksModule } from './modules/notebooks/notebooks.module';
+import { PipelinesModule } from './modules/pipelines/pipelines.module';
 
 @Module({
   imports: [
@@ -69,6 +72,8 @@ import { NotebooksModule } from './modules/notebooks/notebooks.module';
           DatasetShare,
           OrganizationSettings,
           Notebook,
+          Pipeline,
+          PipelineRun,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -106,6 +111,7 @@ import { NotebooksModule } from './modules/notebooks/notebooks.module';
     DashboardModule,
     LineageModule,
     NotebooksModule,
+    PipelinesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
