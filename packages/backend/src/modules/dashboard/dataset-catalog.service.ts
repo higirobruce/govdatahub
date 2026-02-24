@@ -57,7 +57,6 @@ export class DatasetCatalogService {
     // 1. Get staged data
     const stagedData = await this.stagedDataRepository.find({
       where: { organizationId },
-      relations: ['importJob'],
     });
 
     for (const staged of stagedData) {

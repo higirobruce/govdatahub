@@ -264,7 +264,7 @@ export const api = {
         method: 'POST',
       }),
     regenerateShareToken: (id: string): Promise<any> =>
-      request(`/dashboard/shares/${id}/regenerate-share-token`, {
+      request(`/dashboard/shares/${id}/regenerate-token`, {
         method: 'POST',
       }),
     deleteShare: (id: string): Promise<void> =>
