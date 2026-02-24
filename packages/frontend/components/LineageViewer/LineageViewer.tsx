@@ -187,6 +187,7 @@ export function LineageViewer({ lineageGraph, loading, onNodeClick }: LineageVie
         defaultEdgeOptions={{
           animated: true,
         }}
+        proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
         <Controls />

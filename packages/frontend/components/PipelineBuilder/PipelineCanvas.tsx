@@ -143,6 +143,7 @@ export default function PipelineCanvas({
         deleteKeyCode="Delete"
         fitView
         fitViewOptions={{ padding: 0.3 }}
+        proOptions={{ hideAttribution: true }}
       >
         <Background color="#e8e8e8" gap={20} />
         <Controls />

@@ -208,6 +208,7 @@ export function VisualJoinEditor({
         fitView
         fitViewOptions={{ padding: 0.2 }}
         className="w-full h-full"
+        proOptions={{ hideAttribution: true }}
       >
         <Background />
         <Controls />
