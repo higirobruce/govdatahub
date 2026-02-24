@@ -22,6 +22,7 @@ import {
   Network,
   BookOpen,
   Workflow,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface NavItem {
@@ -75,6 +76,7 @@ export function Sidebar() {
       items: [
         { id: 'transformations', label: 'Transformations', href: '/transformations', icon: <GitBranch /> },
         { id: 'pipelines', label: 'Pipelines', href: '/pipelines', icon: <Workflow /> },
+        { id: 'quality', label: 'Data Quality', href: '/quality', icon: <ShieldCheck /> },
         { id: 'lineage', label: 'Data Lineage', href: '/lineage', icon: <Network /> },
       ],
     },

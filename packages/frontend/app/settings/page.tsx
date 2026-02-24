@@ -18,7 +18,7 @@ import { PageHeader } from '@/components/ui/page-header';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { toast } = useToast();
+  const { showToast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<UpdateSettingsDto>({});
 
@@ -79,17 +79,10 @@ export default function SettingsPage() {
     try {
       await api.settings.update(formData);
       await mutate('/settings');
-      toast({
-        title: 'Settings saved',
-        description: 'Your organization settings have been updated successfully.',
-      });
+      showToast('Settings saved', 'success');
     } catch (error: any) {
       console.error('Save error:', error);
-      toast({
-        title: 'Error saving settings',
-        description: error.message || 'Failed to update settings',
-        variant: 'destructive',
-      });
+      showToast(error.message || 'Failed to update settings', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -133,9 +126,9 @@ export default function SettingsPage() {
       });
       await mutate('/settings');
       setCatalogForm(f => ({ ...f, jwtToken: '' }));
-      toast({ title: 'Catalog settings saved', description: 'Integration configuration updated.' });
+      showToast('Catalog settings saved', 'success');
     } catch (error: any) {
-      toast({ title: 'Error saving catalog settings', description: error.message, variant: 'destructive' });
+      showToast(error.message || 'Error saving catalog settings', 'error');
     } finally {
       setIsSavingCatalog(false);
     }
@@ -145,13 +138,9 @@ export default function SettingsPage() {
     setIsTestingCatalog(true);
     try {
       const result = await api.catalog.testConnection();
-      toast({
-        title: result.ok ? 'Connection successful' : 'Connection failed',
-        description: result.message,
-        variant: result.ok ? undefined : 'destructive',
-      });
+      showToast(result.message, result.ok ? 'success' : 'error');
     } catch (error: any) {
-      toast({ title: 'Connection test failed', description: error.message, variant: 'destructive' });
+      showToast(error.message || 'Connection test failed', 'error');
     } finally {
       setIsTestingCatalog(false);
     }
@@ -164,12 +153,9 @@ export default function SettingsPage() {
       const result = await api.catalog.sync();
       setLatestSyncResult(result);
       await mutate('/settings');
-      toast({
-        title: 'Sync complete',
-        description: `Created ${result.created}, updated ${result.updated} entities`,
-      });
+      showToast(`Sync complete — ${result.synced} entities pushed`, 'success');
     } catch (error: any) {
-      toast({ title: 'Sync failed', description: error.message, variant: 'destructive' });
+      showToast(error.message || 'Sync failed', 'error');
     } finally {
       setIsSyncing(false);
     }
@@ -670,13 +656,29 @@ export default function SettingsPage() {
                   if (!r) return null;
                   return (
                     <div className="space-y-2">
-                      <div className="flex gap-3 text-sm">
+                      <div className="flex gap-3 text-sm flex-wrap">
                         <span className="text-green-700 bg-green-50 px-2 py-1 rounded">
-                          Created: {r.created}
+                          Synced: {r.synced}
                         </span>
-                        <span className="text-blue-700 bg-blue-50 px-2 py-1 rounded">
-                          Updated: {r.updated}
-                        </span>
+                        {r.categories && (
+                          <>
+                            {r.categories.connections > 0 && (
+                              <span className="text-indigo-700 bg-indigo-50 px-2 py-1 rounded">
+                                Connections: {r.categories.connections}
+                              </span>
+                            )}
+                            {r.categories.tables > 0 && (
+                              <span className="text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                                Tables: {r.categories.tables}
+                              </span>
+                            )}
+                            {r.categories.pipelines > 0 && (
+                              <span className="text-purple-700 bg-purple-50 px-2 py-1 rounded">
+                                Pipelines: {r.categories.pipelines}
+                              </span>
+                            )}
+                          </>
+                        )}
                         {r.errors.length > 0 && (
                           <span className="text-red-700 bg-red-50 px-2 py-1 rounded">
                             Errors: {r.errors.length}

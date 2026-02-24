@@ -595,6 +595,38 @@ export const api = {
       categories: { connections: number; tables: number; pipelines: number; lineage: number; queries: number };
     }> => request('/catalog/sync', { method: 'POST' }),
   },
+
+  dataQuality: {
+    getProfile: (connectionId: string, schemaName: string, tableName: string): Promise<any> =>
+      request(`/data-quality/profiles?connectionId=${encodeURIComponent(connectionId)}&schemaName=${encodeURIComponent(schemaName)}&tableName=${encodeURIComponent(tableName)}`),
+
+    profileTable: (body: { connectionId: string; schemaName: string; tableName: string }): Promise<any> =>
+      request('/data-quality/profiles', { method: 'POST', body: JSON.stringify(body) }),
+
+    listChecks: (params?: { connectionId?: string; schemaName?: string; tableName?: string }): Promise<any[]> => {
+      const qs = new URLSearchParams();
+      if (params?.connectionId) qs.set('connectionId', params.connectionId);
+      if (params?.schemaName) qs.set('schemaName', params.schemaName);
+      if (params?.tableName) qs.set('tableName', params.tableName);
+      const q = qs.toString();
+      return request(`/data-quality/checks${q ? `?${q}` : ''}`);
+    },
+
+    createCheck: (body: any): Promise<any> =>
+      request('/data-quality/checks', { method: 'POST', body: JSON.stringify(body) }),
+
+    updateCheck: (id: string, body: any): Promise<any> =>
+      request(`/data-quality/checks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+    deleteCheck: (id: string): Promise<void> =>
+      request(`/data-quality/checks/${id}`, { method: 'DELETE' }),
+
+    runCheck: (id: string): Promise<any> =>
+      request(`/data-quality/checks/${id}/run`, { method: 'POST' }),
+
+    getCheckRuns: (id: string): Promise<any[]> =>
+      request(`/data-quality/checks/${id}/runs`),
+  },
 };
 
 export { ApiError };

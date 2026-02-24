@@ -21,6 +21,9 @@ import {
   Notebook,
   Pipeline,
   PipelineRun,
+  TableProfile,
+  QualityCheck,
+  QualityCheckRun,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -39,6 +42,7 @@ import { Nl2sqlModule } from './modules/nl2sql/nl2sql.module';
 import { NotebooksModule } from './modules/notebooks/notebooks.module';
 import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { DataQualityModule } from './modules/data-quality/data-quality.module';
 
 @Module({
   imports: [
@@ -75,6 +79,9 @@ import { CatalogModule } from './modules/catalog/catalog.module';
           Notebook,
           Pipeline,
           PipelineRun,
+          TableProfile,
+          QualityCheck,
+          QualityCheckRun,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -114,6 +121,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
     NotebooksModule,
     PipelinesModule,
     CatalogModule,
+    DataQualityModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -6,10 +6,18 @@ export enum AiProvider {
   CUSTOM = 'CUSTOM',
 }
 
+export interface CatalogSyncCategories {
+  connections: number;
+  tables: number;
+  pipelines: number;
+  lineage: number;
+  queries: number;
+}
+
 export interface CatalogSyncResult {
-  created: number;
-  updated: number;
+  synced: number;
   errors: string[];
+  categories: CatalogSyncCategories;
 }
 
 export interface CatalogConfig {

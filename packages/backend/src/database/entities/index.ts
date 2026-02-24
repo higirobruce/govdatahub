@@ -19,3 +19,8 @@ export type { PipelineStep, PipelineEdge, PipelineDefinition } from './pipeline.
 export { PipelineRun } from './pipeline-run.entity';
 export type { StepRunResult } from './pipeline-run.entity';
 export { OrganizationSettings, AiProvider } from './organization-settings.entity';
+export { TableProfile } from './table-profile.entity';
+export type { ColumnProfile } from './table-profile.entity';
+export { QualityCheck } from './quality-check.entity';
+export type { CheckType, CheckStatus, RunStatus } from './quality-check.entity';
+export { QualityCheckRun } from './quality-check-run.entity';

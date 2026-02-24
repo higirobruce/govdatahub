@@ -4,6 +4,8 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
 import { SchemaInfo, TableInfo, ColumnInfo } from '@/types';
+import { TableProfilePanel } from '@/components/quality/TableProfilePanel';
+import { BarChart2, Loader2 } from 'lucide-react';
 
 interface SchemaTreeProps {
   connectionId: string;
@@ -160,6 +162,27 @@ function TableNode({
   onToggle,
   onQueryTable,
 }: TableNodeProps) {
+  const [profileData, setProfileData] = useState<any>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+
+  const handleProfile = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsProfileLoading(true);
+    setProfileData(null);
+    try {
+      const result = await api.dataQuality.profileTable({
+        connectionId,
+        schemaName: table.schema,
+        tableName: table.name,
+      });
+      setProfileData(result);
+    } catch {
+      setProfileData({ status: 'error', errorMessage: 'Profiling failed', columnProfiles: [] });
+    } finally {
+      setIsProfileLoading(false);
+    }
+  };
+
   const { data: columns } = useSWR<ColumnInfo[]>(
     isExpanded ? `/connections/${connectionId}/tables/${table.name}/columns` : null,
     () => api.schema.getColumns(connectionId, table.name, table.schema)
@@ -208,16 +231,35 @@ function TableNode({
           <span className="text-sm text-gray-700">{table.name}</span>
           <span className="text-xs text-gray-400">({table.type})</span>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onQueryTable(table.name, table.schema);
-          }}
-          className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 text-[#1a1a1a] hover:text-[#2a2a2a]"
-        >
-          Query
-        </button>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onQueryTable(table.name, table.schema);
+            }}
+            className="text-xs px-2 py-1 text-[#1a1a1a] hover:text-[#2a2a2a]"
+          >
+            Query
+          </button>
+          <button
+            onClick={handleProfile}
+            disabled={isProfileLoading}
+            className="text-xs px-2 py-1 text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5"
+            title="Profile table columns"
+          >
+            {isProfileLoading
+              ? <Loader2 className="h-3 w-3 animate-spin" />
+              : <BarChart2 className="h-3 w-3" />}
+            Profile
+          </button>
+        </div>
       </div>
+
+      {(isProfileLoading || profileData) && (
+        <div className="ml-6 mt-1">
+          <TableProfilePanel profile={profileData} isLoading={isProfileLoading} />
+        </div>
+      )}
 
       {isExpanded && (
         <div className="ml-6 mt-1">
