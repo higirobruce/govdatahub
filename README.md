@@ -1,422 +1,327 @@
 # DataGate
 
-**Data Integration and AI-Ready Data Platform for Government Use Cases**
+**Data Integration and AI-Ready Data Platform**
 
-DataGate is a web-based platform that allows users to connect to multiple databases, browse schemas, run SQL queries, and provide a REST API for external applications.
+DataGate connects to multiple databases, provides SQL query interfaces, enables cross-database joins via PostgreSQL Foreign Data Wrappers, and pushes metadata to data catalogs.
+
+---
 
 ## Features
 
-- 🔌 **Multi-Database Support** - Connect to PostgreSQL and MySQL databases
-- 🔍 **Schema Discovery** - Browse database schemas, tables, and columns
-- 📝 **SQL Query Interface** - Execute queries with syntax highlighting and results visualization
-- 🔐 **Secure Credential Storage** - AES-256-GCM encryption for database credentials
-- 📊 **Query History** - Track and review past query executions
-- 🚦 **Rate Limiting** - Built-in protection against query abuse
-- 📚 **API Documentation** - Interactive Swagger/OpenAPI documentation
-- 🎯 **Data Catalog** - Tree view of database structures
+- **Multi-Database Connections** — PostgreSQL, MySQL, MongoDB, ClickHouse, BigQuery, Snowflake, SQLite, SQL Server
+- **Schema Browser** — Tree-view catalog with table/column exploration and inline profiling
+- **SQL Query Editor** — Monaco editor with syntax highlighting, history, and CSV export
+- **SQL Notebooks** — Multi-cell notebook interface with save-as-transformation support
+- **Cross-Database Queries** — Visual join builder across different databases using PostgreSQL FDW
+- **Data Pipelines** — DAG-based pipeline editor with scheduling and run history
+- **Data Transformations** — SQL-based transformations with execution tracking
+- **Data Quality** — Column profiling and rule-based quality checks (null %, uniqueness, freshness, custom SQL)
+- **NL2SQL** — Natural language to SQL via configurable AI providers (OpenAI, Anthropic, local Ollama)
+- **OpenMetadata Integration** — Push connections, schemas, pipelines, lineage and query usage to OpenMetadata
+- **Multi-Tenancy** — Organization-scoped data isolation with JWT authentication
+- **Credential Encryption** — AES-256-GCM for all stored database passwords
+
+---
 
 ## Tech Stack
 
-### Backend
-- **NestJS 11** - TypeScript framework
-- **TypeORM** - Database ORM for metadata storage
-- **PostgreSQL** - Metadata database
-- **Swagger** - API documentation
-- **Native Drivers** - `pg` for PostgreSQL, `mysql2` for MySQL
+| Layer | Technology |
+|---|---|
+| Backend | NestJS 11 + TypeORM + PostgreSQL |
+| Frontend | Next.js 14 (App Router) + Tailwind CSS + React Flow |
+| Monorepo | pnpm workspaces |
+| Auth | JWT (7-day expiry) |
+| Encryption | AES-256-GCM |
 
-### Frontend
-- **Next.js 14** - React framework with App Router
-- **Tailwind CSS** - Utility-first CSS
-- **SWR** - Data fetching and caching
-- **TypeScript** - Type safety
+---
 
 ## Prerequisites
 
-- **Node.js** 20+ (LTS recommended)
-- **pnpm** 8+ (will be installed automatically if missing)
-- **Docker** & **Docker Compose** (for local development)
+- **Node.js** 20+
+- **pnpm** 8+ (auto-installed if missing)
+- One of:
+  - **Docker + Docker Compose** — for the containerized path
+  - **PostgreSQL 15+** + **MySQL 8+** installed locally — for the local path
 
-## Quick Start
+---
 
-### 1. Clone and Setup
+## Quick Start — Docker (Recommended)
 
 ```bash
-cd datagate
+# Clone and run setup (installs deps, starts containers, runs migrations)
 bash scripts/setup.sh
-```
 
-This script will:
-- Install pnpm (if not already installed)
-- Generate encryption key and create `.env` file
-- Install all dependencies
-- Start PostgreSQL and MySQL containers
-- Run database migrations
-
-### 2. Start Development Servers
-
-```bash
-# Start both backend and frontend
+# Start dev servers
 pnpm dev
 ```
 
-Or start them separately:
+After setup:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:3001/api
+- Swagger docs: http://localhost:3001/api/docs
+
+**Docker credentials (pre-configured):**
+
+| Database | Host | Port | DB | User | Password |
+|---|---|---|---|---|---|
+| PostgreSQL (metadata) | localhost | 5432 | datagate | admin | admin123 |
+| MySQL (sample) | localhost | 3306 | sampledb | testuser | testpass |
+
+---
+
+## Quick Start — Local (No Docker)
+
+Use this if you have PostgreSQL and MySQL installed natively (e.g. via Homebrew).
 
 ```bash
-# Terminal 1 - Backend (port 3001)
-pnpm --filter backend dev
-
-# Terminal 2 - Frontend (port 3000)
-pnpm --filter frontend dev
+bash scripts/setup-local.sh
 ```
 
-### 3. Access the Application
+The script:
+1. Starts PostgreSQL and MySQL services
+2. Creates the database and user (reads `DB_*` vars from `.env` if it exists, defaults to `datagate`/`admin`)
+3. Creates `postgres_fdw` extension as superuser
+4. Generates `.env` with random `ENCRYPTION_KEY` and `JWT_SECRET`
+5. Installs pnpm dependencies
+6. Runs all migrations
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:3001/api
-- **Swagger Docs**: http://localhost:3001/api/docs
+You can override the MySQL root password:
+```bash
+MYSQL_ROOT_PASSWORD=mypass bash scripts/setup-local.sh
+```
 
-## Manual Setup (Alternative)
+### FDW setup (cross-database queries)
 
-### 1. Install Dependencies
+Cross-database queries require the `postgres_fdw` extension and superuser on the `admin` role.
+`setup-local.sh` handles this automatically. If you need to run it separately:
 
 ```bash
-# Install pnpm globally
-npm install -g pnpm
+# Docker
+bash scripts/setup-fdw.sh
 
-# Install project dependencies
+# Local — connect as your OS superuser
+psql -U $(whoami) -d <your-db> -f scripts/setup-fdw.sql
+```
+
+`setup-fdw.sql` creates the `postgres_fdw` extension and grants superuser to `admin` (dev only).
+
+---
+
+## Manual Setup
+
+```bash
+# 1. Install dependencies
 pnpm install
-```
 
-### 2. Configure Environment
+# 2. Copy and configure environment
+cp .env.example .env
+# Edit .env — set ENCRYPTION_KEY (openssl rand -hex 32) and JWT_SECRET
 
-Create `.env` in the root and `packages/backend/.env`:
+# 3. Start databases
+docker compose up -d          # Docker
+# OR: brew services start postgresql@15 mysql   # local macOS
 
-```bash
-# Generate encryption key
-openssl rand -hex 32
+# 4. Run migrations
+cd packages/backend && pnpm run migration:run
 
-# Create .env files with the generated key
-```
-
-See [`.env.example`](.env.example) for all required variables.
-
-### 3. Start Database
-
-```bash
-docker compose up -d
-```
-
-### 4. Run Migrations
-
-```bash
-cd packages/backend
-pnpm run migration:run
-```
-
-### 5. Start Development
-
-```bash
+# 5. Start dev servers
 pnpm dev
 ```
 
-## Usage Guide
+---
 
-### 1. Add a Database Connection
+## Environment Variables
 
-1. Navigate to **Connections** page
-2. Click **Add Connection**
-3. Fill in database credentials:
-   - Connection Name
-   - Database Type (PostgreSQL or MySQL)
-   - Host, Port, Username, Password, Database Name
-   - Optional: Enable SSL
-4. Click **Create Connection**
-5. Click **Test** to verify connection
+See [`.env.example`](.env.example) for the full list. Key variables:
 
-The connection will be saved with encrypted credentials.
+| Variable | Description |
+|---|---|
+| `ENCRYPTION_KEY` | 64-char hex — AES-256-GCM key for credential encryption |
+| `JWT_SECRET` | 64-char hex — signs JWT tokens |
+| `DB_HOST/PORT/USERNAME/PASSWORD/DATABASE` | Metadata PostgreSQL connection |
+| `NEXT_PUBLIC_API_URL` | Frontend → backend URL (default `http://localhost:3001/api`) |
 
-### 2. Browse Database Schema
+---
 
-1. Go to **Catalog** page
-2. Select a connection from the dropdown
-3. Expand schemas to see tables
-4. Expand tables to see columns
-5. Click **Query** on any table to start a query
-
-### 3. Execute SQL Queries
-
-1. Navigate to **Query** page
-2. Select a database connection
-3. Write your SQL query in the editor
-4. Click **Execute** or press `Ctrl+Enter` (Cmd+Enter on Mac)
-5. View results in the table below
-
-**Security Features:**
-- SQL injection patterns are blocked
-- Query timeout: 30 seconds max
-- Rate limit: 10 queries per minute
-- Read-only mode recommended for production
-
-### 4. View Query History
-
-The **Dashboard** shows:
-- Total connections count
-- Queries executed today
-- Recent query history with status and execution time
-
-## API Documentation
-
-### Interactive Documentation
-
-Visit http://localhost:3001/api/docs for interactive Swagger documentation.
-
-### Key Endpoints
-
-#### Connections
-```
-POST   /api/connections           - Create connection
-GET    /api/connections           - List all connections
-GET    /api/connections/:id       - Get connection details
-DELETE /api/connections/:id       - Delete connection
-POST   /api/connections/:id/test  - Test connection
-```
-
-#### Schema Discovery
-```
-GET /api/connections/:id/schema/schemas                  - List schemas
-GET /api/connections/:id/schema/tables                   - List tables
-GET /api/connections/:id/schema/tables/:table/columns    - Get columns
-```
-
-#### Query Execution
-```
-POST /api/query          - Execute SQL query
-GET  /api/query/history  - Get query history
-GET  /api/query/:id      - Get query details
-```
-
-### Example API Usage
-
-```bash
-# Create a connection
-curl -X POST http://localhost:3001/api/connections \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My Database",
-    "type": "postgresql",
-    "host": "localhost",
-    "port": 5432,
-    "username": "admin",
-    "password": "admin123",
-    "database": "datagate"
-  }'
-
-# Execute a query
-curl -X POST http://localhost:3001/api/query \
-  -H "Content-Type: application/json" \
-  -d '{
-    "connectionId": "550e8400-e29b-41d4-a716-446655440000",
-    "sql": "SELECT * FROM connections LIMIT 10"
-  }'
-```
-
-## Project Structure
-
-```
-datagate/
-├── packages/
-│   ├── backend/              # NestJS API
-│   │   ├── src/
-│   │   │   ├── main.ts
-│   │   │   ├── app.module.ts
-│   │   │   ├── database/
-│   │   │   │   ├── entities/     # TypeORM entities
-│   │   │   │   └── migrations/   # Database migrations
-│   │   │   └── modules/
-│   │   │       ├── encryption/   # AES-256-GCM encryption
-│   │   │       ├── connections/  # Connection CRUD
-│   │   │       ├── schema/       # Schema discovery
-│   │   │       └── queries/      # Query execution
-│   │   └── package.json
-│   └── frontend/             # Next.js App
-│       ├── app/
-│       │   ├── page.tsx          # Dashboard
-│       │   ├── connections/      # Connection Manager
-│       │   ├── query/            # Query Interface
-│       │   └── catalog/          # Data Catalog
-│       ├── components/
-│       ├── lib/
-│       │   └── api.ts            # API client
-│       └── package.json
-├── docker-compose.yml        # PostgreSQL + MySQL
-├── scripts/
-│   └── setup.sh              # Setup script
-├── .env.example
-└── package.json              # Root workspace
-```
-
-## Security Features
-
-### Credential Encryption
-- **Algorithm**: AES-256-GCM (authenticated encryption)
-- **Key Storage**: Environment variable (not in code/database)
-- **Format**: `iv:authTag:encryptedData` (all in hex)
-
-### SQL Injection Prevention
-- Pattern-based validation (blocks dangerous SQL)
-- Query timeout enforcement (30 seconds)
-- Rate limiting (10 queries/minute)
-
-### API Security
-- CORS configuration
-- Input validation (class-validator)
-- Throttling (30 requests/minute)
-- Never logs credentials or passwords
-
-## Testing
-
-### Test with Sample Databases
-
-The docker-compose setup includes:
-
-**PostgreSQL** (Metadata DB)
-- Host: localhost
-- Port: 5432
-- Database: datagate
-- Username: admin
-- Password: admin123
-
-**MySQL** (Sample DB)
-- Host: localhost
-- Port: 3306
-- Database: sampledb
-- Username: testuser
-- Password: testpass
-
-### Run Backend Tests
-
-```bash
-cd packages/backend
-pnpm test              # Unit tests
-pnpm test:e2e          # Integration tests
-```
-
-## Development
-
-### Database Migrations
+## Database Migrations
 
 ```bash
 cd packages/backend
 
-# Generate new migration
-pnpm run migration:generate -- src/database/migrations/YourMigrationName
-
-# Run migrations
+# Run all pending migrations
 pnpm run migration:run
+
+# Generate a new migration after entity changes
+pnpm run migration:generate -- src/database/migrations/MyMigrationName
 
 # Revert last migration
 pnpm run migration:revert
 ```
 
-### Troubleshooting
+---
+
+## Module Overview
+
+### Backend (`packages/backend/src/modules/`)
+
+| Module | Description |
+|---|---|
+| `auth` | JWT login/register, organization context |
+| `connections` | CRUD for DB connections (encrypted credentials) |
+| `schema` | Schema/table/column discovery |
+| `queries` | SQL execution, history, rate limiting |
+| `cross-query` | FDW-based cross-database join execution |
+| `transformations` | SQL transformation pipelines |
+| `pipelines` | DAG-based data pipelines with scheduling |
+| `notebooks` | Multi-cell SQL notebooks |
+| `data-quality` | Column profiling + rule-based quality checks |
+| `catalog` | OpenMetadata push integration |
+| `nl2sql` | Natural language → SQL via AI providers |
+| `settings` | Per-organization AI, query, and catalog config |
+| `ingestion` | Import data from external sources |
+| `lineage` | Data lineage tracking |
+
+### Frontend (`packages/frontend/app/`)
+
+| Route | Description |
+|---|---|
+| `/` | Dashboard — metrics, recent queries, catalog status |
+| `/connections` | Manage database connections |
+| `/catalog` | Schema tree browser with profiling |
+| `/query` | SQL query editor |
+| `/notebooks` | SQL notebooks |
+| `/cross-query` | Visual cross-database query builder |
+| `/pipelines` | Pipeline editor and run history |
+| `/quality` | Data quality checks and profiles |
+| `/settings` | Organization settings (AI, SQL safety, catalog) |
+
+---
+
+## Cross-Database Queries (FDW)
+
+DataGate uses PostgreSQL Foreign Data Wrappers to join tables across different database connections.
+
+**How it works:**
+1. User selects connections and tables in the visual builder
+2. Backend creates temporary foreign tables in an org-scoped schema
+3. Generates and executes the JOIN query
+4. Drops the temporary tables after execution
+
+**Requirements:**
+- Metadata DB must be PostgreSQL
+- `postgres_fdw` extension must exist in the metadata DB
+- `admin` user must have superuser (dev) or `GRANT USAGE ON FOREIGN DATA WRAPPER postgres_fdw` (prod)
+
+---
+
+## API Reference
+
+Interactive docs at http://localhost:3001/api/docs (Swagger).
+
+Key endpoint groups:
+
+```
+POST   /api/auth/login
+POST   /api/auth/register
+
+GET    /api/connections
+POST   /api/connections
+POST   /api/connections/:id/test
+
+GET    /api/connections/:id/schema/tables
+GET    /api/connections/:id/schema/tables/:table/columns
+
+POST   /api/query
+GET    /api/query/history
+
+POST   /api/cross-query/execute
+POST   /api/cross-query/preview-sql
+
+GET    /api/data-quality/profiles
+POST   /api/data-quality/profiles
+GET    /api/data-quality/checks
+POST   /api/data-quality/checks
+POST   /api/data-quality/checks/:id/run
+
+POST   /api/catalog/test-connection
+POST   /api/catalog/sync
+
+GET    /api/settings
+PATCH  /api/settings
+```
+
+---
+
+## Testing
+
+```bash
+# Backend unit tests
+cd packages/backend
+pnpm test
+
+# Backend e2e tests
+pnpm test:e2e
+
+# Frontend build check
+cd packages/frontend
+pnpm build
+```
+
+---
+
+## Troubleshooting
+
+**`postgres_fdw` permission denied during migration:**
+```bash
+# Docker
+bash scripts/setup-fdw.sh
+
+# Local
+psql -U $(whoami) -d <db-name> -f scripts/setup-fdw.sql
+```
+
+**`database "X" does not exist` on migration run:**
+Check `DB_DATABASE` in your `.env` matches the database the setup script created.
 
 **Port already in use:**
 ```bash
-# Check what's using port 3001 (backend)
-lsof -i :3001
-
-# Check what's using port 5432 (postgres)
-lsof -i :5432
+lsof -i :3001   # backend
+lsof -i :5432   # postgres
+lsof -i :3306   # mysql
 ```
 
-**Docker issues:**
+**Docker clean restart:**
 ```bash
-# View logs
-docker compose logs -f
-
-# Restart services
-docker compose restart
-
-# Clean restart
 docker compose down -v
 docker compose up -d
+cd packages/backend && pnpm run migration:run
 ```
 
-**Frontend not connecting to backend:**
+**Frontend not reaching backend:**
 - Check `NEXT_PUBLIC_API_URL` in `.env`
-- Verify backend is running on port 3001
+- Verify backend is on port 3001
 - Check browser console for CORS errors
 
-## Production Deployment
+---
 
-### Environment Variables
-
-Set these in production:
+## Production Notes
 
 ```bash
 NODE_ENV=production
-ENCRYPTION_KEY=<64-char-hex-string>
-DB_HOST=<production-postgres-host>
+ENCRYPTION_KEY=<64-char-hex>
+JWT_SECRET=<64-char-hex>
+DB_HOST=<prod-postgres-host>
 DB_PASSWORD=<strong-password>
 CORS_ORIGIN=<frontend-url>
 ```
 
-### Build for Production
-
-```bash
-# Build both apps
-pnpm build
-
-# Start production servers
-pnpm start
+For FDW in production, use granular grants instead of superuser:
+```sql
+GRANT USAGE ON FOREIGN DATA WRAPPER postgres_fdw TO app_user;
 ```
-
-### Security Checklist
-
-- [ ] Change default database passwords
-- [ ] Use strong encryption key
-- [ ] Enable SSL for database connections
-- [ ] Configure CORS for specific origins
-- [ ] Set up authentication/authorization
-- [ ] Use HTTPS in production
-- [ ] Enable audit logging
-- [ ] Regular security updates
-
-## Roadmap
-
-### Future Enhancements
-
-- [ ] **Authentication** - JWT-based user authentication
-- [ ] **More Databases** - MongoDB, Snowflake, SQL Server, Oracle
-- [ ] **Query Builder** - Visual query builder UI
-- [ ] **Data Exports** - CSV, Excel, JSON export
-- [ ] **Scheduled Queries** - Cron-based query execution
-- [ ] **Webhooks** - Notify external systems on query completion
-- [ ] **Collaboration** - Share queries, add comments
-- [ ] **Advanced Security** - SSO, field-level encryption, VPC peering
-- [ ] **Performance** - Query result streaming, Redis caching
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Write tests
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License.
-
-## Support
-
-For issues and questions:
-- Open an issue on GitHub
-- Check the [Swagger documentation](http://localhost:3001/api/docs)
-- Review the code comments
 
 ---
 
-**Built with ❤️ for Multi-Database Integration**
+## License
+
+MIT

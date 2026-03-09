@@ -17,8 +17,7 @@ export class AddTransformations1708100000000 implements MigrationInterface {
         status TEXT NOT NULL DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_run_at TIMESTAMP,
-        FOREIGN KEY (source_connection_id) REFERENCES connections(id) ON DELETE CASCADE,
-        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+        FOREIGN KEY (source_connection_id) REFERENCES connections(id) ON DELETE CASCADE
       )
     `);
 
@@ -35,8 +34,7 @@ export class AddTransformations1708100000000 implements MigrationInterface {
         rows_processed INTEGER,
         status TEXT NOT NULL,
         error_message TEXT,
-        FOREIGN KEY (transformation_id) REFERENCES transformations(id) ON DELETE CASCADE,
-        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+        FOREIGN KEY (transformation_id) REFERENCES transformations(id) ON DELETE CASCADE
       )
     `);
 

@@ -30,128 +30,32 @@ export class AddOrganizationIdToExistingTables1708300000000 implements Migration
       throw new Error('Failed to create or find default organization');
     }
 
-    // Add organization_id to connections table
-    await queryRunner.query(`
-      ALTER TABLE connections ADD COLUMN organization_id TEXT
-    `);
+    // Helper: add organization_id column + FK + index to a table, skipping if already present
+    const addOrgId = async (table: string, constraint: string, index: string) => {
+      await queryRunner.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS organization_id TEXT`);
+      await queryRunner.query(`UPDATE ${table} SET organization_id = '${defaultOrgId}' WHERE organization_id IS NULL`);
+      await queryRunner.query(`ALTER TABLE ${table} ALTER COLUMN organization_id SET NOT NULL`);
+      await queryRunner.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '${constraint}') THEN
+            ALTER TABLE ${table} ADD CONSTRAINT ${constraint}
+            FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+          END IF;
+        END $$
+      `);
+      await queryRunner.query(`CREATE INDEX IF NOT EXISTS ${index} ON ${table}(organization_id)`);
+    };
 
-    await queryRunner.query(`
-      UPDATE connections SET organization_id = '${defaultOrgId}' WHERE organization_id IS NULL
-    `);
+    await addOrgId('connections',        'fk_connections_organization',        'idx_connections_organization_id');
+    await addOrgId('query_history',      'fk_query_history_organization',      'idx_query_history_organization_id');
+    await addOrgId('cached_results',     'fk_cached_results_organization',     'idx_cached_results_organization_id');
+    await addOrgId('transformations',    'fk_transformations_organization',    'idx_transformations_organization_id');
+    await addOrgId('transformation_runs','fk_transformation_runs_organization','idx_transformation_runs_organization_id');
 
-    await queryRunner.query(`
-      ALTER TABLE connections ALTER COLUMN organization_id SET NOT NULL
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE connections ADD CONSTRAINT fk_connections_organization
-      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
-    `);
-
-    await queryRunner.query(`
-      CREATE INDEX idx_connections_organization_id ON connections(organization_id)
-    `);
-
-    // Add organization_id to query_history table
-    await queryRunner.query(`
-      ALTER TABLE query_history ADD COLUMN organization_id TEXT
-    `);
-
-    await queryRunner.query(`
-      UPDATE query_history SET organization_id = '${defaultOrgId}' WHERE organization_id IS NULL
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE query_history ALTER COLUMN organization_id SET NOT NULL
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE query_history ADD CONSTRAINT fk_query_history_organization
-      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
-    `);
-
-    await queryRunner.query(`
-      CREATE INDEX idx_query_history_organization_id ON query_history(organization_id)
-    `);
-
-    // Add organization_id to cached_results table
-    await queryRunner.query(`
-      ALTER TABLE cached_results ADD COLUMN organization_id TEXT
-    `);
-
-    await queryRunner.query(`
-      UPDATE cached_results SET organization_id = '${defaultOrgId}' WHERE organization_id IS NULL
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE cached_results ALTER COLUMN organization_id SET NOT NULL
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE cached_results ADD CONSTRAINT fk_cached_results_organization
-      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
-    `);
-
-    await queryRunner.query(`
-      CREATE INDEX idx_cached_results_organization_id ON cached_results(organization_id)
-    `);
-
-    // Add organization_id to transformations table
-    await queryRunner.query(`
-      ALTER TABLE transformations ADD COLUMN organization_id TEXT
-    `);
-
-    await queryRunner.query(`
-      UPDATE transformations SET organization_id = '${defaultOrgId}' WHERE organization_id IS NULL
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE transformations ALTER COLUMN organization_id SET NOT NULL
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE transformations ADD CONSTRAINT fk_transformations_organization
-      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
-    `);
-
-    await queryRunner.query(`
-      CREATE INDEX idx_transformations_organization_id ON transformations(organization_id)
-    `);
-
-    // Add organization_id to transformation_runs table
-    await queryRunner.query(`
-      ALTER TABLE transformation_runs ADD COLUMN organization_id TEXT
-    `);
-
-    await queryRunner.query(`
-      UPDATE transformation_runs SET organization_id = '${defaultOrgId}' WHERE organization_id IS NULL
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE transformation_runs ALTER COLUMN organization_id SET NOT NULL
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE transformation_runs ADD CONSTRAINT fk_transformation_runs_organization
-      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
-    `);
-
-    await queryRunner.query(`
-      CREATE INDEX idx_transformation_runs_organization_id ON transformation_runs(organization_id)
-    `);
-
-    // Create composite indexes for common query patterns
-    await queryRunner.query(`
-      CREATE INDEX idx_connections_org_name ON connections(organization_id, name)
-    `);
-
-    await queryRunner.query(`
-      CREATE INDEX idx_transformations_org_status ON transformations(organization_id, status)
-    `);
-
-    await queryRunner.query(`
-      CREATE INDEX idx_query_history_org_executed ON query_history(organization_id, executed_at DESC)
-    `);
+    // Composite indexes
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_connections_org_name ON connections(organization_id, name)`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_transformations_org_status ON transformations(organization_id, status)`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_query_history_org_executed ON query_history(organization_id, executed_at DESC)`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

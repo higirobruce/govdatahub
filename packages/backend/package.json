@@ -22,7 +22,8 @@
     "typeorm": "tsx ./node_modules/typeorm/cli.js",
     "migration:generate": "tsx ./node_modules/typeorm/cli.js migration:generate -d src/database/data-source.ts",
     "migration:run": "tsx ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
-    "migration:revert": "tsx ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts"
+    "migration:revert": "tsx ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts",
+    "seed": "tsx src/database/seed.ts"
   },
   "dependencies": {
     "@clickhouse/client": "^1.17.0",

@@ -46,8 +46,21 @@ until docker compose exec -T mysql mysqladmin ping -h localhost -u root -prootpa
     sleep 1
 done
 
+# Run migrations
+echo "Running database migrations..."
+cd packages/backend
+pnpm run migration:run
+
+# Seed default data
+echo "Seeding default data..."
+pnpm run seed
+cd ../..
+
 echo ""
 echo "✅ Setup complete!"
+echo ""
+echo "  Login:    admin@datagate.dev"
+echo "  Password: admin123"
 echo ""
 echo "Next steps:"
 echo "  1. Run 'pnpm dev' to start development servers"

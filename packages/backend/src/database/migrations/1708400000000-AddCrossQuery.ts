@@ -4,10 +4,13 @@ export class AddCrossQuery1708400000000 implements MigrationInterface {
   name = 'AddCrossQuery1708400000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Install postgres_fdw extension
-    await queryRunner.query(`
-      CREATE EXTENSION IF NOT EXISTS postgres_fdw
-    `);
+    // Install postgres_fdw extension (requires superuser; skip gracefully if already exists or no permission)
+    try {
+      await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS postgres_fdw`);
+    } catch (e: any) {
+      if (!e.message?.includes('permission denied')) throw e;
+      // Extension must be created by a superuser outside this migration
+    }
 
     // Create fdw_servers table
     await queryRunner.query(`

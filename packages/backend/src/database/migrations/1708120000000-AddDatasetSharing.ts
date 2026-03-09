@@ -24,9 +24,7 @@ export class AddDatasetSharing1708120000000 implements MigrationInterface {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_accessed_at TIMESTAMP,
-        access_count INTEGER DEFAULT 0,
-        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+        access_count INTEGER DEFAULT 0
       )
     `);
 
