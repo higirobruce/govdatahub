@@ -25,22 +25,12 @@ export class AuthController {
   @Post('register')
   @Public()
   @ApiOperation({
-    summary: 'Register new user',
-    description: 'Create a new user account. First user will become super_admin with default organization.',
+    summary: 'Bootstrap first super_admin',
+    description: 'Only works when no users exist in the system. All subsequent users must be invited by an org_admin.',
   })
-  @ApiResponse({
-    status: 201,
-    description: 'User registered successfully',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid input or organization not found',
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'User with this email already exists',
-  })
+  @ApiResponse({ status: 201, description: 'Super admin created', type: AuthResponseDto })
+  @ApiResponse({ status: 400, description: 'System already has users — use invite flow' })
+  @ApiResponse({ status: 409, description: 'User with this email already exists' })
   async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
     return this.authService.register(registerDto);
   }

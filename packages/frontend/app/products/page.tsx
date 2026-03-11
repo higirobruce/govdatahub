@@ -10,6 +10,8 @@ import { useToast } from '@/components/ui/toast';
 import { LifecycleBadge, NEXT_STATES, TRANSITION_LABELS, ProductStatus } from '@/components/products/LifecycleBadge';
 import { ProductForm } from '@/components/products/ProductForm';
 import { PortForm } from '@/components/products/PortForm';
+import { useAuth } from '@/lib/auth-context';
+import { UserRole } from '@/types/auth';
 import {
   Package, Plus, ChevronRight, Database, Layers,
   Trash2, ArrowRight, GitBranch, Edit3,
@@ -31,8 +33,14 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: 'decommissioned', label: 'Decommissioned' },
 ];
 
+// Transitions that require data_steward or above
+const GOVERNANCE_TRANSITIONS: ProductStatus[] = ['active', 'deprecated', 'decommissioned'];
+const GOVERNANCE_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.DATA_STEWARD];
+
 export default function ProductsPage() {
+  const { user } = useAuth();
   const { showToast } = useToast();
+  const canGovernance = GOVERNANCE_ROLES.includes(user?.role as UserRole);
   const [statusFilter, setStatusFilter] = useState('');
   const [selected, setSelected] = useState<any>(null);
   const [view, setView] = useState<'detail' | 'create' | 'edit' | 'add-port' | 'edit-port'>('detail');
@@ -217,7 +225,9 @@ export default function ProductsPage() {
           {/* Lifecycle controls */}
           {nextStates.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
-              {nextStates.map(ns => (
+              {nextStates
+                .filter(ns => canGovernance || !GOVERNANCE_TRANSITIONS.includes(ns))
+                .map(ns => (
                 <Button
                   key={ns}
                   size="sm"

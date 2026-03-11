@@ -25,7 +25,51 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+function AppLayout({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  const pathname = usePathname();
+  const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/landing' || pathname.startsWith('/auth/');
+
+  if (isAuthPage) {
+    return <main>{children}</main>;
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  return (
+    <div className="flex min-h-screen bg-[#e8e8e8]">
+      <Sidebar />
+      <div className="flex-1 flex flex-col bg-white">
+        <MainContent>{children}</MainContent>
+      </div>
+    </div>
+  );
+}
+
+function LayoutContent({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isPublicPage = pathname === '/login' || pathname === '/register' || pathname === '/landing' || pathname.startsWith('/auth/');
+
+  return (
+    <>
+      {isPublicPage ? (
+        <main>{children}</main>
+      ) : (
+        <ProtectedRoute>
+          <AppLayout>{children}</AppLayout>
+        </ProtectedRoute>
+      )}
+    </>
+  );
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>

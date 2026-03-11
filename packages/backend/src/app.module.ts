@@ -18,6 +18,7 @@ import {
   TransformationRun,
   Organization,
   User,
+  UserInvite,
   FdwServer,
   SavedCrossQuery,
   SavedQuery,
@@ -53,6 +54,8 @@ import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { DataQualityModule } from './modules/data-quality/data-quality.module';
 import { DataProductsModule } from './modules/data-products/data-products.module';
+import { UsersModule } from './modules/users/users.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -97,6 +100,7 @@ import { DataProductsModule } from './modules/data-products/data-products.module
           QualityCheckRun,
           DataProduct,
           DataProductPort,
+          UserInvite,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -141,6 +145,8 @@ import { DataProductsModule } from './modules/data-products/data-products.module
     CatalogModule,
     DataQualityModule,
     DataProductsModule,
+    UsersModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
