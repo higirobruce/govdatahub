@@ -627,6 +627,46 @@ export const api = {
     getCheckRuns: (id: string): Promise<any[]> =>
       request(`/data-quality/checks/${id}/runs`),
   },
+
+  dataProducts: {
+    list: (params?: { status?: string; domain?: string }): Promise<any[]> => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.domain) qs.set('domain', params.domain);
+      const q = qs.toString();
+      return request(`/data-products${q ? `?${q}` : ''}`);
+    },
+
+    stats: (): Promise<Record<string, number>> =>
+      request('/data-products/stats'),
+
+    get: (id: string): Promise<any> =>
+      request(`/data-products/${id}`),
+
+    create: (body: { name: string; domain?: string; description?: string; version?: string }): Promise<any> =>
+      request('/data-products', { method: 'POST', body: JSON.stringify(body) }),
+
+    update: (id: string, body: any): Promise<any> =>
+      request(`/data-products/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+    delete: (id: string): Promise<void> =>
+      request(`/data-products/${id}`, { method: 'DELETE' }),
+
+    transition: (id: string, status: string): Promise<any> =>
+      request(`/data-products/${id}/transition`, { method: 'POST', body: JSON.stringify({ status }) }),
+
+    listPorts: (id: string): Promise<any[]> =>
+      request(`/data-products/${id}/ports`),
+
+    addPort: (id: string, body: any): Promise<any> =>
+      request(`/data-products/${id}/ports`, { method: 'POST', body: JSON.stringify(body) }),
+
+    updatePort: (id: string, portId: string, body: any): Promise<any> =>
+      request(`/data-products/${id}/ports/${portId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+    deletePort: (id: string, portId: string): Promise<void> =>
+      request(`/data-products/${id}/ports/${portId}`, { method: 'DELETE' }),
+  },
 };
 
 export { ApiError };
