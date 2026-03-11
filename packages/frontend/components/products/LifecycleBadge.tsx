@@ -19,12 +19,13 @@ export const NEXT_STATES: Record<ProductStatus, ProductStatus[]> = {
   decommissioned: [],
 };
 
+// Labels keyed by TARGET state (the state you're transitioning TO)
 export const TRANSITION_LABELS: Record<ProductStatus, string> = {
-  draft:          'Send for Validation',
-  validated:      'Publish',
-  active:         'Deprecate',
-  deprecated:     'Decommission',
-  decommissioned: '',
+  draft:          'Revert to Draft',
+  validated:      'Send for Validation',
+  active:         'Publish',
+  deprecated:     'Deprecate',
+  decommissioned: 'Decommission',
 };
 
 export function LifecycleBadge({ status }: { status: ProductStatus }) {
