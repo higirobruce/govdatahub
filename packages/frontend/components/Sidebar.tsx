@@ -26,9 +26,10 @@ import {
   ShieldCheck,
   Library,
   Package,
-  ShieldAlert,
   Users,
   ChevronDown,
+  Building2,
+  LayoutGrid,
 } from 'lucide-react';
 
 interface NavItem {
@@ -112,10 +113,16 @@ export function Sidebar() {
         { id: 'lineage', label: 'Data Lineage', href: '/lineage', icon: <Network /> },
       ],
     },
+    ...(isSuperAdmin ? [{
+      title: 'PLATFORM ADMIN',
+      items: [
+        { id: 'admin-overview', label: 'Overview', href: '/admin', icon: <LayoutGrid />, exact: true },
+        { id: 'admin-orgs', label: 'Organizations', href: '/admin/organizations', icon: <Building2 /> },
+      ],
+    }] : []),
   ];
 
   const bottomNavItems: NavItem[] = [
-    ...(isSuperAdmin ? [{ id: 'admin', label: 'Platform Admin', href: '/admin', icon: <ShieldAlert /> }] : []),
     ...(isOrgAdmin   ? [{ id: 'users', label: 'Users & Access', href: '/settings/users', icon: <Users /> }] : []),
     { id: 'settings', label: 'Settings', href: '/settings', icon: <Settings />, exact: true },
     { id: 'support', label: 'Support', href: '/support', icon: <HelpCircle /> },
