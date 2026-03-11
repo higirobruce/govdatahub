@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { validateEnv } from './config/env.validation';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
@@ -30,6 +31,8 @@ import {
   TableProfile,
   QualityCheck,
   QualityCheckRun,
+  DataProduct,
+  DataProductPort,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -49,6 +52,7 @@ import { NotebooksModule } from './modules/notebooks/notebooks.module';
 import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { DataQualityModule } from './modules/data-quality/data-quality.module';
+import { DataProductsModule } from './modules/data-products/data-products.module';
 
 @Module({
   imports: [
@@ -91,6 +95,8 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module';
           TableProfile,
           QualityCheck,
           QualityCheckRun,
+          DataProduct,
+          DataProductPort,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -113,6 +119,9 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module';
     // Scheduling (for cleanup tasks)
     ScheduleModule.forRoot(),
 
+    // Event bus (lifecycle events)
+    EventEmitterModule.forRoot({ wildcard: true }),
+
     // Feature modules
     EncryptionModule,
     AuthModule,
@@ -131,6 +140,7 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module';
     PipelinesModule,
     CatalogModule,
     DataQualityModule,
+    DataProductsModule,
   ],
   controllers: [AppController],
   providers: [
