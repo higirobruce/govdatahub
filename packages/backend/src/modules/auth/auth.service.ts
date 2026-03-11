@@ -59,7 +59,10 @@ export class AuthService {
         organizationId = savedOrg.id;
         role = UserRole.SUPER_ADMIN;
       } else {
-        throw new BadRequestException('Organization ID is required');
+        // System already initialized — block open self-registration
+        throw new BadRequestException(
+          'Self-registration is disabled. Ask your organization admin to invite you.',
+        );
       }
     }
 

@@ -667,6 +667,35 @@ export const api = {
     deletePort: (id: string, portId: string): Promise<void> =>
       request(`/data-products/${id}/ports/${portId}`, { method: 'DELETE' }),
   },
+
+  users: {
+    list: (): Promise<any[]> => request('/users'),
+    listInvites: (): Promise<any[]> => request('/users/invites'),
+    invite: (body: { email: string; role: string }): Promise<any> =>
+      request('/users/invites', { method: 'POST', body: JSON.stringify(body) }),
+    revokeInvite: (id: string): Promise<void> =>
+      request(`/users/invites/${id}`, { method: 'DELETE' }),
+    validateInviteToken: (token: string): Promise<{ email: string; role: string; organizationId: string }> =>
+      request(`/users/invites/validate/${token}`),
+    acceptInvite: (body: { token: string; firstName: string; lastName: string; password: string }): Promise<any> =>
+      request('/users/invites/accept', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: { role?: string; isActive?: boolean }): Promise<any> =>
+      request(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string): Promise<void> =>
+      request(`/users/${id}`, { method: 'DELETE' }),
+  },
+
+  admin: {
+    stats: (): Promise<any> => request('/admin/stats'),
+    listOrganizations: (): Promise<any[]> => request('/admin/organizations'),
+    getOrganization: (id: string): Promise<any> => request(`/admin/organizations/${id}`),
+    createOrganization: (body: { name: string; subdomain: string }): Promise<any> =>
+      request('/admin/organizations', { method: 'POST', body: JSON.stringify(body) }),
+    updateOrganization: (id: string, body: { name?: string; isActive?: boolean }): Promise<any> =>
+      request(`/admin/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    listUsersInOrg: (orgId: string): Promise<any[]> =>
+      request(`/admin/organizations/${orgId}/users`),
+  },
 };
 
 export { ApiError };

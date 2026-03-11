@@ -26,3 +26,4 @@ export type { CheckType, CheckStatus, RunStatus } from './quality-check.entity';
 export { QualityCheckRun } from './quality-check-run.entity';
 export { DataProduct, DataProductPort } from './data-product.entity';
 export type { ProductStatus, PortType, PortTechnology, PortSchema } from './data-product.entity';
+export { UserInvite } from './user-invite.entity';

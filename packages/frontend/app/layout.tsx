@@ -16,7 +16,7 @@ import { UserMenu } from '@/components/UserMenu';
 function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
   const pathname = usePathname();
-  const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/landing';
+  const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/landing' || pathname.startsWith('/auth/');
 
   // Auth pages and landing page - no sidebar
   if (isAuthPage) {
@@ -44,7 +44,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPublicPage = pathname === '/login' || pathname === '/register' || pathname === '/landing';
+  const isPublicPage = pathname === '/login' || pathname === '/register' || pathname === '/landing' || pathname.startsWith('/auth/');
 
   return (
     <>

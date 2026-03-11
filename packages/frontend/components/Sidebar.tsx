@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { UserMenu } from '@/components/UserMenu';
+import { useAuth } from '@/lib/auth-context';
+import { UserRole } from '@/types/auth';
 import {
   Home,
   Database,
@@ -17,13 +19,15 @@ import {
   Link as LinkIcon,
   Menu,
   X,
-  BarChart3,
   LayoutDashboard,
   Network,
   BookOpen,
   Workflow,
   ShieldCheck,
   Package,
+  ShieldAlert,
+  Users,
+  ChevronDown,
 } from 'lucide-react';
 
 interface NavItem {
@@ -31,16 +35,37 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  exact?: boolean;
 }
 
 interface NavSection {
   title: string;
   items: NavItem[];
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
 }
 
 export function Sidebar() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
+    new Set(['DATA OPERATIONS'])
+  );
+
+  const toggleSection = (title: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
+  };
+  const { user } = useAuth();
+  const role = user?.role as UserRole | undefined;
+
+  const isSuperAdmin  = role === UserRole.SUPER_ADMIN;
+  const isOrgAdmin    = role === UserRole.ORG_ADMIN || isSuperAdmin;
+  const isStewardPlus = role === UserRole.DATA_STEWARD || isOrgAdmin;
 
   const navSections: NavSection[] = [
     {
@@ -74,6 +99,8 @@ export function Sidebar() {
     },
     {
       title: 'DATA OPERATIONS',
+      collapsible: true,
+      defaultCollapsed: true,
       items: [
         { id: 'transformations', label: 'Transformations', href: '/transformations', icon: <GitBranch /> },
         { id: 'pipelines', label: 'Pipelines', href: '/pipelines', icon: <Workflow /> },
@@ -85,13 +112,15 @@ export function Sidebar() {
   ];
 
   const bottomNavItems: NavItem[] = [
-    { id: 'settings', label: 'Settings', href: '/settings', icon: <Settings /> },
+    ...(isSuperAdmin ? [{ id: 'admin', label: 'Platform Admin', href: '/admin', icon: <ShieldAlert /> }] : []),
+    ...(isOrgAdmin   ? [{ id: 'users', label: 'Users & Access', href: '/settings/users', icon: <Users /> }] : []),
+    { id: 'settings', label: 'Settings', href: '/settings', icon: <Settings />, exact: true },
     { id: 'support', label: 'Support', href: '/support', icon: <HelpCircle /> },
   ];
 
-  const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
-    return pathname.startsWith(href);
+  const isActive = (href: string, exact?: boolean) => {
+    if (href === '/' || exact) return pathname === href;
+    return pathname === href || pathname.startsWith(href + '/');
   };
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
@@ -150,11 +179,27 @@ export function Sidebar() {
         {navSections.map((section, sectionIdx) => (
           <div key={section.title} className={sectionIdx > 0 ? 'mt-4' : ''}>
             {/* Section Header */}
-            <div className="px-2.5 py-1.5 text-[10px] font-bold text-[#999999] tracking-wider">
-              {section.title}
-            </div>
+            {section.collapsible ? (
+              <button
+                onClick={() => toggleSection(section.title)}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 text-[10px] font-bold text-[#999999] tracking-wider hover:text-[#666666] transition-colors"
+              >
+                {section.title}
+                <ChevronDown
+                  className={cn(
+                    'w-3 h-3 transition-transform',
+                    collapsedSections.has(section.title) ? '-rotate-90' : ''
+                  )}
+                />
+              </button>
+            ) : (
+              <div className="px-2.5 py-1.5 text-[10px] font-bold text-[#999999] tracking-wider">
+                {section.title}
+              </div>
+            )}
 
             {/* Section Items */}
+            {(!section.collapsible || !collapsedSections.has(section.title)) && (
             <div className="mt-1">
               {section.items.map((item) => (
                 <Link
@@ -163,7 +208,7 @@ export function Sidebar() {
                   onClick={closeMobileMenu}
                   className={cn(
                     'flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-md mb-0.5',
-                    isActive(item.href)
+                    isActive(item.href, item.exact)
                       ? 'bg-[#f0f0f0] text-[#1a1a1a] font-medium'
                       : 'text-[#555555] hover:bg-[#f5f5f5]'
                   )}
@@ -175,6 +220,7 @@ export function Sidebar() {
                 </Link>
               ))}
             </div>
+            )}
           </div>
         ))}
       </nav>
@@ -188,7 +234,7 @@ export function Sidebar() {
             onClick={closeMobileMenu}
             className={cn(
               'flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-md mb-0.5',
-              isActive(item.href)
+              isActive(item.href, item.exact)
                 ? 'bg-[#f0f0f0] text-[#1a1a1a] font-medium'
                 : 'text-[#555555] hover:bg-[#f5f5f5]'
             )}
