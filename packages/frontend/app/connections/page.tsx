@@ -8,13 +8,14 @@ import ConnectionForm from '@/components/ConnectionManager/ConnectionForm';
 import ConnectionList from '@/components/ConnectionManager/ConnectionList';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
+import { Sheet } from '@/components/ui/sheet';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
-import { Plus, X, Database } from 'lucide-react';
+import { Plus, Database } from 'lucide-react';
 
 export default function ConnectionsPage() {
   const { showToast } = useToast();
-  const [showForm, setShowForm] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({
     isOpen: false,
     id: null,
@@ -29,31 +30,24 @@ export default function ConnectionsPage() {
   );
 
   const handleCreate = async (data: CreateConnectionDto) => {
-    try {
-      await api.connections.create(data);
-      mutate('/connections');
-      setShowForm(false);
-      showToast('Connection created successfully!', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Failed to create connection', 'error');
-      throw error;
-    }
+    await api.connections.create(data);
+    mutate('/connections');
+    setSheetOpen(false);
+    showToast('Connection created successfully!', 'success');
   };
 
   const handleDelete = async (id: string): Promise<void> => {
     setDeleteConfirm({ isOpen: true, id });
-    return;
   };
 
   const confirmDelete = async () => {
     if (!deleteConfirm.id) return;
-
     try {
       await api.connections.delete(deleteConfirm.id);
       mutate('/connections');
-      showToast('Connection deleted successfully!', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Failed to delete connection', 'error');
+      showToast('Connection deleted.', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete connection', 'error');
     }
   };
 
@@ -61,75 +55,66 @@ export default function ConnectionsPage() {
     try {
       const result = await api.connections.test(id) as { success: boolean; message: string };
       showToast(result.message, result.success ? 'success' : 'error');
-      return;
-    } catch (error: any) {
-      showToast(error.message || 'Failed to test connection', 'error');
-      return;
+    } catch (err: any) {
+      showToast(err.message || 'Failed to test connection', 'error');
     }
   };
+
+  const count = connections?.length ?? 0;
 
   return (
     <div className="w-full">
       <PageHeader
         title="Connections"
-        subtitle="Manage your database connections"
+        subtitle={count > 0 ? `${count} database connection${count !== 1 ? 's' : ''}` : 'Manage your database connections'}
         icon={Database}
         actions={
-          <Button onClick={() => setShowForm(!showForm)} variant={showForm ? 'outline' : 'default'}>
-            {showForm ? (
-              <>
-                <X className="h-4 w-4" />
-                Cancel
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" />
-                Add Connection
-              </>
-            )}
+          <Button onClick={() => setSheetOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Add Connection
           </Button>
         }
       />
 
-      {/* Connection Form */}
-      {showForm && (
-        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
-          <div className="px-6 py-5">
-            <h3 className="text-base font-semibold text-[#1a1a1a] mb-4">
-              New Database Connection
-            </h3>
-            <ConnectionForm onSubmit={handleCreate} />
-          </div>
+      {/* Error state */}
+      {error && (
+        <div className="mb-4 text-sm text-[#ef4444] bg-[#fee2e2] border border-[#fca5a5] rounded-xl px-4 py-3">
+          Failed to load connections: {error.message}
         </div>
       )}
 
-      {/* Connection List */}
-      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
-        <div className="px-6 py-5">
-          <h3 className="text-base font-semibold text-[#1a1a1a] mb-4">
-            Your Connections
-          </h3>
-          {error && (
-            <div className="text-[#ef4444] text-sm mb-4 bg-[#fee2e2] border border-[#fca5a5] rounded p-3">
-              Failed to load connections: {error.message}
-            </div>
-          )}
-          {!connections && !error && (
-            <div className="text-[#aaaaaa] text-sm">Loading connections...</div>
-          )}
-          {connections && connections.length > 0 ? (
-            <ConnectionList
-              connections={connections}
-              onDelete={handleDelete}
-              onTest={handleTest}
-            />
-          ) : connections && connections.length === 0 ? (
-            <div className="text-[#aaaaaa] text-sm">No connections yet. Add one to get started.</div>
-          ) : null}
+      {/* Loading skeleton */}
+      {!connections && !error && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-44 rounded-2xl border border-[#eeeeee] bg-[#f9f9f9] animate-pulse" />
+          ))}
         </div>
-      </div>
+      )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Connection cards */}
+      {connections && (
+        <ConnectionList
+          connections={connections}
+          onDelete={handleDelete}
+          onTest={handleTest}
+        />
+      )}
+
+      {/* New connection drawer */}
+      <Sheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title="New Connection"
+        description="Connect a database to start querying, transforming, and exploring your data."
+      >
+        <ConnectionForm
+          onSubmit={handleCreate}
+          onCancel={() => setSheetOpen(false)}
+        />
+      </Sheet>
+
+      {/* Delete confirmation */}
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
         onClose={() => setDeleteConfirm({ isOpen: false, id: null })}
