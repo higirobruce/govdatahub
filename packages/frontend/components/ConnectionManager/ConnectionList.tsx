@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Connection, ConnectionType } from '@/types';
 import { Button } from '@/components/ui/button';
-import { DbIcon, DB_BG, DB_BORDER, DB_LABELS } from '@/components/ui/db-icons';
+import { DbIcon, DB_BG, DB_BORDER, DB_LABELS, HIDDEN_TYPES } from '@/components/ui/db-icons';
 import { getCapabilityChips } from '@/lib/connection-capabilities';
 import { Database, Trash2, Zap, Lock } from 'lucide-react';
 
@@ -58,7 +58,7 @@ export default function ConnectionList({ connections, onDelete, onTest }: Connec
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-      {connections.map((connection) => {
+      {connections.filter((c) => !HIDDEN_TYPES.has(c.type as ConnectionType)).map((connection) => {
         const type = connection.type as ConnectionType;
         const chips = getCapabilityChips(type);
         const bg = DB_BG[type] ?? 'bg-gray-50';

@@ -3,24 +3,17 @@
 import { useState } from 'react';
 import { ConnectionType, CreateConnectionDto } from '@/types';
 import { Button } from '@/components/ui/button';
-import { DbIcon, DB_LABELS, DB_BORDER, DB_BG } from '@/components/ui/db-icons';
+import { DbIcon, DB_LABELS, DB_BORDER, DB_BG, HIDDEN_TYPES } from '@/components/ui/db-icons';
 
 interface ConnectionFormProps {
   onSubmit: (data: CreateConnectionDto) => Promise<void>;
   onCancel?: () => void;
 }
 
-const ALL_TYPES: ConnectionType[] = [
-  'postgresql',
-  'mysql',
-  'mongodb',
-  'redshift',
-  'snowflake',
-  'bigquery',
-  'sqlserver',
-  'clickhouse',
-  'sqlite',
-];
+const ALL_TYPES: ConnectionType[] = (
+  ['postgresql', 'mysql', 'mongodb', 'sqlserver', 'sqlite',
+   'redshift', 'snowflake', 'bigquery', 'clickhouse'] as ConnectionType[]
+).filter((t) => !HIDDEN_TYPES.has(t));
 
 const DEFAULT_PORTS: Record<ConnectionType, number | undefined> = {
   postgresql: 5432,
