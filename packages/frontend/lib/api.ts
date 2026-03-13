@@ -439,6 +439,12 @@ export const api = {
       request(`/ingestion/staged/${id}`, {
         method: 'DELETE',
       }),
+
+    deleteStagedDataBatch: (ids: string[]): Promise<{ deleted: number; failed: number }> =>
+      request('/ingestion/staged', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids }),
+      }),
   },
 
   // Settings

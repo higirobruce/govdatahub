@@ -347,6 +347,22 @@ export class IngestionController {
   }
 
   /**
+   * Batch delete staged datasets — avoids rate-limit pressure from N individual requests
+   */
+  @Delete('staged')
+  @ApiOperation({ summary: 'Batch delete staged datasets by IDs' })
+  async deleteStagedDataBatch(
+    @Body('ids') ids: string[],
+    @CurrentUser() user?: User
+  ): Promise<{ deleted: number; failed: number }> {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('ids must be a non-empty array');
+    }
+    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    return this.ingestionService.deleteStagedDataBatch(ids, organizationId);
+  }
+
+  /**
    * Convert ImportJob entity to response DTO
    */
   private toResponseDto(importJob: any): ImportJobResponseDto {

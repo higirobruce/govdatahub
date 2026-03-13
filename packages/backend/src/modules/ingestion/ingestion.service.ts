@@ -420,6 +420,41 @@ export class IngestionService {
   }
 
   /**
+   * Batch delete staged datasets by IDs (single request, no rate-limit pressure)
+   */
+  async deleteStagedDataBatch(
+    ids: string[],
+    organizationId: string
+  ): Promise<{ deleted: number; failed: number }> {
+    const records = await this.stagedDataRepository.find({
+      where: ids.map(id => ({ id, organizationId })),
+    });
+
+    let deleted = 0;
+    let failed = 0;
+
+    for (const record of records) {
+      try {
+        await this.stagingImporter['dataSource'].query(
+          `DROP TABLE IF EXISTS ${record.tableName}`
+        );
+      } catch (e) {
+        this.logger.warn(`Failed to drop table ${record.tableName}: ${e.message}`);
+      }
+      try {
+        await this.stagedDataRepository.delete({ id: record.id, organizationId });
+        deleted++;
+      } catch (e) {
+        this.logger.warn(`Failed to delete metadata for ${record.id}: ${e.message}`);
+        failed++;
+      }
+    }
+
+    this.logger.log(`Batch deleted ${deleted} staged datasets (${failed} failed)`);
+    return { deleted, failed };
+  }
+
+  /**
    * Get staged data by import job ID
    */
   async getStagedDataByJobId(
