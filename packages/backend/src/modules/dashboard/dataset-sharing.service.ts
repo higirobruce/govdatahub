@@ -490,10 +490,9 @@ export class DatasetSharingService {
     }
 
     // Get database driver
-    const config = this.encryptionService.decryptObject(connection.config) as any;
     const driver = await this.connectionsService.getDriver(
-      connection.type,
-      config,
+      connection.id,
+      share.organizationId,
     );
 
     try {
