@@ -99,8 +99,9 @@ export class QueriesService {
     const driver = await this.connectionsService.getDriver(dto.connectionId, organizationId);
 
     try {
+      const sql = this.substituteFilters(dto.sql, dto.filters);
       const result = await this.executeWithTimeout(
-        driver.query(dto.sql),
+        driver.query(sql),
         this.queryTimeout,
       );
 
@@ -151,6 +152,15 @@ export class QueriesService {
     }
 
     return JSON.parse(cached.results);
+  }
+
+  private substituteFilters(sql: string, filters?: Record<string, string>): string {
+    if (!filters || Object.keys(filters).length === 0) return sql;
+    return Object.entries(filters).reduce((acc, [key, value]) => {
+      // Escape single quotes to prevent SQL injection via filter values
+      const escaped = String(value).replace(/'/g, "''");
+      return acc.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), escaped);
+    }, sql);
   }
 
   private async executeWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
