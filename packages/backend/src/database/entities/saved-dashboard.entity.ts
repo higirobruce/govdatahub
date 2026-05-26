@@ -20,6 +20,12 @@ export class SavedDashboard {
   @Column('text', { name: 'organization_id' })
   organizationId: string;
 
+  @Column({ type: 'text', default: 'org' })
+  visibility: 'private' | 'org';
+
+  @Column({ type: 'text', name: 'created_by', nullable: true })
+  createdBy: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

@@ -12,6 +12,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SavedDashboardsService } from './saved-dashboards.service';
 import { CreateSavedDashboardDto } from './dto/create-saved-dashboard.dto';
@@ -22,19 +23,22 @@ import { UpdateSavedDashboardDto } from './dto/update-saved-dashboard.dto';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class SavedDashboardsController {
-  constructor(private readonly service: SavedDashboardsService) {}
+  constructor(
+    private readonly service: SavedDashboardsService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List all saved dashboards for the organization' })
   findAll(@Request() req: any) {
-    return this.service.findAll(req.user.organizationId);
+    return this.service.findAll(req.user.organizationId, req.user.id);
   }
 
   @Post()
   @ApiOperation({ summary: 'Create a new saved dashboard' })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateSavedDashboardDto, @Request() req: any) {
-    return this.service.create(dto, req.user.organizationId);
+    return this.service.create(dto, req.user.id, req.user.organizationId);
   }
 
   @Get(':id')
@@ -57,5 +61,19 @@ export class SavedDashboardsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string, @Request() req: any) {
     await this.service.remove(id, req.user.organizationId);
+  }
+
+  @Post(':id/share')
+  @ApiOperation({ summary: 'Generate a public share token for a dashboard' })
+  @ApiParam({ name: 'id', description: 'Dashboard ID' })
+  async share(@Param('id') id: string, @Request() req: any) {
+    const { token, expiresAt } = await this.service.generateShareToken(id, req.user.organizationId, this.jwtService);
+    const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
+    return {
+      token,
+      expiresAt,
+      shareUrl: `${frontendUrl}/dashboards/view/${token}`,
+      embedCode: `<iframe src="${frontendUrl}/dashboards/view/${token}" width="100%" height="600" frameborder="0" style="border:none;border-radius:8px;"></iframe>`,
+    };
   }
 }

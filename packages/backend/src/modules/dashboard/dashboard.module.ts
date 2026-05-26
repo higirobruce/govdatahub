@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import {
   DatasetShare,
   StagedData,
@@ -17,6 +19,7 @@ import { DashboardController } from './dashboard.controller';
 import { PublicDatasetController } from './public-dataset.controller';
 import { DashboardsController } from './dashboards.controller';
 import { SavedDashboardsController } from './saved-dashboards.controller';
+import { PublicDashboardsController } from './public-dashboards.controller';
 import { DatasetCatalogService } from './dataset-catalog.service';
 import { DatasetSharingService } from './dataset-sharing.service';
 import { DashboardsService } from './dashboards.service';
@@ -41,12 +44,21 @@ import { EncryptionModule } from '../encryption/encryption.module';
     ]),
     ConnectionsModule,
     EncryptionModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '7d' },
+      }),
+    }),
   ],
   controllers: [
     DashboardController,
     PublicDatasetController,
     DashboardsController,
     SavedDashboardsController,
+    PublicDashboardsController,
   ],
   providers: [DatasetCatalogService, DatasetSharingService, DashboardsService, SavedDashboardsService],
   exports: [DatasetCatalogService, DatasetSharingService, DashboardsService, SavedDashboardsService],
