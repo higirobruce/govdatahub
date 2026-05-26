@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsIn } from 'class-validator';
 
 export class CreateSavedDashboardDto {
   @IsString()
@@ -13,4 +13,9 @@ export class CreateSavedDashboardDto {
 
   @IsArray()
   layout: any[];
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['private', 'org'])
+  visibility?: 'private' | 'org';
 }
