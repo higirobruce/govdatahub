@@ -251,6 +251,18 @@ export const api = {
       request(`/saved-dashboards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     remove: (id: string): Promise<void> =>
       request(`/saved-dashboards/${id}`, { method: 'DELETE' }),
+    share: (id: string): Promise<{ token: string; expiresAt: string; shareUrl: string; embedCode: string }> =>
+      request(`/saved-dashboards/${id}/share`, { method: 'POST' }),
+  },
+
+  // Public Dashboards (no auth)
+  publicDashboards: {
+    get: async (token: string): Promise<any> => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const res = await fetch(`${baseUrl}/public/dashboards/${token}`);
+      if (!res.ok) throw new Error('Dashboard not found or link expired');
+      return res.json();
+    },
   },
 
   // Dashboard
