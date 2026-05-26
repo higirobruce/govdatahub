@@ -1,4 +1,4 @@
-export type ChartType = 'line' | 'bar' | 'pie' | 'scatter' | 'area' | 'radar' | 'heatmap' | 'gauge' | 'funnel' | 'kpi';
+export type ChartType = 'line' | 'bar' | 'pie' | 'scatter' | 'area' | 'radar' | 'heatmap' | 'gauge' | 'funnel' | 'kpi' | 'table';
 
 export interface DataSource {
   connectionId: string;
@@ -7,6 +7,11 @@ export interface DataSource {
   yColumn?: string;
   groupBy?: string;
   refreshInterval?: number; // seconds; 0 = never auto-refresh
+}
+
+export interface CrossFilter {
+  column: string;
+  value: string;
 }
 
 export interface ChartWidget {

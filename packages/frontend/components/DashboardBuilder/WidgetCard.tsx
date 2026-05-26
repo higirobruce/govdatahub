@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChartWidget } from './types';
-import { LineChart, BarChart, PieChart, ScatterChart, AreaChart, RadarChart, HeatmapChart, GaugeChart, FunnelChart, KpiCard } from '@/components/charts';
+import { ChartWidget, CrossFilter } from './types';
+import { LineChart, BarChart, PieChart, ScatterChart, AreaChart, RadarChart, HeatmapChart, GaugeChart, FunnelChart, KpiCard, TableChart } from '@/components/charts';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { GripVertical, Settings, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -13,9 +13,12 @@ interface WidgetCardProps {
   onSelect: () => void;
   onDelete: () => void;
   isPreviewMode: boolean;
+  globalFilters?: Record<string, string>;
+  crossFilter?: CrossFilter | null;
+  onCrossFilter?: (filter: CrossFilter) => void;
 }
 
-export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode }: WidgetCardProps) {
+export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode, globalFilters, crossFilter, onCrossFilter }: WidgetCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [liveData, setLiveData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,12 +29,20 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode }: Widget
     setIsLoading(true);
     setFetchError(null);
     try {
+      let sql = widget.dataSource.sql;
+      // Wrap with cross-filter if active
+      if (crossFilter) {
+        const safeCol = crossFilter.column.replace(/"/g, '');
+        const safeVal = crossFilter.value.replace(/'/g, "''");
+        sql = `SELECT * FROM (${sql}) AS __cf WHERE "${safeCol}" = '${safeVal}'`;
+      }
       const result = await (api.queries as any).chartData({
         connectionId: widget.dataSource.connectionId,
-        sql: widget.dataSource.sql,
+        sql,
         xColumn: widget.dataSource.xColumn,
         yColumn: widget.dataSource.yColumn,
         groupBy: widget.dataSource.groupBy,
+        filters: globalFilters,
       });
       setLiveData(result);
     } catch (err) {
@@ -39,7 +50,7 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode }: Widget
     } finally {
       setIsLoading(false);
     }
-  }, [widget.dataSource]);
+  }, [widget.dataSource, crossFilter, globalFilters]);
 
   useEffect(() => {
     if (!widget.dataSource) {

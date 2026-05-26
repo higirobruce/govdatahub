@@ -10,3 +10,4 @@ export { GaugeChart } from './GaugeChart';
 export { FunnelChart } from './FunnelChart';
 export { ChartBuilder } from './ChartBuilder';
 export { KpiCard } from './KpiCard';
+export { TableChart } from './TableChart';
