@@ -16,12 +16,13 @@ interface LineChartProps {
   height?: string;
   smooth?: boolean;
   showArea?: boolean;
+  onDataPointClick?: (params: any) => void;
 }
 
 /**
  * Line chart component for time-series and trend data
  */
-export function LineChart({ data, title, height = '400px', smooth = true, showArea = false }: LineChartProps) {
+export function LineChart({ data, title, height = '400px', smooth = true, showArea = false, onDataPointClick }: LineChartProps) {
   const option: EChartsOption = {
     title: title ? {
       text: title,
@@ -101,5 +102,5 @@ export function LineChart({ data, title, height = '400px', smooth = true, showAr
     }))
   };
 
-  return <BaseChart option={option} height={height} />;
+  return <BaseChart option={option} height={height} onDataPointClick={onDataPointClick} />;
 }

@@ -9,13 +9,14 @@ interface BaseChartProps {
   height?: string;
   className?: string;
   onChartReady?: (chart: echarts.ECharts) => void;
+  onDataPointClick?: (params: any) => void;
 }
 
 /**
  * Base chart component using Apache ECharts
  * Provides a foundation for all chart types
  */
-export function BaseChart({ option, height = '400px', className = '', onChartReady }: BaseChartProps) {
+export function BaseChart({ option, height = '400px', className = '', onChartReady, onDataPointClick }: BaseChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
 
@@ -28,6 +29,11 @@ export function BaseChart({ option, height = '400px', className = '', onChartRea
 
     // Set option
     chart.setOption(option);
+
+    // Register click handler
+    if (onDataPointClick) {
+      chart.on('click', onDataPointClick);
+    }
 
     // Notify parent component
     if (onChartReady) {
@@ -43,9 +49,10 @@ export function BaseChart({ option, height = '400px', className = '', onChartRea
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
+      chart.off('click');
       chart.dispose();
     };
-  }, [option, onChartReady]);
+  }, [option, onChartReady, onDataPointClick]);
 
   // Update chart when option changes
   useEffect(() => {

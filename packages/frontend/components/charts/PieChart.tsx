@@ -12,12 +12,13 @@ interface PieChartProps {
   title?: string;
   height?: string;
   donut?: boolean;
+  onDataPointClick?: (params: any) => void;
 }
 
 /**
  * Pie chart component for proportional data visualization
  */
-export function PieChart({ data, title, height = '400px', donut = false }: PieChartProps) {
+export function PieChart({ data, title, height = '400px', donut = false, onDataPointClick }: PieChartProps) {
   const option: EChartsOption = {
     title: title ? {
       text: title,
@@ -71,5 +72,5 @@ export function PieChart({ data, title, height = '400px', donut = false }: PieCh
     ]
   };
 
-  return <BaseChart option={option} height={height} />;
+  return <BaseChart option={option} height={height} onDataPointClick={onDataPointClick} />;
 }

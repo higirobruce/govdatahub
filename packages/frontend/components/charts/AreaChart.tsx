@@ -19,6 +19,7 @@ export interface AreaChartProps {
   smooth?: boolean;
   stacked?: boolean;
   showLegend?: boolean;
+  onDataPointClick?: (params: any) => void;
 }
 
 /**
@@ -32,6 +33,7 @@ export function AreaChart({
   smooth = true,
   stacked = false,
   showLegend = true,
+  onDataPointClick,
 }: AreaChartProps) {
   const option: EChartsOption = {
     title: title ? {
@@ -119,5 +121,5 @@ export function AreaChart({
     })),
   };
 
-  return <BaseChart option={option} height={height} />;
+  return <BaseChart option={option} height={height} onDataPointClick={onDataPointClick} />;
 }
