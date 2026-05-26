@@ -10,6 +10,7 @@ import { ShareDashboardModal } from '@/components/DashboardBuilder/ShareDashboar
 import { Plus, Save, FolderOpen, Eye, Settings, Bell, Share2, LayoutDashboard } from 'lucide-react';
 import { ChartWidget, DashboardLayout, Dashboard } from '@/components/DashboardBuilder/types';
 import { useToast } from '@/components/ui/toast';
+import { api } from '@/lib/api';
 
 export default function DashboardsPage() {
   const { showToast } = useToast();
@@ -23,6 +24,7 @@ export default function DashboardsPage() {
   const [showDashboardList, setShowDashboardList] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [dashboardToShare, setDashboardToShare] = useState<Dashboard | null>(null);
+  const [currentDashboardId, setCurrentDashboardId] = useState<string | null>(null);
 
   // Load pending charts from query results
   useEffect(() => {
@@ -123,25 +125,25 @@ export default function DashboardsPage() {
   }, []);
 
   const handleSaveDashboard = async () => {
-    const dashboard: Dashboard = {
-      name: dashboardName,
-      widgets,
-      layout,
-      createdAt: new Date().toISOString(),
-    };
-
-    // Save to localStorage for now (later: save to backend)
-    const savedDashboards = JSON.parse(localStorage.getItem('dashboards') || '[]');
-    savedDashboards.push(dashboard);
-    localStorage.setItem('dashboards', JSON.stringify(savedDashboards));
-
-    showToast(`Dashboard "${dashboardName}" saved successfully!`, 'success');
+    try {
+      const dashboardData = { name: dashboardName, widgets, layout };
+      if (currentDashboardId) {
+        await api.savedDashboards.update(currentDashboardId, dashboardData);
+      } else {
+        const saved = await api.savedDashboards.create(dashboardData);
+        setCurrentDashboardId((saved as any).id);
+      }
+      showToast('Dashboard saved!', 'success');
+    } catch (err) {
+      showToast('Failed to save dashboard', 'error');
+    }
   };
 
   const handleLoadDashboard = (dashboard: Dashboard) => {
     setDashboardName(dashboard.name);
     setWidgets(dashboard.widgets);
     setLayout(dashboard.layout);
+    setCurrentDashboardId(dashboard.id ?? null);
     showToast(`Dashboard "${dashboard.name}" loaded successfully!`, 'success');
   };
 
