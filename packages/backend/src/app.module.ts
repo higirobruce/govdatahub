@@ -24,6 +24,7 @@ import {
   TableProfile,
   QualityCheck,
   QualityCheckRun,
+  SavedDashboard,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -82,6 +83,7 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module';
           TableProfile,
           QualityCheck,
           QualityCheckRun,
+          SavedDashboard,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
