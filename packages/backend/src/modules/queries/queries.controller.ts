@@ -4,6 +4,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { QueriesService } from './queries.service';
 import { ExecuteQueryDto } from './dto/execute-query.dto';
 import { QueryResultDto } from './dto/query-result.dto';
+import { ChartDataQueryDto } from './dto/chart-data-query.dto';
 import { QueryHistory, User } from '../../database/entities';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -130,6 +131,17 @@ export class QueriesController {
   })
   getCachedResults(@Param('id') id: string, @CurrentUser() user: User): Promise<any> {
     return this.queriesService.getCachedResults(id, user.organizationId);
+  }
+
+  @Post('chart-data')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @ApiOperation({ summary: 'Execute query and return raw data for chart rendering' })
+  @ApiResponse({ status: 200, description: 'Raw query result for chart rendering' })
+  executeChartQuery(
+    @Body() dto: ChartDataQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.queriesService.executeChartQuery(dto, user.organizationId);
   }
 
   @Post('staging')
