@@ -18,7 +18,11 @@ export class BigQueryDriver implements DatabaseDriver {
       };
 
       if (config.keyFile) {
-        options.credentials = JSON.parse(config.keyFile);
+        try {
+          options.credentials = JSON.parse(config.keyFile);
+        } catch {
+          throw new Error('keyFile must be valid JSON');
+        }
       }
 
       this.client = new BigQuery(options);

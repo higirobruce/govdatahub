@@ -85,7 +85,14 @@ export class IngestionController {
     // For now, use a default organization ID until auth is implemented
     const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
 
-    const parsedConfig = config ? JSON.parse(config) : undefined;
+    let parsedConfig: Record<string, unknown> | undefined;
+    if (config) {
+      try {
+        parsedConfig = JSON.parse(config);
+      } catch {
+        throw new BadRequestException('Invalid config JSON');
+      }
+    }
 
     return this.ingestionService.generatePreview(
       file,
@@ -160,7 +167,14 @@ export class IngestionController {
       targetType: targetType as ImportTargetType,
       targetTable,
       connectionId,
-      config: config ? JSON.parse(config) : undefined,
+      config: (() => {
+        if (!config) return undefined;
+        try {
+          return JSON.parse(config);
+        } catch {
+          throw new BadRequestException('Invalid config JSON');
+        }
+      })(),
     };
 
     const importJob = await this.ingestionService.startImport(
