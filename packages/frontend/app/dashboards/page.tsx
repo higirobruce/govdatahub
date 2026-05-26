@@ -343,6 +343,7 @@ export default function DashboardsPage() {
       {showShareModal && dashboardToShare && (
         <ShareDashboardModal
           dashboard={dashboardToShare}
+          dashboardId={currentDashboardId ?? undefined}
           onClose={() => {
             setShowShareModal(false);
             setDashboardToShare(null);
