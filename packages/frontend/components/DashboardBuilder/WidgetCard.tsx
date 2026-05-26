@@ -152,7 +152,9 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode, globalFi
           if (!chartData?.xAxis || !chartData?.series) {
             throw new Error('Invalid data structure for line chart');
           }
-          return <LineChart data={chartData} title="" height={height} {...widget.config} />;
+          return <LineChart data={chartData} title="" height={height} {...widget.config} onDataPointClick={onCrossFilter ? (params) => {
+            onCrossFilter({ column: widget.dataSource?.xColumn || 'value', value: String(params.name) });
+          } : undefined} />;
         }
 
         case 'bar': {
@@ -160,7 +162,9 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode, globalFi
           if (!chartData?.xAxis || !chartData?.series) {
             throw new Error('Invalid data structure for bar chart');
           }
-          return <BarChart data={chartData} title="" height={height} {...widget.config} />;
+          return <BarChart data={chartData} title="" height={height} {...widget.config} onDataPointClick={onCrossFilter ? (params) => {
+            onCrossFilter({ column: widget.dataSource?.xColumn || 'value', value: String(params.name) });
+          } : undefined} />;
         }
 
         case 'pie': {
@@ -168,7 +172,9 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode, globalFi
           if (!Array.isArray(chartData)) {
             throw new Error('Invalid data structure for pie chart');
           }
-          return <PieChart data={chartData} title="" height={height} {...widget.config} />;
+          return <PieChart data={chartData} title="" height={height} {...widget.config} onDataPointClick={onCrossFilter ? (params) => {
+            onCrossFilter({ column: widget.dataSource?.xColumn || 'value', value: String(params.name) });
+          } : undefined} />;
         }
 
         case 'scatter': {
@@ -184,7 +190,15 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode, globalFi
           if (!chartData?.xAxis || !chartData?.series) {
             throw new Error('Invalid data structure for area chart');
           }
-          return <AreaChart data={chartData} title="" height={height} {...widget.config} />;
+          return <AreaChart data={chartData} title="" height={height} {...widget.config} onDataPointClick={onCrossFilter ? (params) => {
+            onCrossFilter({ column: widget.dataSource?.xColumn || 'value', value: String(params.name) });
+          } : undefined} />;
+        }
+
+        case 'table': {
+          const tRows = (widget.dataSource && liveData) ? liveData.rows : (widget.data?.rows ?? []);
+          const tFields = (widget.dataSource && liveData) ? liveData.fields : (widget.data?.fields ?? []);
+          return <TableChart rows={tRows} fields={tFields} height={height} />;
         }
 
         case 'radar':
