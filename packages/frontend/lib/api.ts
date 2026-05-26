@@ -160,6 +160,8 @@ export const api = {
     },
     getById: (id: string) => request(`/query/${id}`),
     getCachedResults: (id: string) => request(`/query/${id}/results`),
+    chartData: (data: { connectionId: string; sql: string; xColumn?: string; yColumn?: string; groupBy?: string }): Promise<any> =>
+      request('/query/chart-data', { method: 'POST', body: JSON.stringify(data) }),
   },
 
   // Transformations
@@ -235,6 +237,20 @@ export const api = {
       request(`/cross-query/saved/${id}`, {
         method: 'DELETE',
       }),
+  },
+
+  // Saved Dashboards
+  savedDashboards: {
+    list: (): Promise<any[]> =>
+      request('/saved-dashboards'),
+    get: (id: string): Promise<any> =>
+      request(`/saved-dashboards/${id}`),
+    create: (data: { name: string; description?: string; widgets: any[]; layout: any[] }): Promise<any> =>
+      request('/saved-dashboards', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { name?: string; description?: string; widgets?: any[]; layout?: any[] }): Promise<any> =>
+      request(`/saved-dashboards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    remove: (id: string): Promise<void> =>
+      request(`/saved-dashboards/${id}`, { method: 'DELETE' }),
   },
 
   // Dashboard

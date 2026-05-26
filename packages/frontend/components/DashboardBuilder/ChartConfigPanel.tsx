@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChartWidget, ChartType } from './types';
+import { ChartWidget, ChartType, DataSource } from './types';
 import { Button } from '@/components/ui/button';
-import { X, BarChart3, LineChart as LineIcon, PieChart as PieIcon, ScatterChart as ScatterIcon, Activity, Target, Grid3x3, Gauge, TrendingDown } from 'lucide-react';
+import { X, BarChart3, LineChart as LineIcon, PieChart as PieIcon, ScatterChart as ScatterIcon, Activity, Target, Grid3x3, Gauge, TrendingDown, Hash } from 'lucide-react';
 
 interface ChartConfigPanelProps {
   widget: ChartWidget;
@@ -21,6 +21,7 @@ const chartTypeIcons: Record<ChartType, any> = {
   heatmap: Grid3x3,
   gauge: Gauge,
   funnel: TrendingDown,
+  kpi: Hash,
 };
 
 const chartTypeLabels: Record<ChartType, string> = {
@@ -33,6 +34,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   heatmap: 'Heatmap',
   gauge: 'Gauge',
   funnel: 'Funnel',
+  kpi: 'KPI Card',
 };
 
 export function ChartConfigPanel({ widget, onUpdate, onClose }: ChartConfigPanelProps) {
@@ -42,12 +44,28 @@ export function ChartConfigPanel({ widget, onUpdate, onClose }: ChartConfigPanel
   const [smooth, setSmooth] = useState(widget.config?.smooth ?? false);
   const [stacked, setStacked] = useState(widget.config?.stacked ?? false);
 
+  // Data source state
+  const [enableDataSource, setEnableDataSource] = useState(!!widget.dataSource);
+  const [connectionId, setConnectionId] = useState(widget.dataSource?.connectionId ?? '');
+  const [sql, setSql] = useState(widget.dataSource?.sql ?? '');
+  const [xColumn, setXColumn] = useState(widget.dataSource?.xColumn ?? '');
+  const [yColumn, setYColumn] = useState(widget.dataSource?.yColumn ?? '');
+  const [groupBy, setGroupBy] = useState(widget.dataSource?.groupBy ?? '');
+  const [refreshInterval, setRefreshInterval] = useState<number>(widget.dataSource?.refreshInterval ?? 0);
+
   useEffect(() => {
     setTitle(widget.title);
     setChartType(widget.type);
     setShowLegend(widget.config?.showLegend ?? true);
     setSmooth(widget.config?.smooth ?? false);
     setStacked(widget.config?.stacked ?? false);
+    setEnableDataSource(!!widget.dataSource);
+    setConnectionId(widget.dataSource?.connectionId ?? '');
+    setSql(widget.dataSource?.sql ?? '');
+    setXColumn(widget.dataSource?.xColumn ?? '');
+    setYColumn(widget.dataSource?.yColumn ?? '');
+    setGroupBy(widget.dataSource?.groupBy ?? '');
+    setRefreshInterval(widget.dataSource?.refreshInterval ?? 0);
   }, [widget]);
 
   const transformDataForChartType = (type: ChartType, currentData: any) => {
@@ -123,6 +141,9 @@ export function ChartConfigPanel({ widget, onUpdate, onClose }: ChartConfigPanel
           unit: '%',
         };
 
+      case 'kpi':
+        return { value: 0, label: 'Metric' };
+
       default:
         return currentData;
     }
@@ -131,11 +152,24 @@ export function ChartConfigPanel({ widget, onUpdate, onClose }: ChartConfigPanel
   const handleSave = () => {
     const transformedData = transformDataForChartType(chartType, widget.data);
 
+    let dataSource: DataSource | undefined = undefined;
+    if (enableDataSource && connectionId && sql) {
+      dataSource = {
+        connectionId,
+        sql,
+        xColumn: xColumn || undefined,
+        yColumn: yColumn || undefined,
+        groupBy: groupBy || undefined,
+        refreshInterval,
+      };
+    }
+
     const updatedWidget: ChartWidget = {
       ...widget,
       title,
       type: chartType,
       data: transformedData,
+      dataSource,
       config: {
         ...widget.config,
         showLegend,
@@ -146,7 +180,7 @@ export function ChartConfigPanel({ widget, onUpdate, onClose }: ChartConfigPanel
     onUpdate(updatedWidget);
   };
 
-  const chartTypes: ChartType[] = ['bar', 'line', 'pie', 'scatter', 'area', 'radar', 'heatmap', 'gauge', 'funnel'];
+  const chartTypes: ChartType[] = ['bar', 'line', 'pie', 'scatter', 'area', 'radar', 'heatmap', 'gauge', 'funnel', 'kpi'];
 
   return (
     <div className="w-80 bg-white border-l border-[#e8e8e8] shadow-lg flex flex-col h-full">
@@ -252,10 +286,116 @@ export function ChartConfigPanel({ widget, onUpdate, onClose }: ChartConfigPanel
           )}
         </div>
 
+        {/* Live Data Source */}
+        {chartType !== 'heatmap' && chartType !== 'radar' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-[#555555]">
+                Live Data Source
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enableDataSource}
+                  onChange={(e) => setEnableDataSource(e.target.checked)}
+                  className="w-4 h-4 text-[#60a5fa] border-[#e8e8e8] rounded focus:ring-[#60a5fa]"
+                />
+                <span className="text-sm text-[#1a1a1a]">Enable</span>
+              </label>
+            </div>
+
+            {enableDataSource && (
+              <div className="space-y-3 p-3 border border-[#e8e8e8] rounded-lg bg-[#fafafa]">
+                <div>
+                  <label className="block text-xs font-medium text-[#555555] mb-1">
+                    Connection ID
+                  </label>
+                  <input
+                    type="text"
+                    value={connectionId}
+                    onChange={(e) => setConnectionId(e.target.value)}
+                    className="w-full px-2 py-1.5 border border-[#e8e8e8] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[#60a5fa]"
+                    placeholder="Connection UUID"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#555555] mb-1">
+                    SQL Query
+                  </label>
+                  <textarea
+                    value={sql}
+                    onChange={(e) => setSql(e.target.value)}
+                    rows={4}
+                    className="w-full px-2 py-1.5 border border-[#e8e8e8] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[#60a5fa] resize-none font-mono"
+                    placeholder="SELECT count(*) FROM users"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#555555] mb-1">
+                    X-Axis Column <span className="text-[#aaaaaa]">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={xColumn}
+                    onChange={(e) => setXColumn(e.target.value)}
+                    className="w-full px-2 py-1.5 border border-[#e8e8e8] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[#60a5fa]"
+                    placeholder="column name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#555555] mb-1">
+                    Y-Axis / Value Column <span className="text-[#aaaaaa]">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={yColumn}
+                    onChange={(e) => setYColumn(e.target.value)}
+                    className="w-full px-2 py-1.5 border border-[#e8e8e8] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[#60a5fa]"
+                    placeholder="column name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#555555] mb-1">
+                    Group By <span className="text-[#aaaaaa]">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={groupBy}
+                    onChange={(e) => setGroupBy(e.target.value)}
+                    className="w-full px-2 py-1.5 border border-[#e8e8e8] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[#60a5fa]"
+                    placeholder="column name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#555555] mb-1">
+                    Refresh Interval
+                  </label>
+                  <select
+                    value={refreshInterval}
+                    onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                    className="w-full px-2 py-1.5 border border-[#e8e8e8] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[#60a5fa] bg-white"
+                  >
+                    <option value={0}>Never (0)</option>
+                    <option value={30}>30s</option>
+                    <option value={60}>60s</option>
+                    <option value={300}>5min (300)</option>
+                    <option value={900}>15min (900)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Data Configuration Hint */}
         <div className="bg-[#eff6ff] border border-[#60a5fa] rounded-lg p-3">
           <p className="text-xs text-[#1e40af]">
-            💡 <strong>Tip:</strong> Connect this chart to live query results or datasets for real-time updates.
+            Tip: Connect this chart to live query results or datasets for real-time updates.
           </p>
         </div>
       </div>

@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ChartWidget } from './types';
-import { LineChart, BarChart, PieChart, ScatterChart, AreaChart, RadarChart, HeatmapChart, GaugeChart, FunnelChart } from '@/components/charts';
+import { LineChart, BarChart, PieChart, ScatterChart, AreaChart, RadarChart, HeatmapChart, GaugeChart, FunnelChart, KpiCard } from '@/components/charts';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { GripVertical, Settings, Trash2 } from 'lucide-react';
+import { api } from '@/lib/api';
+import { sqlToChartData, sqlToPieData } from '@/lib/chart-utils';
 
 interface WidgetCardProps {
   widget: ChartWidget;
@@ -15,41 +17,164 @@ interface WidgetCardProps {
 
 export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode }: WidgetCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [liveData, setLiveData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const fetchLiveData = useCallback(async () => {
+    if (!widget.dataSource) return;
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const result = await (api.queries as any).chartData({
+        connectionId: widget.dataSource.connectionId,
+        sql: widget.dataSource.sql,
+        xColumn: widget.dataSource.xColumn,
+        yColumn: widget.dataSource.yColumn,
+        groupBy: widget.dataSource.groupBy,
+      });
+      setLiveData(result);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to fetch data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [widget.dataSource]);
+
+  useEffect(() => {
+    if (!widget.dataSource) {
+      setLiveData(null);
+      setFetchError(null);
+      return;
+    }
+
+    fetchLiveData();
+
+    const interval = widget.dataSource.refreshInterval && widget.dataSource.refreshInterval > 0
+      ? setInterval(fetchLiveData, widget.dataSource.refreshInterval * 1000)
+      : null;
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [widget.dataSource, fetchLiveData]);
+
+  const getChartDataFromLive = () => {
+    if (!liveData || !widget.dataSource) return null;
+    const { rows } = liveData;
+    if (!rows || rows.length === 0) return null;
+
+    switch (widget.type) {
+      case 'pie':
+      case 'funnel': {
+        const nameCol = widget.dataSource.xColumn || Object.keys(rows[0] || {})[0];
+        const valCol = widget.dataSource.yColumn || Object.keys(rows[0] || {})[1] || Object.keys(rows[0] || {})[0];
+        return sqlToPieData(rows, nameCol, valCol);
+      }
+      case 'scatter': {
+        const xCol = widget.dataSource.xColumn || Object.keys(rows[0] || {})[0];
+        const yCol = widget.dataSource.yColumn || Object.keys(rows[0] || {})[1] || Object.keys(rows[0] || {})[0];
+        return {
+          series: [{
+            name: yCol,
+            data: rows.map((row: any) => ({ x: Number(row[xCol]), y: Number(row[yCol]), name: String(row[xCol]) })),
+            color: '#60a5fa',
+          }],
+        };
+      }
+      default: {
+        const xCol = widget.dataSource.xColumn || Object.keys(rows[0] || {})[0];
+        const yCol = widget.dataSource.yColumn || Object.keys(rows[0] || {})[1] || Object.keys(rows[0] || {})[0];
+        return sqlToChartData(rows, xCol, yCol, widget.dataSource.groupBy);
+      }
+    }
+  };
 
   const renderChart = () => {
     const height = widget.config?.height || '100%';
 
+    // If live data source is configured, handle loading/error/data states
+    if (widget.dataSource) {
+      if (isLoading && !liveData) {
+        return (
+          <div className="flex items-center justify-center h-full">
+            <div className="w-8 h-8 border-4 border-[#e8e8e8] border-t-[#60a5fa] rounded-full animate-spin" />
+          </div>
+        );
+      }
+
+      if (fetchError) {
+        return (
+          <div className="flex flex-col items-center justify-center h-full p-4 text-center gap-3">
+            <div className="text-[#ef4444] text-sm">Failed to load data</div>
+            <div className="text-xs text-[#aaaaaa]">{fetchError}</div>
+            <button
+              onClick={fetchLiveData}
+              className="px-3 py-1.5 text-xs bg-[#60a5fa] text-white rounded hover:bg-[#3b82f6] transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        );
+      }
+    }
+
     try {
       switch (widget.type) {
-        case 'line':
-          if (!widget.data?.xAxis || !widget.data?.series) {
+        case 'kpi': {
+          const kpiVal = widget.dataSource && liveData
+            ? liveData.rows?.[0]?.[widget.dataSource.yColumn || Object.keys(liveData.rows[0] || {})[0]]
+            : widget.data?.value;
+          return (
+            <KpiCard
+              value={kpiVal ?? widget.data?.value ?? 0}
+              label={widget.data?.label}
+              previousValue={widget.config?.previousValue}
+              unit={widget.config?.unit}
+              height={height}
+            />
+          );
+        }
+
+        case 'line': {
+          const chartData = widget.dataSource && liveData ? getChartDataFromLive() : widget.data;
+          if (!chartData?.xAxis || !chartData?.series) {
             throw new Error('Invalid data structure for line chart');
           }
-          return <LineChart data={widget.data} title="" height={height} {...widget.config} />;
+          return <LineChart data={chartData} title="" height={height} {...widget.config} />;
+        }
 
-        case 'bar':
-          if (!widget.data?.xAxis || !widget.data?.series) {
+        case 'bar': {
+          const chartData = widget.dataSource && liveData ? getChartDataFromLive() : widget.data;
+          if (!chartData?.xAxis || !chartData?.series) {
             throw new Error('Invalid data structure for bar chart');
           }
-          return <BarChart data={widget.data} title="" height={height} {...widget.config} />;
+          return <BarChart data={chartData} title="" height={height} {...widget.config} />;
+        }
 
-        case 'pie':
-          if (!Array.isArray(widget.data)) {
+        case 'pie': {
+          const chartData = widget.dataSource && liveData ? getChartDataFromLive() : widget.data;
+          if (!Array.isArray(chartData)) {
             throw new Error('Invalid data structure for pie chart');
           }
-          return <PieChart data={widget.data} title="" height={height} {...widget.config} />;
+          return <PieChart data={chartData} title="" height={height} {...widget.config} />;
+        }
 
-        case 'scatter':
-          if (!widget.data?.series) {
+        case 'scatter': {
+          const chartData = widget.dataSource && liveData ? getChartDataFromLive() : widget.data;
+          if (!chartData?.series) {
             throw new Error('Invalid data structure for scatter chart');
           }
-          return <ScatterChart series={widget.data.series} title="" height={height} {...widget.config} />;
+          return <ScatterChart series={chartData.series} title="" height={height} {...widget.config} />;
+        }
 
-        case 'area':
-          if (!widget.data?.xAxis || !widget.data?.series) {
+        case 'area': {
+          const chartData = widget.dataSource && liveData ? getChartDataFromLive() : widget.data;
+          if (!chartData?.xAxis || !chartData?.series) {
             throw new Error('Invalid data structure for area chart');
           }
-          return <AreaChart data={widget.data} title="" height={height} {...widget.config} />;
+          return <AreaChart data={chartData} title="" height={height} {...widget.config} />;
+        }
 
         case 'radar':
           if (!widget.data?.indicators || !widget.data?.series) {
@@ -69,11 +194,13 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode }: Widget
           }
           return <GaugeChart value={widget.data.value} title="" height={height} {...widget.config} />;
 
-        case 'funnel':
-          if (!Array.isArray(widget.data)) {
+        case 'funnel': {
+          const chartData = widget.dataSource && liveData ? getChartDataFromLive() : widget.data;
+          if (!Array.isArray(chartData)) {
             throw new Error('Invalid data structure for funnel chart');
           }
-          return <FunnelChart data={widget.data} title="" height={height} {...widget.config} />;
+          return <FunnelChart data={chartData} title="" height={height} {...widget.config} />;
+        }
 
         default:
           return <div className="flex items-center justify-center h-full text-[#aaaaaa]">Unknown chart type</div>;
@@ -109,6 +236,11 @@ export function WidgetCard({ widget, onSelect, onDelete, isPreviewMode }: Widget
           <h3 className="text-[14px] font-semibold text-[#1a1a1a] truncate">
             {widget.title}
           </h3>
+          {widget.dataSource && (
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-[#eff6ff] text-[#3b82f6] rounded border border-[#bfdbfe]">
+              live
+            </span>
+          )}
         </div>
 
         {!isPreviewMode && (
