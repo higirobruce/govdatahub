@@ -7,6 +7,7 @@ import { QueryHistory, CachedResult } from '../../database/entities';
 import { ConnectionsService } from '../connections/connections.service';
 import { ExecuteQueryDto } from './dto/execute-query.dto';
 import { QueryResultDto } from './dto/query-result.dto';
+import { ChartDataQueryDto } from './dto/chart-data-query.dto';
 
 @Injectable()
 export class QueriesService {
@@ -91,6 +92,31 @@ export class QueriesService {
       });
 
       throw new BadRequestException(`Query execution failed: ${error.message}`);
+    }
+  }
+
+  async executeChartQuery(dto: ChartDataQueryDto, organizationId: string): Promise<{ rows: any[]; fields: Array<{ name: string; type: string }>; rowCount: number }> {
+    const driver = await this.connectionsService.getDriver(dto.connectionId, organizationId);
+
+    try {
+      const result = await this.executeWithTimeout(
+        driver.query(dto.sql),
+        this.queryTimeout,
+      );
+
+      if (result.rows.length > this.maxResultRows) {
+        result.rows = result.rows.slice(0, this.maxResultRows);
+      }
+
+      return {
+        rows: result.rows,
+        fields: result.fields,
+        rowCount: result.rowCount,
+      };
+    } catch (error) {
+      throw new BadRequestException(`Chart query execution failed: ${error.message}`);
+    } finally {
+      await driver.disconnect();
     }
   }
 
