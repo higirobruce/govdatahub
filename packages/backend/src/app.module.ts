@@ -34,6 +34,7 @@ import {
   QualityCheckRun,
   DataProduct,
   DataProductPort,
+  SavedDashboard,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -101,6 +102,7 @@ import { AdminModule } from './modules/admin/admin.module';
           DataProduct,
           DataProductPort,
           UserInvite,
+          SavedDashboard,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
