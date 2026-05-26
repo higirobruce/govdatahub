@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { X, Trash2, Eye, Share2, Download, Calendar, BarChart3 } from 'lucide-react';
 import { Dashboard } from './types';
 import { api } from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
 
 interface DashboardListProps {
   onClose: () => void;
@@ -14,6 +15,7 @@ interface DashboardListProps {
 }
 
 export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) {
+  const { showToast } = useToast();
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -73,6 +75,20 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
     link.download = `${dashboard.name.replace(/\s+/g, '_')}.json`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleQuickShare = async (dashboard: Dashboard) => {
+    if (!dashboard.id) {
+      showToast('Dashboard must be saved first', 'error');
+      return;
+    }
+    try {
+      const result = await api.savedDashboards.share(dashboard.id);
+      await navigator.clipboard.writeText(result.shareUrl);
+      showToast('Share link copied to clipboard!', 'success');
+    } catch (err) {
+      showToast('Failed to generate share link', 'error');
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -140,9 +156,20 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
                 >
                   {/* Dashboard Info */}
                   <div className="mb-3">
-                    <h3 className="text-[16px] font-semibold text-[#1a1a1a] mb-1">
-                      {dashboard.name}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-[16px] font-semibold text-[#1a1a1a]">
+                        {dashboard.name}
+                      </h3>
+                      {(dashboard as any).visibility === 'private' ? (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[#f5f5f5] text-[#555555] border border-[#e8e8e8]">
+                          Private
+                        </span>
+                      ) : (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[#f0fdf4] text-[#16a34a] border border-[#bbf7d0]">
+                          Shared with Org
+                        </span>
+                      )}
+                    </div>
                     {dashboard.description && (
                       <p className="text-sm text-[#aaaaaa] line-clamp-2">
                         {dashboard.description}
