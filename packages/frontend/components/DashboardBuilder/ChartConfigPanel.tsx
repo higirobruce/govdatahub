@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ChartWidget, ChartType, DataSource } from './types';
 import { Button } from '@/components/ui/button';
-import { X, BarChart3, LineChart as LineIcon, PieChart as PieIcon, ScatterChart as ScatterIcon, Activity, Target, Grid3x3, Gauge, TrendingDown, Hash } from 'lucide-react';
+import { X, BarChart3, LineChart as LineIcon, PieChart as PieIcon, ScatterChart as ScatterIcon, Activity, Target, Grid3x3, Gauge, TrendingDown, Hash, Table2 } from 'lucide-react';
 
 interface ChartConfigPanelProps {
   widget: ChartWidget;
@@ -22,6 +22,7 @@ const chartTypeIcons: Record<ChartType, any> = {
   gauge: Gauge,
   funnel: TrendingDown,
   kpi: Hash,
+  table: Table2,
 };
 
 const chartTypeLabels: Record<ChartType, string> = {
@@ -35,6 +36,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   gauge: 'Gauge',
   funnel: 'Funnel',
   kpi: 'KPI Card',
+  table: 'Data Table',
 };
 
 export function ChartConfigPanel({ widget, onUpdate, onClose }: ChartConfigPanelProps) {
@@ -144,6 +146,9 @@ export function ChartConfigPanel({ widget, onUpdate, onClose }: ChartConfigPanel
       case 'kpi':
         return { value: 0, label: 'Metric' };
 
+      case 'table':
+        return { rows: [], fields: [] };
+
       default:
         return currentData;
     }
@@ -180,7 +185,7 @@ export function ChartConfigPanel({ widget, onUpdate, onClose }: ChartConfigPanel
     onUpdate(updatedWidget);
   };
 
-  const chartTypes: ChartType[] = ['bar', 'line', 'pie', 'scatter', 'area', 'radar', 'heatmap', 'gauge', 'funnel', 'kpi'];
+  const chartTypes: ChartType[] = ['bar', 'line', 'pie', 'scatter', 'area', 'radar', 'heatmap', 'gauge', 'funnel', 'kpi', 'table'];
 
   return (
     <div className="w-80 bg-white border-l border-[#e8e8e8] shadow-lg flex flex-col h-full">

@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import GridLayout, { Layout } from 'react-grid-layout';
-import { ChartWidget, DashboardLayout } from './types';
+import { ChartWidget, DashboardLayout, CrossFilter } from './types';
 import { WidgetCard } from './WidgetCard';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -14,6 +14,9 @@ interface DashboardGridProps {
   onSelectWidget: (widget: ChartWidget) => void;
   onDeleteWidget: (widgetId: string) => void;
   isPreviewMode: boolean;
+  globalFilters?: Record<string, string>;
+  crossFilter?: CrossFilter | null;
+  onCrossFilter?: (filter: CrossFilter) => void;
 }
 
 export function DashboardGrid({
@@ -23,6 +26,9 @@ export function DashboardGrid({
   onSelectWidget,
   onDeleteWidget,
   isPreviewMode,
+  globalFilters,
+  crossFilter,
+  onCrossFilter,
 }: DashboardGridProps) {
   const handleLayoutChange = useCallback((newLayout: Layout[]) => {
     const mappedLayout: DashboardLayout[] = newLayout.map(item => ({
@@ -62,6 +68,9 @@ export function DashboardGrid({
               onSelect={() => onSelectWidget(widget)}
               onDelete={() => onDeleteWidget(widget.id)}
               isPreviewMode={isPreviewMode}
+              globalFilters={globalFilters}
+              crossFilter={crossFilter}
+              onCrossFilter={onCrossFilter}
             />
           </div>
         ))}

@@ -7,8 +7,9 @@ import { DashboardGrid } from '@/components/DashboardBuilder/DashboardGrid';
 import { ChartConfigPanel } from '@/components/DashboardBuilder/ChartConfigPanel';
 import { DashboardList } from '@/components/DashboardBuilder/DashboardList';
 import { ShareDashboardModal } from '@/components/DashboardBuilder/ShareDashboardModal';
+import { DashboardFilterBar } from '@/components/DashboardBuilder/DashboardFilterBar';
 import { Plus, Save, FolderOpen, Eye, Settings, Bell, Share2, LayoutDashboard } from 'lucide-react';
-import { ChartWidget, DashboardLayout, Dashboard } from '@/components/DashboardBuilder/types';
+import { ChartWidget, DashboardLayout, Dashboard, CrossFilter } from '@/components/DashboardBuilder/types';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 
@@ -25,6 +26,8 @@ export default function DashboardsPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [dashboardToShare, setDashboardToShare] = useState<Dashboard | null>(null);
   const [currentDashboardId, setCurrentDashboardId] = useState<string | null>(null);
+  const [globalFilters, setGlobalFilters] = useState<Record<string, string>>({});
+  const [crossFilter, setCrossFilter] = useState<CrossFilter | null>(null);
 
   // Load pending charts from query results
   useEffect(() => {
@@ -269,6 +272,15 @@ export default function DashboardsPage() {
       <div className="flex gap-6">
         {/* Dashboard Grid */}
         <div className={`flex-1 transition-all duration-300 ${isConfigPanelOpen ? 'mr-0' : ''}`}>
+          <DashboardFilterBar filters={globalFilters} onFiltersChange={setGlobalFilters} />
+
+          {crossFilter && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-[#eff6ff] border border-[#60a5fa] rounded-lg mb-3 text-sm">
+              <span className="text-[#1e40af]">Cross-filtering: <strong>{crossFilter.column}</strong> = <strong>{crossFilter.value}</strong></span>
+              <button onClick={() => setCrossFilter(null)} className="ml-auto text-[#555555] hover:text-[#1a1a1a]">✕ Clear</button>
+            </div>
+          )}
+
           {widgets.length === 0 ? (
             <div className="bg-white rounded-xl border-2 border-dashed border-[#e8e8e8] p-12 text-center">
               <div className="max-w-md mx-auto">
@@ -298,6 +310,9 @@ export default function DashboardsPage() {
               }}
               onDeleteWidget={handleDeleteWidget}
               isPreviewMode={isPreviewMode}
+              globalFilters={globalFilters}
+              crossFilter={crossFilter}
+              onCrossFilter={setCrossFilter}
             />
           )}
         </div>
