@@ -303,6 +303,118 @@ describe('DashboardsService', () => {
       ).rejects.toThrow(/Duplicate filter/);
     });
 
+    it('rejects wrong-typed default for a number filter', async () => {
+      const { svc } = buildSubject();
+      await expect(
+        svc.create(
+          {
+            name: 'D',
+            filters: [{ name: 'lim', type: 'number', default: 'oops' }],
+          },
+          ORG,
+          USER,
+        ),
+      ).rejects.toThrow(/default expected finite number/);
+    });
+
+    it('rejects wrong-shaped default for a date_range filter', async () => {
+      const { svc } = buildSubject();
+      await expect(
+        svc.create(
+          {
+            name: 'D',
+            filters: [
+              {
+                name: 'when',
+                type: 'date_range',
+                default: { start: '2026-01-01' },
+              },
+            ],
+          },
+          ORG,
+          USER,
+        ),
+      ).rejects.toThrow(/start and end fields/);
+    });
+
+    it('rejects select default not in options', async () => {
+      const { svc } = buildSubject();
+      await expect(
+        svc.create(
+          {
+            name: 'D',
+            filters: [
+              {
+                name: 'country',
+                type: 'select',
+                options: ['RW', 'KE'],
+                default: 'XX',
+              },
+            ],
+          },
+          ORG,
+          USER,
+        ),
+      ).rejects.toThrow(/default "XX" is not in options/);
+    });
+
+    it('accepts select default present in options', async () => {
+      const { svc } = buildSubject();
+      const saved = await svc.create(
+        {
+          name: 'D',
+          filters: [
+            {
+              name: 'country',
+              type: 'select',
+              options: ['RW', 'KE'],
+              default: 'RW',
+            },
+          ],
+        },
+        ORG,
+        USER,
+      );
+      expect(saved.filters[0].default).toBe('RW');
+    });
+
+    it('rejects multi_select default with values outside options', async () => {
+      const { svc } = buildSubject();
+      await expect(
+        svc.create(
+          {
+            name: 'D',
+            filters: [
+              {
+                name: 'regions',
+                type: 'multi_select',
+                options: ['RW', 'KE', 'UG'],
+                default: ['RW', 'XX', 'YY'],
+              },
+            ],
+          },
+          ORG,
+          USER,
+        ),
+      ).rejects.toThrow(/\[XX, YY\] not in options/);
+    });
+
+    it('accepts explicit null default for any filter type', async () => {
+      const { svc } = buildSubject();
+      const saved = await svc.create(
+        {
+          name: 'D',
+          filters: [
+            { name: 'q', type: 'text', default: null },
+            { name: 'when', type: 'date', default: null },
+          ],
+        },
+        ORG,
+        USER,
+      );
+      expect(saved.filters[0].default).toBeNull();
+    });
+
     it('replaces filters on update when supplied', async () => {
       const { svc, repo } = buildSubject();
       const existing = {

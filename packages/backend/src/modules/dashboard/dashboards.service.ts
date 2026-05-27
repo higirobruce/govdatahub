@@ -105,6 +105,82 @@ export class DashboardsService {
           );
         }
       }
+      if (f.default !== undefined && f.default !== null) {
+        this.assertFilterDefault(f);
+      }
+    }
+  }
+
+  /**
+   * Validates a filter's `default` against its declared type — same intent
+   * as `QueryTemplateService.validateValue` but with filter-type semantics
+   * (filter `text` ↔ string, no `boolean` filter, etc.). Kept inline so the
+   * dashboard module doesn't take a dependency on the queries module.
+   */
+  private assertFilterDefault(def: DashboardFilterDef): void {
+    const value = def.default;
+    const fail = (expected: string) => {
+      throw new BadRequestException(
+        `Filter "${def.name}" default expected ${expected}, got ${
+          Array.isArray(value) ? 'array' : typeof value
+        }`,
+      );
+    };
+    switch (def.type) {
+      case 'text':
+        if (typeof value !== 'string') fail('string');
+        break;
+      case 'number':
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+          fail('finite number');
+        }
+        break;
+      case 'date':
+        if (typeof value !== 'string' && !(value instanceof Date)) {
+          fail('date string or Date');
+        }
+        break;
+      case 'date_range':
+        if (
+          typeof value !== 'object' ||
+          value === null ||
+          !('start' in (value as object)) ||
+          !('end' in (value as object))
+        ) {
+          fail('object with start and end fields');
+        }
+        break;
+      case 'select':
+        if (typeof value !== 'string') {
+          fail('string');
+          return;
+        }
+        if (def.options && !def.options.includes(value)) {
+          throw new BadRequestException(
+            `Filter "${def.name}" default "${value}" is not in options [${def.options.join(', ')}]`,
+          );
+        }
+        break;
+      case 'multi_select':
+        if (
+          !Array.isArray(value) ||
+          value.some((v) => typeof v !== 'string')
+        ) {
+          fail('string array');
+          return;
+        }
+        if (def.options) {
+          const optionSet = new Set(def.options);
+          const invalid = (value as string[]).filter(
+            (v) => !optionSet.has(v),
+          );
+          if (invalid.length > 0) {
+            throw new BadRequestException(
+              `Filter "${def.name}" default values [${invalid.join(', ')}] not in options [${def.options.join(', ')}]`,
+            );
+          }
+        }
+        break;
     }
   }
 

@@ -48,6 +48,7 @@ export class DashboardFilterDto {
   })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(64)
   @IsString({ each: true })
   options?: string[];
 }
