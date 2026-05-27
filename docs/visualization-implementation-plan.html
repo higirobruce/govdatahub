@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Visualization — Implementation Plan — DataGate Docs</title>
+<style>
+  :root {
+    --paper:        #EEF2F7;
+    --paper-2:      #E3EAF3;
+    --paper-3:      #D2DCE8;
+    --ink:          #16181D;
+    --ink-2:        #353A43;
+    --ink-3:        #626973;
+    --ink-4:        #939AA5;
+
+    --azure:        #2E5FA8;
+    --azure-soft:   #C5D5EC;
+    --azure-deep:   #14355F;
+
+    --line:         #D3DCE7;
+    --line-strong:  #B5C2D2;
+    --highlight:    #DCE7F5;
+
+    --font-display: "Tiempos", "Iowan Old Style", "Georgia", serif;
+    --font-sans:    "Söhne", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    --font-mono:    "JetBrains Mono", "SF Mono", "Menlo", monospace;
+
+    --t-12: 0.75rem;
+    --t-14: 0.875rem;
+    --t-16: 1rem;
+    --t-18: 1.125rem;
+    --t-22: 1.375rem;
+    --t-28: 1.75rem;
+    --t-36: 2.25rem;
+    --t-48: 3rem;
+    --t-64: 4rem;
+
+    --s-1: 4px;
+    --s-2: 8px;
+    --s-3: 12px;
+    --s-4: 16px;
+    --s-5: 24px;
+    --s-6: 32px;
+    --s-7: 48px;
+    --s-8: 64px;
+    --s-9: 96px;
+
+    --r-1: 2px;
+    --r-2: 4px;
+    --r-3: 8px;
+
+    --ease:     cubic-bezier(0.2, 0, 0, 1);
+    --dur:      160ms;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--t-16);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .display-1 { font-family: var(--font-display); font-size: var(--t-64); line-height: 1.05; letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  .display-2 { font-family: var(--font-display); font-size: var(--t-48); line-height: 1.1;  letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  h1, .h1   { font-family: var(--font-display); font-size: var(--t-36); line-height: 1.15; letter-spacing: -0.015em; font-weight: 400; margin: 0 0 var(--s-5); }
+  h2, .h2   { font-family: var(--font-sans);    font-size: var(--t-28); line-height: 1.25; letter-spacing: -0.01em;  font-weight: 500; margin: var(--s-8) 0 var(--s-4); }
+  h3, .h3   { font-family: var(--font-sans);    font-size: var(--t-22); line-height: 1.3;  font-weight: 500;         margin: var(--s-7) 0 var(--s-3); }
+  h4, .h4   { font-family: var(--font-sans);    font-size: var(--t-18); line-height: 1.4;  font-weight: 600;         margin: var(--s-6) 0 var(--s-2); }
+  p          { margin: 0 0 var(--s-4); max-width: 68ch; }
+  .lead      { font-size: var(--t-18); color: var(--ink-2); max-width: 64ch; }
+  .eyebrow   { font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 var(--s-3); }
+  small, .caption { font-size: var(--t-14); color: var(--ink-3); }
+
+  a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color var(--dur) var(--ease);
+  }
+  a:hover { text-decoration-color: var(--azure); }
+  ::selection { background: var(--azure-soft); color: var(--ink); }
+
+  .page { max-width: 1040px; margin: 0 auto; padding: var(--s-9) var(--s-6); }
+  .section { padding: var(--s-8) 0; border-top: 1px solid var(--line); }
+  .section:first-of-type { border-top: 0; padding-top: var(--s-5); }
+  .grid { display: grid; gap: var(--s-4); }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  @media (max-width: 720px) {
+    .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .page { padding: var(--s-7) var(--s-5); }
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    font-family: var(--font-sans); font-size: var(--t-14); font-weight: 500; line-height: 1;
+    padding: 10px 16px; border-radius: var(--r-2);
+    border: 1px solid transparent; cursor: pointer;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+    text-decoration: none;
+  }
+  .btn-primary   { background: var(--ink);   color: var(--paper); }
+  .btn-primary:hover   { background: var(--ink-2); }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn-secondary:hover { border-color: var(--ink); }
+
+  code {
+    font-family: var(--font-mono); font-size: 0.9em;
+    background: var(--paper-2); padding: 2px 6px;
+    border-radius: var(--r-1); border: 1px solid var(--line);
+  }
+  pre {
+    font-family: var(--font-mono); font-size: var(--t-14); line-height: 1.6;
+    background: #1A1A1A; color: #E8E2D4;
+    padding: var(--s-5); border-radius: var(--r-3);
+    overflow-x: auto; margin: var(--s-4) 0;
+  }
+  pre code { background: transparent; border: 0; padding: 0; color: inherit; }
+  .tok-kw  { color: #7AA7E0; }
+  .tok-str { color: #C7B97A; }
+  .tok-com { color: #6B6862; font-style: italic; }
+  .tok-fn  { color: #BBD2EE; }
+
+  .callout {
+    display: grid; grid-template-columns: auto 1fr; gap: var(--s-3);
+    padding: var(--s-4) var(--s-5); border-radius: var(--r-3);
+    background: var(--paper-2); border-left: 2px solid var(--ink-3);
+    margin: var(--s-4) 0;
+  }
+  .callout .mark {
+    font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ink-3); padding-top: 2px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-note { border-left-color: var(--ink-3); }
+  .callout-tip  { border-left-color: var(--azure); background: var(--highlight); }
+  .callout-tip .mark { color: var(--azure-deep); }
+  .callout-warn { border-left-color: #B47B2E; background: #F4E8D0; }
+  .callout-warn .mark { color: #8C5A18; }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: var(--t-14); margin: var(--s-4) 0;
+  }
+  th, td {
+    text-align: left; padding: var(--s-3) var(--s-4);
+    border-bottom: 1px solid var(--line); vertical-align: top;
+  }
+  th {
+    font-weight: 500; color: var(--ink-3);
+    font-family: var(--font-mono); font-size: var(--t-12);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  tr:hover td { background: var(--paper-2); }
+
+  .tag {
+    display: inline-flex; align-items: center;
+    font-family: var(--font-mono); font-size: var(--t-12);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 4px 8px; border-radius: var(--r-1);
+    background: var(--paper-2); color: var(--ink-2);
+    border: 1px solid var(--line);
+  }
+  .tag-accent { background: var(--azure-soft); border-color: var(--azure-soft); color: var(--azure-deep); }
+  .tag-ink    { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  /* Ticket card */
+  .ticket {
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    background: #fff;
+    padding: var(--s-5);
+    margin: var(--s-4) 0;
+  }
+  .ticket .ticket-head {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-3);
+    margin-bottom: var(--s-3);
+  }
+  .ticket .ticket-id {
+    font-family: var(--font-mono); font-size: var(--t-12);
+    letter-spacing: 0.08em; color: var(--ink-3);
+  }
+  .ticket .ticket-title { font-weight: 500; font-size: var(--t-18); margin: 0; }
+  .ticket h5 {
+    font-family: var(--font-mono); font-size: var(--t-12);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-3); margin: var(--s-4) 0 var(--s-2);
+    font-weight: 500;
+  }
+  .ticket ul, .ticket ol { margin: 0 0 var(--s-3); padding-left: var(--s-5); color: var(--ink-2); }
+  .ticket li { margin-bottom: var(--s-1); }
+  .ticket p { margin: 0 0 var(--s-3); color: var(--ink-2); }
+
+  /* Effort / size pills */
+  .size {
+    display: inline-block; font-family: var(--font-mono);
+    font-size: var(--t-12); letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: var(--r-1);
+    background: var(--paper-2); color: var(--ink-3); border: 1px solid var(--line);
+  }
+  .size-xs { background: #fff; }
+  .size-s  { background: var(--paper-2); }
+  .size-m  { background: var(--azure-soft); color: var(--azure-deep); border-color: var(--azure-soft); }
+  .size-l  { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  .milestone-head {
+    border-radius: var(--r-3);
+    background: var(--paper-2);
+    padding: var(--s-5) var(--s-6);
+    margin: var(--s-5) 0 var(--s-4);
+  }
+  .milestone-head .ms-eyebrow {
+    font-family: var(--font-mono); font-size: var(--t-12);
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .milestone-head h3 { margin: var(--s-1) 0 var(--s-2); }
+  .milestone-head p { margin: 0; color: var(--ink-2); max-width: 68ch; }
+
+  /* Architecture sketch */
+  .arch {
+    border: 1px solid var(--line); border-radius: var(--r-3);
+    background: #fff; padding: var(--s-5);
+    font-family: var(--font-mono); font-size: var(--t-12);
+    color: var(--ink-2); white-space: pre; overflow-x: auto;
+    line-height: 1.5;
+  }
+
+  /* Wireframe utilities */
+  .wf {
+    margin: var(--s-5) 0;
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    background: #fff;
+    overflow: hidden;
+  }
+  .wf-chrome {
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: var(--s-3) var(--s-4);
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .wf-chrome .dots { display: flex; gap: 4px; flex-shrink: 0; }
+  .wf-chrome .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--paper-3); }
+  .wf-chrome .url {
+    flex: 1; background: #fff; padding: 3px 10px;
+    border-radius: var(--r-1); border: 1px solid var(--line);
+    font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-3);
+  }
+  .wf-body { padding: var(--s-4) var(--s-5); }
+  .wf-caption {
+    font-family: var(--font-mono); font-size: var(--t-12);
+    color: var(--ink-3); text-align: center;
+    margin: var(--s-2) 0 var(--s-5);
+  }
+  .wf-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: var(--s-4);
+  }
+  .wf-toolbar .wf-title { font-weight: 500; font-size: var(--t-18); color: var(--ink); }
+  .wf-pill {
+    display: inline-flex; align-items: center;
+    font-family: var(--font-mono); font-size: var(--t-12);
+    padding: 4px 10px; border-radius: var(--r-1);
+    background: #fff; color: var(--ink-3);
+    border: 1px solid var(--line);
+  }
+  .wf-pill-azure { background: var(--azure-soft); color: var(--azure-deep); border-color: var(--azure-soft); }
+  .wf-pill-ink { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .wf-filterbar {
+    display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center;
+    padding: var(--s-3); background: var(--highlight);
+    border-radius: var(--r-2); margin-bottom: var(--s-4);
+    border: 1px dashed var(--azure);
+  }
+  .wf-filterbar .wf-pill-label {
+    font-family: var(--font-mono); font-size: var(--t-12);
+    color: var(--azure-deep); margin-right: var(--s-2);
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .wf-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--s-3); }
+  .wf-tile {
+    background: #fff; border: 1px solid var(--line); border-radius: var(--r-2);
+    padding: var(--s-3) var(--s-4); min-height: 110px;
+  }
+  .wf-tile-new { border: 1px solid var(--azure); background: linear-gradient(180deg, var(--highlight) 0%, #fff 70%); }
+  .wf-tile-label {
+    font-family: var(--font-mono); font-size: var(--t-12);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: var(--s-2);
+  }
+  .wf-big-number {
+    font-family: var(--font-display); font-size: var(--t-36);
+    line-height: 1; color: var(--ink); margin: var(--s-1) 0;
+  }
+  .wf-delta-up { font-family: var(--font-mono); font-size: var(--t-12); color: #2E7A4C; }
+  .wf-delta-down { font-family: var(--font-mono); font-size: var(--t-12); color: #B47B2E; }
+  .wf-table-mini { width: 100%; border-collapse: collapse; font-size: var(--t-12); font-family: var(--font-mono); }
+  .wf-table-mini th, .wf-table-mini td {
+    text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line);
+  }
+  .wf-table-mini th:first-child, .wf-table-mini td:first-child { text-align: left; }
+  .wf-table-mini th { background: var(--paper-2); color: var(--ink-3); font-weight: 500; }
+  .wf-md .wf-md-title { font-weight: 500; font-size: var(--t-14); color: var(--ink); margin-bottom: var(--s-1); }
+  .wf-md p { margin: 0 0 var(--s-2); font-size: var(--t-14); color: var(--ink-2); }
+
+  .wf-form-row { margin-bottom: var(--s-3); display: grid; grid-template-columns: 160px 1fr; gap: var(--s-3); align-items: center; }
+  .wf-form-label { font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+  .wf-form-input { padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-2); font-family: var(--font-sans); font-size: var(--t-14); background: #fff; color: var(--ink-2); }
+  .wf-form-input.muted { color: var(--ink-4); }
+
+  .wf-step { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line); }
+  .wf-step:last-child { border-bottom: 0; }
+  .wf-step-num { width: 26px; height: 26px; border-radius: 50%; background: var(--paper-2); color: var(--ink-3); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: var(--t-12); flex-shrink: 0; }
+  .wf-step-num-on { background: var(--ink); color: var(--paper); }
+  .wf-step-label { flex: 1; font-size: var(--t-14); color: var(--ink-2); }
+  .wf-step-value { font-family: var(--font-mono); font-size: var(--t-12); color: var(--azure-deep); background: var(--azure-soft); padding: 2px 8px; border-radius: var(--r-1); }
+  .wf-step-value-empty { color: var(--ink-4); background: var(--paper-2); border: 1px dashed var(--line-strong); }
+
+  .wf-rev { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line); }
+  .wf-rev:last-child { border-bottom: 0; }
+  .wf-rev-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--azure); flex-shrink: 0; }
+  .wf-rev-dot-muted { background: var(--ink-4); }
+  .wf-rev-meta { flex: 1; }
+  .wf-rev-msg { font-size: var(--t-14); color: var(--ink-2); }
+  .wf-rev-time { font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-3); }
+
+  .wf-host {
+    background: #FAFBFD; border: 1px dashed var(--ink-3);
+    border-radius: var(--r-3); padding: var(--s-4) var(--s-5);
+  }
+  .wf-host-label {
+    font-family: var(--font-mono); font-size: var(--t-12);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: var(--s-3);
+  }
+  .wf-host-app {
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: var(--s-3) var(--s-4); background: #fff;
+    border: 1px solid var(--line); border-radius: var(--r-2);
+    margin-bottom: var(--s-3);
+  }
+  .wf-host-app .wf-host-logo {
+    width: 28px; height: 28px; background: var(--ink);
+    border-radius: var(--r-1); flex-shrink: 0;
+  }
+  .wf-host-app .wf-host-name { font-weight: 500; color: var(--ink); }
+
+  .new-badge {
+    display: inline-block; font-family: var(--font-mono);
+    font-size: var(--t-12); letter-spacing: 0.08em;
+    background: var(--azure-soft); color: var(--azure-deep);
+    padding: 2px 8px; border-radius: var(--r-1); margin-left: var(--s-2);
+  }
+
+  .hr-rule { border: 0; border-top: 1px solid var(--line); margin: var(--s-7) 0; }
+  .mt-0 { margin-top: 0; }
+  .stack > * + * { margin-top: var(--s-3); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+  .muted { color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<main class="page">
+
+  <!-- HERO -->
+  <section class="section">
+    <p class="eyebrow">DataGate Docs · Implementation Plan</p>
+    <h1 class="display-1">Building it.</h1>
+    <p class="lead">Engineering plan for the three visualization milestones from the benchmark. Specifies entities, migrations, services, components, sequencing, and acceptance criteria — enough for a single engineer to start the day and ship the right thing.</p>
+    <div class="row" style="margin-top: var(--s-5);">
+      <a class="btn btn-primary" href="#visuals">Visual preview</a>
+      <a class="btn btn-secondary" href="#m1">Milestone 1</a>
+      <a class="btn btn-secondary" href="#m2">Milestone 2</a>
+      <a class="btn btn-secondary" href="#m3">Milestone 3</a>
+      <span class="tag tag-accent">v0.1 · 2026-05-27</span>
+    </div>
+  </section>
+
+  <!-- SCOPE -->
+  <section class="section" id="scope">
+    <p class="eyebrow">Scope</p>
+    <h2 class="mt-0">Goals &amp; non-goals</h2>
+
+    <h3>Goals</h3>
+    <ul>
+      <li>Reach feature parity with Metabase and Superset on the dashboard surface that most users see in the first session.</li>
+      <li>Preserve DataGate's cross-database query advantage by routing all new features through the existing FDW layer.</li>
+      <li>Avoid heavy rewrites — extend existing modules (<code>queries</code>, <code>dashboard</code>, pipelines) rather than introducing parallel systems.</li>
+      <li>Keep every change shippable on its own. No twelve-week branches.</li>
+    </ul>
+
+    <h3>Non-goals</h3>
+    <ul>
+      <li>A full Metabase-class question builder. M3 ships a lightweight version only.</li>
+      <li>Machine-learning anomaly detection. Threshold alerts only in M2.</li>
+      <li>White-label theming or marketplace plugin model. Out of scope for this round.</li>
+      <li>Replacing ECharts. All new chart types extend the existing renderer.</li>
+    </ul>
+
+    <div class="callout callout-note">
+      <span class="mark">Note</span>
+      <p>This plan assumes the benchmark (<code>docs/visualization-benchmark.html</code>) and the feature overview (<code>docs/data-visualization.html</code>) as context. Read those first if you're picking this up cold.</p>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section class="section" id="architecture">
+    <p class="eyebrow">Architecture</p>
+    <h2 class="mt-0">Moving parts</h2>
+    <p>The plan introduces one new cross-cutting layer (the template engine) and two new modules (<code>delivery</code>, <code>embed</code>). Everything else extends existing modules.</p>
+
+    <svg viewBox="0 0 820 520" xmlns="http://www.w3.org/2000/svg" role="img"
+         aria-label="DataGate architecture diagram showing new and extended modules"
+         style="display:block; width:100%; height:auto; max-width:820px; margin:var(--s-5) auto; border:1px solid var(--line); border-radius:var(--r-3); background:#fff;">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#626973"/>
+        </marker>
+        <style><![CDATA[
+          .lbl { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 1.5px; fill: #626973; text-transform: uppercase; }
+          .box { fill: #fff; stroke: #D3DCE7; stroke-width: 1; }
+          .box-new { fill: #C5D5EC; stroke: #2E5FA8; stroke-width: 1; }
+          .box-text { font-family: 'Söhne', Inter, sans-serif; font-size: 13px; fill: #16181D; }
+          .box-text-new { fill: #14355F; }
+          .box-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: #626973; }
+          .box-sub-new { fill: #14355F; }
+          .lane { fill: #F5F8FC; }
+          .flow { stroke: #939AA5; stroke-width: 1; fill: none; }
+        ]]></style>
+      </defs>
+
+      <!-- Frontend lane -->
+      <rect class="lane" x="0" y="0" width="820" height="120"/>
+      <text class="lbl" x="20" y="22">Frontend · Next.js</text>
+
+      <g><rect class="box" x="20" y="40" width="170" height="60" rx="4"/>
+        <text class="box-text" x="105" y="65" text-anchor="middle">Dashboards</text>
+        <text class="box-sub" x="105" y="82" text-anchor="middle">+ FilterBar (M1)</text>
+        <text class="box-sub" x="105" y="94" text-anchor="middle">+ History (M2) · Tabs (M3)</text>
+      </g>
+      <g><rect class="box" x="210" y="40" width="170" height="60" rx="4"/>
+        <text class="box-text" x="295" y="65" text-anchor="middle">Query editor</text>
+        <text class="box-sub" x="295" y="82" text-anchor="middle">+ Parameter inputs (M1)</text>
+      </g>
+      <g><rect class="box-new" x="400" y="40" width="190" height="60" rx="4"/>
+        <text class="box-text box-text-new" x="495" y="65" text-anchor="middle">Embed renderer</text>
+        <text class="box-sub box-sub-new" x="495" y="82" text-anchor="middle">/embed/[id]?token=… (M3)</text>
+      </g>
+      <g><rect class="box-new" x="610" y="40" width="190" height="60" rx="4"/>
+        <text class="box-text box-text-new" x="705" y="65" text-anchor="middle">Question builder</text>
+        <text class="box-sub box-sub-new" x="705" y="82" text-anchor="middle">/explore (M3)</text>
+      </g>
+
+      <!-- Vertical connectors to backend -->
+      <path class="flow" d="M105,100 L105,150" marker-end="url(#arr)"/>
+      <path class="flow" d="M295,100 L295,150" marker-end="url(#arr)"/>
+      <path class="flow" d="M495,100 L495,150" marker-end="url(#arr)"/>
+      <path class="flow" d="M705,100 L705,150" marker-end="url(#arr)"/>
+
+      <!-- Backend lane -->
+      <rect class="lane" x="0" y="140" width="820" height="300" fill="#FAFBFD"/>
+      <text class="lbl" x="20" y="162">Backend · NestJS</text>
+
+      <!-- Foundation row -->
+      <g><rect class="box-new" x="20" y="178" width="370" height="50" rx="4"/>
+        <text class="box-text box-text-new" x="205" y="200" text-anchor="middle">query-template.service</text>
+        <text class="box-sub box-sub-new" x="205" y="216" text-anchor="middle">{{param}} value-bind &amp; identifier whitelist (F-01)</text>
+      </g>
+      <g><rect class="box-new" x="410" y="178" width="220" height="50" rx="4"/>
+        <text class="box-text box-text-new" x="520" y="200" text-anchor="middle">cache</text>
+        <text class="box-sub box-sub-new" x="520" y="216" text-anchor="middle">Redis-backed LRU (F-02)</text>
+      </g>
+      <g><rect class="box" x="650" y="178" width="150" height="50" rx="4"/>
+        <text class="box-text" x="725" y="200" text-anchor="middle">auth</text>
+        <text class="box-sub" x="725" y="216" text-anchor="middle">existing</text>
+      </g>
+
+      <!-- Module row 1 -->
+      <g><rect class="box" x="20" y="248" width="170" height="60" rx="4"/>
+        <text class="box-text" x="105" y="272" text-anchor="middle">queries</text>
+        <text class="box-sub" x="105" y="288" text-anchor="middle">+ parameters</text>
+        <text class="box-sub" x="105" y="300" text-anchor="middle">+ async exec (M2)</text>
+      </g>
+      <g><rect class="box" x="210" y="248" width="170" height="60" rx="4"/>
+        <text class="box-text" x="295" y="272" text-anchor="middle">dashboard</text>
+        <text class="box-sub" x="295" y="288" text-anchor="middle">+ filters · tabs</text>
+        <text class="box-sub" x="295" y="300" text-anchor="middle">+ revisions (M2)</text>
+      </g>
+      <g><rect class="box-new" x="400" y="248" width="190" height="60" rx="4"/>
+        <text class="box-text box-text-new" x="495" y="272" text-anchor="middle">delivery</text>
+        <text class="box-sub box-sub-new" x="495" y="288" text-anchor="middle">subscriptions · alerts</text>
+        <text class="box-sub box-sub-new" x="495" y="300" text-anchor="middle">snapshot renderer (M2)</text>
+      </g>
+      <g><rect class="box-new" x="610" y="248" width="190" height="60" rx="4"/>
+        <text class="box-text box-text-new" x="705" y="272" text-anchor="middle">embed</text>
+        <text class="box-sub box-sub-new" x="705" y="288" text-anchor="middle">JWT issuance</text>
+        <text class="box-sub box-sub-new" x="705" y="300" text-anchor="middle">parameter overrides (M3)</text>
+      </g>
+
+      <!-- Module row 2 -->
+      <g><rect class="box-new" x="20" y="328" width="170" height="60" rx="4"/>
+        <text class="box-text box-text-new" x="105" y="352" text-anchor="middle">metrics</text>
+        <text class="box-sub box-sub-new" x="105" y="368" text-anchor="middle">named aggregates</text>
+        <text class="box-sub box-sub-new" x="105" y="380" text-anchor="middle">(M3)</text>
+      </g>
+      <g><rect class="box" x="210" y="328" width="170" height="60" rx="4"/>
+        <text class="box-text" x="295" y="352" text-anchor="middle">cross-query</text>
+        <text class="box-sub" x="295" y="368" text-anchor="middle">FDW · existing</text>
+      </g>
+      <g><rect class="box" x="400" y="328" width="190" height="60" rx="4"/>
+        <text class="box-text" x="495" y="352" text-anchor="middle">connections · schema</text>
+        <text class="box-sub" x="495" y="368" text-anchor="middle">existing</text>
+      </g>
+      <g><rect class="box" x="610" y="328" width="190" height="60" rx="4"/>
+        <text class="box-text" x="705" y="352" text-anchor="middle">pipelines · scheduler</text>
+        <text class="box-sub" x="705" y="368" text-anchor="middle">existing · reused</text>
+      </g>
+
+      <!-- Connectors down to storage -->
+      <path class="flow" d="M105,388 L105,450" marker-end="url(#arr)"/>
+      <path class="flow" d="M295,388 L295,450" marker-end="url(#arr)"/>
+      <path class="flow" d="M495,388 L495,450" marker-end="url(#arr)"/>
+      <path class="flow" d="M705,388 L705,450" marker-end="url(#arr)"/>
+
+      <!-- Storage lane -->
+      <rect class="lane" x="0" y="440" width="820" height="80"/>
+      <text class="lbl" x="20" y="462">Storage</text>
+
+      <g><rect class="box" x="20" y="478" width="280" height="35" rx="4"/>
+        <text class="box-text" x="160" y="500" text-anchor="middle">PostgreSQL (metadata + FDW)</text>
+      </g>
+      <g><rect class="box" x="320" y="478" width="200" height="35" rx="4"/>
+        <text class="box-text" x="420" y="500" text-anchor="middle">Remote sources (FDW)</text>
+      </g>
+      <g><rect class="box-new" x="540" y="478" width="260" height="35" rx="4"/>
+        <text class="box-text box-text-new" x="670" y="500" text-anchor="middle">Redis · cache + job queue</text>
+      </g>
+
+      <!-- Legend -->
+      <g transform="translate(640, 18)">
+        <rect class="box" x="0" y="-8" width="14" height="10" rx="2"/>
+        <text class="box-sub" x="20" y="0">existing / extended</text>
+        <rect class="box-new" x="0" y="6" width="14" height="10" rx="2"/>
+        <text class="box-sub box-sub-new" x="20" y="14">new in this plan</text>
+      </g>
+    </svg>
+    <p class="caption" style="text-align:center;">Boxes in azure are introduced by this plan; white boxes are existing modules being extended or reused.</p>
+  </section>
+
+  <!-- VISUALS -->
+  <section class="section" id="visuals">
+    <p class="eyebrow">Preview</p>
+    <h2 class="mt-0">What it looks like</h2>
+    <p>Wireframes for the five highest-visibility surfaces this plan adds. Each is a low-fidelity sketch — exact layout will tighten in design, but every element shown maps to a ticket above. Azure outlines mark new pieces; white tiles are existing widgets repositioned.</p>
+
+    <!-- Dashboard with new chrome -->
+    <h3>Dashboard with filters, KPI tile, pivot, markdown <span class="new-badge">M1</span></h3>
+    <p>The first thing a user notices after M1 lands: a filter bar above the grid, a big-number tile, a pivot table widget, and a markdown panel for context — all bound to the same date range.</p>
+
+    <div class="wf">
+      <div class="wf-chrome">
+        <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="url">datagate.app · /dashboards/sales-q1</div>
+      </div>
+      <div class="wf-body">
+        <div class="wf-toolbar">
+          <div class="wf-title">Sales — Q1 close</div>
+          <div class="row" style="gap: var(--s-2);">
+            <span class="wf-pill">Refresh: 30s</span>
+            <span class="wf-pill">Export ▾</span>
+            <span class="wf-pill-azure wf-pill">Preview</span>
+          </div>
+        </div>
+
+        <div class="wf-filterbar" title="New: dashboard-level filters">
+          <span class="wf-pill-label">Filters</span>
+          <span class="wf-pill"><b style="margin-right:6px;color:var(--ink-3);">Date</b> Jan 1 – Mar 31</span>
+          <span class="wf-pill"><b style="margin-right:6px;color:var(--ink-3);">Country</b> All ▾</span>
+          <span class="wf-pill"><b style="margin-right:6px;color:var(--ink-3);">Region</b> Kigali ▾</span>
+          <span class="wf-pill" style="border-style:dashed; color:var(--azure-deep); border-color:var(--azure);">+ Add filter</span>
+        </div>
+
+        <div class="wf-grid">
+          <div class="wf-tile wf-tile-new" style="grid-column: span 3;">
+            <div class="wf-tile-label">Revenue</div>
+            <div class="wf-big-number">$1.42M</div>
+            <div class="wf-delta-up">▲ 12.4% vs Q4</div>
+            <svg viewBox="0 0 100 24" preserveAspectRatio="none" style="width:100%; height:24px; margin-top:var(--s-2);">
+              <polyline points="0,18 12,15 24,17 36,12 48,14 60,8 72,11 84,6 100,4" fill="none" stroke="var(--azure)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="wf-tile wf-tile-new" style="grid-column: span 3;">
+            <div class="wf-tile-label">Orders</div>
+            <div class="wf-big-number">8,421</div>
+            <div class="wf-delta-up">▲ 3.1% vs Q4</div>
+            <svg viewBox="0 0 100 24" preserveAspectRatio="none" style="width:100%; height:24px; margin-top:var(--s-2);">
+              <polyline points="0,12 12,14 24,11 36,13 48,10 60,12 72,9 84,11 100,8" fill="none" stroke="var(--azure)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="wf-tile" style="grid-column: span 6;">
+            <div class="wf-tile-label">Daily revenue</div>
+            <svg viewBox="0 0 300 100" preserveAspectRatio="none" style="width:100%; height:90px;">
+              <path d="M0,80 Q30,60 60,65 T120,40 T180,55 T240,28 T300,42" fill="none" stroke="var(--azure)" stroke-width="2"/>
+              <path d="M0,80 Q30,60 60,65 T120,40 T180,55 T240,28 T300,42 L300,100 L0,100 Z" fill="var(--azure-soft)" opacity="0.5"/>
+              <line x1="0" y1="100" x2="300" y2="100" stroke="var(--line)" stroke-width="1"/>
+            </svg>
+          </div>
+
+          <div class="wf-tile wf-tile-new" style="grid-column: span 7;">
+            <div class="wf-tile-label">Region × Month <span style="text-transform:none; letter-spacing:0; color:var(--azure-deep); margin-left:var(--s-2);">· pivot</span></div>
+            <table class="wf-table-mini" style="margin-top: var(--s-2);">
+              <thead><tr><th>Region</th><th>Jan</th><th>Feb</th><th>Mar</th><th>Total</th></tr></thead>
+              <tbody>
+                <tr><td>North</td><td>104</td><td>122</td><td>138</td><td>364</td></tr>
+                <tr><td>South</td><td>96</td><td>101</td><td>117</td><td>314</td></tr>
+                <tr><td>East</td><td>81</td><td>89</td><td>94</td><td>264</td></tr>
+                <tr><td>West</td><td>77</td><td>82</td><td>90</td><td>249</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="wf-tile wf-tile-new wf-md" style="grid-column: span 5;">
+            <div class="wf-tile-label">Note <span style="text-transform:none; letter-spacing:0; color:var(--azure-deep); margin-left:var(--s-2);">· markdown</span></div>
+            <div class="wf-md-title">Q1 — provisional</div>
+            <p>Numbers exclude returns settled after April 5. Tags: <code style="background:var(--paper-2);padding:1px 4px;border-radius:2px;font-size:11px;">close</code> <code style="background:var(--paper-2);padding:1px 4px;border-radius:2px;font-size:11px;">finance-review</code></p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="wf-caption">M1 deliverables: filter bar (M1-02), big-number tile (M1-04), pivot table (M1-05), markdown widget (M1-06), cross-filter on click (M1-03), auto-refresh (M1-07).</p>
+
+    <!-- Scheduled delivery form -->
+    <h3>Scheduled delivery form <span class="new-badge">M2</span></h3>
+    <p>Per-dashboard subscription. Cron string, format, destination, optional pinned filter values. Reuses existing SMTP + adds Slack webhook.</p>
+
+    <div class="wf">
+      <div class="wf-chrome">
+        <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="url">datagate.app · /dashboards/sales-q1/subscriptions/new</div>
+      </div>
+      <div class="wf-body">
+        <div class="wf-toolbar">
+          <div class="wf-title">New subscription</div>
+          <span class="wf-pill">Cancel</span>
+        </div>
+        <div class="wf-form-row">
+          <div class="wf-form-label">Name</div>
+          <div class="wf-form-input">Weekly Q1 close report</div>
+        </div>
+        <div class="wf-form-row">
+          <div class="wf-form-label">Schedule (cron)</div>
+          <div class="wf-form-input" style="font-family:var(--font-mono);">0 8 * * MON  <span style="color:var(--ink-3);">— every Monday at 08:00</span></div>
+        </div>
+        <div class="wf-form-row">
+          <div class="wf-form-label">Format</div>
+          <div class="row" style="gap: var(--s-2);">
+            <span class="wf-pill-ink wf-pill">PDF</span>
+            <span class="wf-pill">PNG</span>
+            <span class="wf-pill">CSV (zip)</span>
+          </div>
+        </div>
+        <div class="wf-form-row">
+          <div class="wf-form-label">Destination</div>
+          <div class="row" style="gap: var(--s-2);">
+            <span class="wf-pill-azure wf-pill">Slack · #finance-reports</span>
+            <span class="wf-pill" style="border-style:dashed;">+ Add email</span>
+          </div>
+        </div>
+        <div class="wf-form-row">
+          <div class="wf-form-label">Filter overrides</div>
+          <div class="row" style="gap: var(--s-2);">
+            <span class="wf-pill"><b style="margin-right:6px;color:var(--ink-3);">Date</b> Last 7 days</span>
+            <span class="wf-pill"><b style="margin-right:6px;color:var(--ink-3);">Country</b> All</span>
+          </div>
+        </div>
+        <div class="wf-form-row">
+          <div class="wf-form-label">Alert when</div>
+          <div class="row" style="gap: var(--s-2);">
+            <span class="wf-pill">Revenue tile · ◇ &lt; · 1,000,000</span>
+            <span class="wf-pill" style="border-style:dashed;">+ Edit predicate</span>
+          </div>
+        </div>
+        <div style="margin-top: var(--s-5); display: flex; gap: var(--s-2);">
+          <span class="wf-pill-ink wf-pill" style="padding: 8px 16px;">Save subscription</span>
+          <span class="wf-pill" style="padding: 8px 16px;">Send test now</span>
+        </div>
+      </div>
+    </div>
+    <p class="wf-caption">M2 deliverables: snapshot renderer (M2-01), subscriptions (M2-02), threshold alerts (M2-03).</p>
+
+    <!-- Embed mode -->
+    <h3>Embed mode — DataGate inside a host app <span class="new-badge">M3</span></h3>
+    <p>Host application calls <code>POST /api/embed/token</code> with a dashboard id and per-user parameter overrides, then iframes DataGate in <code>/embed</code> mode. No DataGate chrome; filters baked into the token are immutable from the iframe.</p>
+
+    <div class="wf-host">
+      <div class="wf-host-label">Customer portal · acme-portal.com/analytics</div>
+      <div class="wf-host-app">
+        <div class="wf-host-logo"></div>
+        <div class="wf-host-name">Acme Portal</div>
+        <span class="muted" style="margin-left:auto;font-size:var(--t-12);font-family:var(--font-mono);">Signed in as alice@acme.com</span>
+      </div>
+      <div style="border: 2px dashed var(--azure); border-radius: var(--r-3); padding: var(--s-4); background: #fff;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: var(--s-3);">
+          <span class="wf-pill-azure wf-pill">iframe · DataGate embed</span>
+          <span style="font-family:var(--font-mono); font-size:var(--t-12); color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%;">/embed/sales-q1?token=eyJhbGc…</span>
+        </div>
+        <div class="wf-grid">
+          <div class="wf-tile" style="grid-column: span 4;">
+            <div class="wf-tile-label">Your revenue</div>
+            <div class="wf-big-number" style="font-size: var(--t-28);">$48.2K</div>
+            <div class="wf-delta-up">▲ 4.1% vs last week</div>
+          </div>
+          <div class="wf-tile" style="grid-column: span 8;">
+            <div class="wf-tile-label">Trend</div>
+            <svg viewBox="0 0 300 80" preserveAspectRatio="none" style="width:100%; height:60px;">
+              <path d="M0,60 Q30,50 60,55 T120,30 T180,40 T240,22 T300,28" fill="none" stroke="var(--azure)" stroke-width="2"/>
+              <path d="M0,60 Q30,50 60,55 T120,30 T180,40 T240,22 T300,28 L300,80 L0,80 Z" fill="var(--azure-soft)" opacity="0.5"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <p style="margin: var(--s-3) 0 0; font-size: var(--t-14); color: var(--ink-3);">Token claims pin <code>customer_id = acme</code> &rarr; RLS predicate ensures Alice sees only Acme's rows.</p>
+    </div>
+    <p class="wf-caption">M3 deliverables: signed-JWT issuance (M3-01), row-level security (M3-02).</p>
+
+    <!-- Question builder -->
+    <h3>Lightweight question builder <span class="new-badge">M3</span></h3>
+    <p>A schema-aware step form for users who don't write SQL. Picks generate SQL behind the scenes and can be saved back as a saved query.</p>
+
+    <div class="wf">
+      <div class="wf-chrome">
+        <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="url">datagate.app · /explore</div>
+      </div>
+      <div class="wf-body" style="padding: 0;">
+        <div class="wf-step">
+          <span class="wf-step-num wf-step-num-on">1</span>
+          <span class="wf-step-label">Source</span>
+          <span class="wf-step-value">Local PostgreSQL · public.orders</span>
+        </div>
+        <div class="wf-step">
+          <span class="wf-step-num wf-step-num-on">2</span>
+          <span class="wf-step-label">Summarize</span>
+          <span class="wf-step-value">sum(total_amount)</span>
+        </div>
+        <div class="wf-step">
+          <span class="wf-step-num wf-step-num-on">3</span>
+          <span class="wf-step-label">Group by</span>
+          <span class="wf-step-value">created_at · month</span>
+        </div>
+        <div class="wf-step">
+          <span class="wf-step-num wf-step-num-on">4</span>
+          <span class="wf-step-label">Filter</span>
+          <span class="wf-step-value">country in (RW, KE, UG)</span>
+        </div>
+        <div class="wf-step">
+          <span class="wf-step-num">5</span>
+          <span class="wf-step-label">Visualize</span>
+          <span class="wf-step-value wf-step-value-empty">Choose a chart…</span>
+        </div>
+      </div>
+      <div style="padding: var(--s-4) var(--s-5); border-top: 1px solid var(--line); background: var(--paper-2); display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-3);">Generated SQL preview</span>
+        <span class="wf-pill">View SQL ▾</span>
+      </div>
+    </div>
+    <p class="wf-caption">M3 deliverables: question builder (M3-06), schema discovery extension.</p>
+
+    <!-- Version history -->
+    <h3>Version history sidebar <span class="new-badge">M2</span></h3>
+    <p>Every save creates an immutable snapshot. The sidebar shows recent revisions with a diff-light view of what changed.</p>
+
+    <div class="wf" style="max-width: 420px;">
+      <div class="wf-chrome">
+        <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="url">History · Sales — Q1 close</div>
+      </div>
+      <div style="padding: 0;">
+        <div class="wf-rev">
+          <span class="wf-rev-dot"></span>
+          <div class="wf-rev-meta">
+            <div class="wf-rev-msg">Added pivot widget · Region × Month</div>
+            <div class="wf-rev-time">Bruce · 2 minutes ago</div>
+          </div>
+          <span class="wf-pill" style="border-color: var(--azure); color: var(--azure-deep);">Current</span>
+        </div>
+        <div class="wf-rev">
+          <span class="wf-rev-dot wf-rev-dot-muted"></span>
+          <div class="wf-rev-meta">
+            <div class="wf-rev-msg">Renamed dashboard · "Q1 sales" → "Sales — Q1 close"</div>
+            <div class="wf-rev-time">Bruce · 14 minutes ago</div>
+          </div>
+          <span class="wf-pill">Restore</span>
+        </div>
+        <div class="wf-rev">
+          <span class="wf-rev-dot wf-rev-dot-muted"></span>
+          <div class="wf-rev-meta">
+            <div class="wf-rev-msg">Adjusted layout · 3 widgets moved</div>
+            <div class="wf-rev-time">Alice · yesterday, 4:12pm</div>
+          </div>
+          <span class="wf-pill">Restore</span>
+        </div>
+        <div class="wf-rev">
+          <span class="wf-rev-dot wf-rev-dot-muted"></span>
+          <div class="wf-rev-meta">
+            <div class="wf-rev-msg">Created dashboard from 3 pending charts</div>
+            <div class="wf-rev-time">Alice · 3 days ago</div>
+          </div>
+          <span class="wf-pill">Restore</span>
+        </div>
+      </div>
+    </div>
+    <p class="wf-caption">M2 deliverable: dashboard version history (M2-05).</p>
+
+    <div class="callout callout-note">
+      <span class="mark">Fidelity</span>
+      <p>These wireframes are <em>intent</em>, not <em>spec</em>. Visual design will refine spacing, type weight, and chart aesthetics; the surface area and interaction model are what's load-bearing here.</p>
+    </div>
+  </section>
+
+  <!-- SEQUENCING -->
+  <section class="section" id="sequencing">
+    <p class="eyebrow">Sequencing</p>
+    <h2 class="mt-0">Ticket-level timeline</h2>
+    <p>Each milestone has a critical chain plus a handful of independent tickets that can run in parallel. The chart below shows when each ticket starts and ends in a 24-week plan, and which bars sit on the critical path. Bars are sized by effort estimate.</p>
+
+    <svg viewBox="0 0 820 680" xmlns="http://www.w3.org/2000/svg" role="img"
+         aria-label="Gantt-style sequencing chart for the visualization implementation plan"
+         style="display:block; width:100%; height:auto; max-width:820px; margin:var(--s-5) auto; border:1px solid var(--line); border-radius:var(--r-3); background:#fff;">
+      <defs>
+        <style><![CDATA[
+          .g-week { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: #939AA5; }
+          .g-band { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 1.5px; fill: #626973; }
+          .g-id { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: #626973; }
+          .g-name { font-family: 'Söhne', Inter, sans-serif; font-size: 11px; fill: #353A43; }
+          .g-bar { fill: #C5D5EC; stroke: #2E5FA8; stroke-width: 1; }
+          .g-bar-crit { fill: #2E5FA8; stroke: #14355F; stroke-width: 1; }
+          .g-bar-found { fill: #353A43; stroke: #16181D; stroke-width: 1; }
+          .g-bar-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; fill: #fff; }
+          .g-bar-label-light { font-family: 'JetBrains Mono', monospace; font-size: 9px; fill: #14355F; }
+          .g-tick { stroke: #E3EAF3; stroke-width: 1; }
+          .g-band-bg-1 { fill: #FAFBFD; }
+          .g-band-bg-2 { fill: #F5F8FC; }
+        ]]></style>
+      </defs>
+
+      <!-- Backdrop -->
+      <rect width="820" height="680" fill="#fff"/>
+
+      <!-- Week header strip -->
+      <rect x="200" y="0" width="600" height="30" fill="#F5F8FC"/>
+      <!-- Vertical week ticks every 4 weeks -->
+      <line class="g-tick" x1="200" y1="30" x2="200" y2="660"/>
+      <line class="g-tick" x1="300" y1="30" x2="300" y2="660"/>
+      <line class="g-tick" x1="400" y1="30" x2="400" y2="660"/>
+      <line class="g-tick" x1="500" y1="30" x2="500" y2="660"/>
+      <line class="g-tick" x1="600" y1="30" x2="600" y2="660"/>
+      <line class="g-tick" x1="700" y1="30" x2="700" y2="660"/>
+      <line class="g-tick" x1="800" y1="30" x2="800" y2="660"/>
+      <text class="g-week" x="212" y="19">w1</text>
+      <text class="g-week" x="312" y="19">w5</text>
+      <text class="g-week" x="412" y="19">w9</text>
+      <text class="g-week" x="512" y="19">w13</text>
+      <text class="g-week" x="612" y="19">w17</text>
+      <text class="g-week" x="712" y="19">w21</text>
+      <text class="g-week" x="784" y="19">w24</text>
+
+      <!-- FOUNDATIONS band -->
+      <rect class="g-band-bg-1" x="0" y="30" width="820" height="68"/>
+      <text class="g-band" x="20" y="50">FOUNDATIONS · weeks 1–2</text>
+      <!-- F-01 (w1, 2w) -->
+      <text class="g-id" x="20" y="72">F-01</text>
+      <text class="g-name" x="60" y="72">Query template engine</text>
+      <rect class="g-bar-found" x="200" y="61" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="208" y="71">F-01</text>
+      <!-- F-02 (w1, 2w) -->
+      <text class="g-id" x="20" y="92">F-02</text>
+      <text class="g-name" x="60" y="92">Cache (Redis)</text>
+      <rect class="g-bar-found" x="200" y="81" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="208" y="91">F-02</text>
+
+      <!-- M1 band -->
+      <rect class="g-band-bg-2" x="0" y="98" width="820" height="200"/>
+      <text class="g-band" x="20" y="118">MILESTONE 1 · weeks 3–10 · interactive dashboards</text>
+      <!-- M1-06 Markdown (w3, 1w, XS) -->
+      <text class="g-id" x="20" y="140">M1-06</text>
+      <text class="g-name" x="60" y="140">Markdown widget</text>
+      <rect class="g-bar" x="250" y="129" width="25" height="14" rx="2"/>
+      <!-- M1-04 Big-number (w3, 2w, S) -->
+      <text class="g-id" x="20" y="160">M1-04</text>
+      <text class="g-name" x="60" y="160">Big-number / KPI tile</text>
+      <rect class="g-bar" x="250" y="149" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="258" y="159">M1-04</text>
+      <!-- M1-01 Parameterized queries (w3, 2w, M) — CRITICAL -->
+      <text class="g-id" x="20" y="180">M1-01</text>
+      <text class="g-name" x="60" y="180">Parameterized queries</text>
+      <rect class="g-bar-crit" x="250" y="169" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="258" y="179">M1-01</text>
+      <!-- M1-07 Auto-refresh (w4, 1w, XS) -->
+      <text class="g-id" x="20" y="200">M1-07</text>
+      <text class="g-name" x="60" y="200">Auto-refresh interval</text>
+      <rect class="g-bar" x="275" y="189" width="25" height="14" rx="2"/>
+      <!-- M1-08 Annotations (w5, 2w, S) -->
+      <text class="g-id" x="20" y="220">M1-08</text>
+      <text class="g-name" x="60" y="220">Time-series annotations</text>
+      <rect class="g-bar" x="300" y="209" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="308" y="219">M1-08</text>
+      <!-- M1-05 Pivot (w5, 3w, M) -->
+      <text class="g-id" x="20" y="240">M1-05</text>
+      <text class="g-name" x="60" y="240">Pivot / crosstab table</text>
+      <rect class="g-bar" x="300" y="229" width="75" height="14" rx="2"/>
+      <text class="g-bar-label" x="308" y="239">M1-05</text>
+      <!-- M1-02 Filters (w5, 3w, M) — CRITICAL -->
+      <text class="g-id" x="20" y="260">M1-02</text>
+      <text class="g-name" x="60" y="260">Dashboard filters</text>
+      <rect class="g-bar-crit" x="300" y="249" width="75" height="14" rx="2"/>
+      <text class="g-bar-label" x="308" y="259">M1-02</text>
+      <!-- M1-03 Cross-filter (w8, 1w, S) — CRITICAL -->
+      <text class="g-id" x="20" y="280">M1-03</text>
+      <text class="g-name" x="60" y="280">Cross-filter on click</text>
+      <rect class="g-bar-crit" x="375" y="269" width="25" height="14" rx="2"/>
+
+      <!-- M2 band -->
+      <rect class="g-band-bg-1" x="0" y="298" width="820" height="135"/>
+      <text class="g-band" x="20" y="318">MILESTONE 2 · weeks 11–16 · delivery &amp; performance</text>
+      <!-- M2-04 Async (w11, 3w, M) -->
+      <text class="g-id" x="20" y="340">M2-04</text>
+      <text class="g-name" x="60" y="340">Async query execution</text>
+      <rect class="g-bar" x="450" y="329" width="75" height="14" rx="2"/>
+      <text class="g-bar-label" x="458" y="339">M2-04</text>
+      <!-- M2-01 Snapshot renderer (w11, 2w, M) — CRITICAL -->
+      <text class="g-id" x="20" y="360">M2-01</text>
+      <text class="g-name" x="60" y="360">Dashboard snapshot renderer</text>
+      <rect class="g-bar-crit" x="450" y="349" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="458" y="359">M2-01</text>
+      <!-- M2-05 Version history (w12, 1w, S) -->
+      <text class="g-id" x="20" y="380">M2-05</text>
+      <text class="g-name" x="60" y="380">Dashboard version history</text>
+      <rect class="g-bar" x="475" y="369" width="25" height="14" rx="2"/>
+      <!-- M2-02 Subscriptions (w13, 2w, M) — CRITICAL -->
+      <text class="g-id" x="20" y="400">M2-02</text>
+      <text class="g-name" x="60" y="400">Subscriptions (scheduled delivery)</text>
+      <rect class="g-bar-crit" x="500" y="389" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="508" y="399">M2-02</text>
+      <!-- M2-03 Alerts (w15, 1w, S) — CRITICAL -->
+      <text class="g-id" x="20" y="420">M2-03</text>
+      <text class="g-name" x="60" y="420">Threshold alerts</text>
+      <rect class="g-bar-crit" x="550" y="409" width="25" height="14" rx="2"/>
+
+      <!-- M3 band -->
+      <rect class="g-band-bg-2" x="0" y="433" width="820" height="200"/>
+      <text class="g-band" x="20" y="453">MILESTONE 3 · weeks 17–24 · embed &amp; semantic layer</text>
+      <!-- M3-04 Tabs (w17, 2w, M) -->
+      <text class="g-id" x="20" y="475">M3-04</text>
+      <text class="g-name" x="60" y="475">Dashboard tabs</text>
+      <rect class="g-bar" x="600" y="464" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="608" y="474">M3-04</text>
+      <!-- M3-01 Embed JWT (w17, 2w, M) — CRITICAL -->
+      <text class="g-id" x="20" y="495">M3-01</text>
+      <text class="g-name" x="60" y="495">Signed-JWT embed mode</text>
+      <rect class="g-bar-crit" x="600" y="484" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="608" y="494">M3-01</text>
+      <!-- M3-03 Saved metrics (w17, 5w, L) -->
+      <text class="g-id" x="20" y="515">M3-03</text>
+      <text class="g-name" x="60" y="515">Saved metrics</text>
+      <rect class="g-bar" x="600" y="504" width="125" height="14" rx="2"/>
+      <text class="g-bar-label" x="608" y="514">M3-03</text>
+      <!-- M3-05 Geo map (w19, 2w, M) -->
+      <text class="g-id" x="20" y="535">M3-05</text>
+      <text class="g-name" x="60" y="535">Geo map widget</text>
+      <rect class="g-bar" x="650" y="524" width="50" height="14" rx="2"/>
+      <text class="g-bar-label" x="658" y="534">M3-05</text>
+      <!-- M3-02 RLS (w19, 3w, L) — CRITICAL -->
+      <text class="g-id" x="20" y="555">M3-02</text>
+      <text class="g-name" x="60" y="555">Row-level security</text>
+      <rect class="g-bar-crit" x="650" y="544" width="75" height="14" rx="2"/>
+      <text class="g-bar-label" x="658" y="554">M3-02</text>
+      <!-- M3-06 Question builder (w19, 6w, L) -->
+      <text class="g-id" x="20" y="575">M3-06</text>
+      <text class="g-name" x="60" y="575">Lightweight question builder</text>
+      <rect class="g-bar" x="650" y="564" width="150" height="14" rx="2"/>
+      <text class="g-bar-label" x="658" y="574">M3-06</text>
+
+      <!-- Legend -->
+      <g transform="translate(20, 645)">
+        <rect class="g-bar-found" x="0" y="-9" width="14" height="11" rx="2"/>
+        <text class="g-id" x="22" y="0">foundation</text>
+        <rect class="g-bar-crit" x="110" y="-9" width="14" height="11" rx="2"/>
+        <text class="g-id" x="132" y="0">on critical path</text>
+        <rect class="g-bar" x="240" y="-9" width="14" height="11" rx="2"/>
+        <text class="g-id" x="262" y="0">parallel track</text>
+        <text class="g-id" x="380" y="0">· bar length = effort estimate (XS=1w, S=1–2w, M=2–3w, L=4–6w)</text>
+      </g>
+    </svg>
+
+    <h3>Critical chain</h3>
+    <p>The sequence that determines total elapsed time, in order:</p>
+    <ol>
+      <li><b>F-01</b> template engine &rarr; <b>M1-01</b> parameterized queries &rarr; <b>M1-02</b> dashboard filters &rarr; <b>M1-03</b> cross-filter on click. (M1 closes when M1-03 lands; M1-04/05/06/07/08 can finish earlier and wait.)</li>
+      <li><b>M2-01</b> snapshot renderer &rarr; <b>M2-02</b> subscriptions &rarr; <b>M2-03</b> alerts. (M2-04 and M2-05 are independent.)</li>
+      <li><b>M3-01</b> embed JWT &rarr; <b>M3-02</b> row-level security. (M3-03/04/05/06 are independent; M3-06 is the longest tail.)</li>
+    </ol>
+
+    <h3>Parallelization notes</h3>
+    <ul>
+      <li><b>Foundations</b> — F-01 and F-02 are independent and can land in the same week if two engineers split them.</li>
+      <li><b>Inside M1</b> — once F-01 ships, M1-01 begins, but the widget tickets (M1-04, M1-05, M1-06, M1-07, M1-08) don't depend on it and can be picked up by anyone in parallel.</li>
+      <li><b>M2 ↔ M3 overlap</b> — M3-01 needs F-01 (already shipped) and depends on the snapshot renderer's auth path landing in M2-01. A small engineering team can start M3-03 (saved metrics) during M2 since it has no M2 dependencies.</li>
+      <li><b>Bottleneck</b> — M3-06 (question builder) is the longest single ticket. Splitting it into smaller sub-tickets (source picker, summarize step, group-by step, filter step, visualize handoff) lets it run with more parallelism.</li>
+    </ul>
+
+    <div class="callout callout-tip">
+      <span class="mark">Tip</span>
+      <p>The critical chain hits 21 weeks; the milestone target of 24 weeks gives a 3-week buffer for QA, design polish, and unforeseen rework. If a foundation slips by more than a week, expect a one-to-one slip in the GA date.</p>
+    </div>
+  </section>
+
+  <!-- FOUNDATIONS -->
+  <section class="section" id="foundations">
+    <p class="eyebrow">Foundations</p>
+    <h2 class="mt-0">Two pieces of plumbing first</h2>
+    <p>Both unblock the bulk of M1. Land them in order, then everything else parallelizes.</p>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">F-01</span>
+        <h4 class="ticket-title">Query template engine</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>Single source of truth for <code>{{param}}</code> substitution. Used by saved queries, dashboard filters, scheduled subscriptions, and embed-mode parameter overrides.</p>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>New service <code>packages/backend/src/modules/queries/query-template.service.ts</code> with <code>render(sql, defs, values, allowedIdentifiers): { sql, bindings }</code>.</li>
+        <li>Two substitution modes:
+          <ul>
+            <li><b>Value</b> (default): <code>{{date}}</code> &rarr; <code>$1</code> in SQL; value goes into the bindings array. Driver does the binding.</li>
+            <li><b>Identifier</b>: <code>{{!table}}</code> &rarr; double-quoted identifier, whitelist-validated against known schema names from the connection.</li>
+          </ul>
+        </li>
+        <li>Reject any token not matching <code>^[a-zA-Z_][a-zA-Z0-9_.]*$</code>.</li>
+        <li>Parameter types: <code>'string' | 'number' | 'boolean' | 'date' | 'date_range' | 'select' | 'multi_select'</code>. <code>date_range</code> expands to two bound values: <code>{{range.start}}</code>, <code>{{range.end}}</code>.</li>
+        <li>Export from <code>QueriesModule</code> so other modules can consume.</li>
+      </ul>
+
+      <h5>Code skeleton</h5>
+      <p>The contract below is the load-bearing piece — it's the line between safe and unsafe SQL. Value mode <em>always</em> binds via the driver; identifier mode <em>always</em> goes through the allow-list. There is no third mode.</p>
+<pre><code><span class="tok-com">// packages/backend/src/modules/queries/query-template.service.ts</span>
+<span class="tok-kw">import</span> { Injectable, BadRequestException } <span class="tok-kw">from</span> <span class="tok-str">'@nestjs/common'</span>;
+
+<span class="tok-kw">export type</span> ParamType =
+  | <span class="tok-str">'string'</span> | <span class="tok-str">'number'</span> | <span class="tok-str">'boolean'</span> | <span class="tok-str">'date'</span>
+  | <span class="tok-str">'date_range'</span> | <span class="tok-str">'select'</span> | <span class="tok-str">'multi_select'</span>;
+
+<span class="tok-kw">export interface</span> ParamDef {
+  name: <span class="tok-kw">string</span>;
+  type: ParamType;
+  required: <span class="tok-kw">boolean</span>;
+  <span class="tok-fn">default</span>?: <span class="tok-kw">unknown</span>;
+}
+
+<span class="tok-kw">export interface</span> RenderResult {
+  sql: <span class="tok-kw">string</span>;
+  bindings: <span class="tok-kw">unknown</span>[];
+}
+
+<span class="tok-com">// Two-character mark, optional identifier flag, then a dotted accessor.</span>
+<span class="tok-kw">const</span> <span class="tok-fn">TOKEN_RX</span> = <span class="tok-str">/\{\{\s*(!?)\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*\}\}/g</span>;
+<span class="tok-kw">const</span> <span class="tok-fn">IDENT_RX</span> = <span class="tok-str">/^[a-zA-Z_][a-zA-Z0-9_]*$/</span>;
+
+@Injectable()
+<span class="tok-kw">export class</span> <span class="tok-fn">QueryTemplateService</span> {
+  <span class="tok-fn">render</span>(
+    sql: <span class="tok-kw">string</span>,
+    defs: ParamDef[],
+    values: <span class="tok-kw">Record</span>&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;,
+    allowedIdentifiers: <span class="tok-kw">Set</span>&lt;<span class="tok-kw">string</span>&gt;,
+  ): RenderResult {
+    <span class="tok-kw">const</span> defsByName = <span class="tok-kw">new</span> <span class="tok-fn">Map</span>(defs.map(d =&gt; [d.name, d]));
+    <span class="tok-kw">const</span> bindings: <span class="tok-kw">unknown</span>[] = [];
+
+    <span class="tok-kw">const</span> rendered = sql.<span class="tok-fn">replace</span>(TOKEN_RX, (_match, identMark, accessor) =&gt; {
+      <span class="tok-kw">const</span> isIdent = identMark === <span class="tok-str">'!'</span>;
+      <span class="tok-kw">const</span> rootName = accessor.<span class="tok-fn">split</span>(<span class="tok-str">'.'</span>)[<span class="tok-str">0</span>];
+      <span class="tok-kw">const</span> def = defsByName.<span class="tok-fn">get</span>(rootName);
+
+      <span class="tok-kw">if</span> (!def) {
+        <span class="tok-kw">throw new</span> <span class="tok-fn">BadRequestException</span>(<span class="tok-str">`Unknown parameter "${accessor}"`</span>);
+      }
+
+      <span class="tok-kw">const</span> raw = <span class="tok-kw">this</span>.<span class="tok-fn">resolveValue</span>(def, values, accessor);
+
+      <span class="tok-kw">if</span> (isIdent) {
+        <span class="tok-com">// Identifier mode: never bind, only whitelist.</span>
+        <span class="tok-kw">if</span> (<span class="tok-kw">typeof</span> raw !== <span class="tok-str">'string'</span> || !IDENT_RX.<span class="tok-fn">test</span>(raw) || !allowedIdentifiers.<span class="tok-fn">has</span>(raw)) {
+          <span class="tok-kw">throw new</span> <span class="tok-fn">BadRequestException</span>(<span class="tok-str">`Identifier "${raw}" not in allow-list`</span>);
+        }
+        <span class="tok-kw">return</span> <span class="tok-str">`"${raw}"`</span>;
+      }
+
+      <span class="tok-com">// Value mode: ALWAYS bind, never interpolate.</span>
+      bindings.<span class="tok-fn">push</span>(raw);
+      <span class="tok-kw">return</span> <span class="tok-str">`$${bindings.length}`</span>;
+    });
+
+    <span class="tok-kw">return</span> { sql: rendered, bindings };
+  }
+
+  <span class="tok-kw">private</span> <span class="tok-fn">resolveValue</span>(def: ParamDef, values: <span class="tok-kw">Record</span>&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;, accessor: <span class="tok-kw">string</span>) {
+    <span class="tok-com">// Walks dotted accessors (e.g. range.start), applies defaults,</span>
+    <span class="tok-com">// enforces type, rejects missing-required. Implementation omitted.</span>
+  }
+}</code></pre>
+
+      <h5>Required tests (CI must cover)</h5>
+<pre><code><span class="tok-com">// queries/query-template.service.spec.ts — load-bearing fixtures</span>
+<span class="tok-fn">describe</span>(<span class="tok-str">'QueryTemplateService'</span>, () =&gt; {
+  <span class="tok-fn">it</span>(<span class="tok-str">'value mode binds, never interpolates'</span>, () =&gt; {
+    <span class="tok-kw">const</span> r = svc.<span class="tok-fn">render</span>(<span class="tok-str">'SELECT {{x}}'</span>, [{ name: <span class="tok-str">'x'</span>, type: <span class="tok-str">'string'</span>, required: <span class="tok-kw">true</span> }],
+      { x: <span class="tok-str">"1; DROP TABLE users; --"</span> }, <span class="tok-kw">new</span> <span class="tok-fn">Set</span>());
+    expect(r.sql).<span class="tok-fn">toBe</span>(<span class="tok-str">'SELECT $1'</span>);
+    expect(r.bindings).<span class="tok-fn">toEqual</span>([<span class="tok-str">"1; DROP TABLE users; --"</span>]);
+  });
+
+  <span class="tok-fn">it</span>(<span class="tok-str">'identifier mode rejects non-whitelisted values'</span>, () =&gt; {
+    expect(() =&gt; svc.<span class="tok-fn">render</span>(<span class="tok-str">'SELECT * FROM {{!t}}'</span>,
+      [{ name: <span class="tok-str">'t'</span>, type: <span class="tok-str">'string'</span>, required: <span class="tok-kw">true</span> }],
+      { t: <span class="tok-str">'users; DROP --'</span> }, <span class="tok-kw">new</span> <span class="tok-fn">Set</span>([<span class="tok-str">'orders'</span>])))
+      .<span class="tok-fn">toThrow</span>(<span class="tok-str">/not in allow-list/</span>);
+  });
+
+  <span class="tok-fn">it</span>(<span class="tok-str">'rejects unknown parameters'</span>, () =&gt; {
+    expect(() =&gt; svc.<span class="tok-fn">render</span>(<span class="tok-str">'SELECT {{ghost}}'</span>, [], {}, <span class="tok-kw">new</span> <span class="tok-fn">Set</span>()))
+      .<span class="tok-fn">toThrow</span>(<span class="tok-str">/Unknown parameter/</span>);
+  });
+
+  <span class="tok-fn">it</span>(<span class="tok-str">'date_range expands to two bindings'</span>, () =&gt; {
+    <span class="tok-kw">const</span> r = svc.<span class="tok-fn">render</span>(<span class="tok-str">'WHERE d BETWEEN {{r.start}} AND {{r.end}}'</span>,
+      [{ name: <span class="tok-str">'r'</span>, type: <span class="tok-str">'date_range'</span>, required: <span class="tok-kw">true</span> }],
+      { r: { start: <span class="tok-str">'2026-01-01'</span>, end: <span class="tok-str">'2026-03-31'</span> } }, <span class="tok-kw">new</span> <span class="tok-fn">Set</span>());
+    expect(r.bindings).<span class="tok-fn">toEqual</span>([<span class="tok-str">'2026-01-01'</span>, <span class="tok-str">'2026-03-31'</span>]);
+  });
+});</code></pre>
+
+      <div class="callout callout-warn">
+        <span class="mark">Security</span>
+        <p>Reviewer checklist for any PR that touches this file: (1) every <code>replace</code> path either binds via <code>bindings.push</code> or routes through the allow-list — never both bypassed; (2) no string concatenation of user-supplied values into the rendered SQL; (3) the identifier allow-list is sourced from live schema discovery, not user input.</p>
+      </div>
+
+      <h5>Acceptance criteria</h5>
+      <ul>
+        <li>Unit tests cover injection attempts (<code>'); DROP --</code>, <code>{{a}}; DROP</code>, identifier mode with non-whitelisted value).</li>
+        <li>Saved query with <code>WHERE created_at &gt; {{since}}</code> executes correctly when called with <code>{ since: '2026-01-01' }</code>.</li>
+      </ul>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">F-02</span>
+        <h4 class="ticket-title">Query result cache (Redis-backed LRU)</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>Used by widgets to avoid re-running queries on every dashboard open. Foundation for delivery (M2) and embed (M3) too.</p>
+
+      <h5>Infra</h5>
+      <ul>
+        <li>Add Redis to <code>docker-compose.yml</code> (latest stable, single-node, password-protected).</li>
+        <li>Env: <code>REDIS_URL</code>. Health check on startup.</li>
+      </ul>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>New module <code>packages/backend/src/modules/cache/</code> with <code>QueryCacheService</code>.</li>
+        <li>Key: <code>sha1(orgId + connectionId + renderedSql + bindings)</code>; namespace under <code>qcache:</code>.</li>
+        <li>Value: <code>{ rows, columns, executedAt, durationMs }</code> with default TTL 300s; override per saved query via new <code>cache_ttl_seconds</code> column.</li>
+        <li>Wrap the existing query executor: cache-aside read; on miss, execute and write.</li>
+        <li>Explicit purge endpoint: <code>POST /api/queries/:id/cache/purge</code>.</li>
+      </ul>
+
+      <h5>Acceptance criteria</h5>
+      <ul>
+        <li>Second open of the same dashboard within TTL is observably faster (timing log shows cache hit).</li>
+        <li>Editing a saved query bumps its cache namespace; old entries become unreachable, not stale.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- MILESTONE 1 -->
+  <section class="section" id="m1">
+    <div class="milestone-head">
+      <div class="ms-eyebrow">Milestone 1 · ~6–8 weeks</div>
+      <h3 class="mt-0">Interactive dashboards</h3>
+      <p>Make dashboards feel alive. After M1 a user can filter, click to drill, see a big number with a delta, and pin a markdown note. F-01 and F-02 must be merged before starting.</p>
+    </div>
+
+    <!-- M1-01 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M1-01</span>
+        <h4 class="ticket-title">Parameterized saved queries</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>Saved queries declare a typed parameter schema. The query editor renders inputs for them. Execution routes through <code>QueryTemplateService</code> (F-01).</p>
+
+      <h5>Migration</h5>
+<pre><code><span class="tok-kw">ALTER TABLE</span> saved_queries
+  <span class="tok-kw">ADD COLUMN</span> parameters <span class="tok-kw">jsonb</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-str">'[]'</span>,
+  <span class="tok-kw">ADD COLUMN</span> cache_ttl_seconds <span class="tok-kw">int</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-str">300</span>;</code></pre>
+      <p>Shape of <code>parameters</code>: <code>Array&lt;{ name, type, default?, required, label? }&gt;</code>.</p>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>Extend <code>SavedQueryEntity</code> with the new columns (JSONB pattern: <code>@Column('jsonb', { default: [] })</code>).</li>
+        <li>Extend <code>POST /api/queries/execute</code> to accept <code>{ savedQueryId, parameters }</code>. Validate parameter values against the declared schema before passing to the template engine.</li>
+        <li>Re-run all existing saved-query callers through the new path; an empty parameter list is a no-op.</li>
+      </ul>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Saved-query editor (<code>packages/frontend/app/query/</code>): a new "Parameters" tab to declare them.</li>
+        <li>Generic <code>&lt;QueryParameterInput /&gt;</code> that renders by type (date picker, select, text…). Reuse in widget config and embed renderer.</li>
+      </ul>
+
+      <h5>Acceptance criteria</h5>
+      <ul>
+        <li>A saved query with one date parameter runs end-to-end from the editor with a chosen value.</li>
+        <li>Bad parameter values (wrong type, missing required) return 400 with a per-field error map.</li>
+      </ul>
+    </div>
+
+    <!-- M1-02 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M1-02</span>
+        <h4 class="ticket-title">Dashboard filters</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>A filter bar above the grid. Each filter has a name and feeds zero or more widget parameters. State lives in URL query params so a filtered view is shareable.</p>
+
+      <h5>Migration</h5>
+<pre><code><span class="tok-kw">ALTER TABLE</span> dashboards
+  <span class="tok-kw">ADD COLUMN</span> filters <span class="tok-kw">jsonb</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-str">'[]'</span>;</code></pre>
+      <p>Each widget's existing config gains <code>parameter_bindings</code>: <code>Record&lt;saved_query_param_name, dashboard_filter_name&gt;</code>.</p>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>Dashboard render endpoint receives filter values, resolves the binding map per widget, executes each widget's query with the resolved parameters.</li>
+        <li>Unbound parameters fall back to their declared default.</li>
+      </ul>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>New <code>&lt;DashboardFilterBar /&gt;</code> rendered above <code>DashboardGrid</code>. Filter chips with inline editors.</li>
+        <li>Filter state stored in URL via <code>useSearchParams</code> and propagated via context.</li>
+        <li>Widget config gains a "Parameter bindings" tab that lists the widget's saved-query parameters and a dropdown of dashboard filters per row.</li>
+      </ul>
+
+      <h5>Acceptance criteria</h5>
+      <ul>
+        <li>Adding a date-range filter, binding it to three widgets, and changing it once re-renders all three with the same range.</li>
+        <li>Reloading the page with a filter URL parameter restores the same filtered state.</li>
+      </ul>
+    </div>
+
+    <!-- M1-03 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M1-03</span>
+        <h4 class="ticket-title">Cross-filter on click</h4>
+        <span class="size size-s">Effort: S</span>
+      </div>
+      <p>Clicking a category in any chart emits a filter to the rest of the dashboard.</p>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Wire ECharts <code>click</code> event in each chart component to <code>onValueClick({ field, value })</code>.</li>
+        <li>The dashboard maps the clicked field to a matching filter (by name) and sets it.</li>
+        <li>Add a "Cross-filter from this widget" toggle in widget config so a widget can opt out (useful for top-row KPIs).</li>
+      </ul>
+
+      <h5>Acceptance criteria</h5>
+      <ul>
+        <li>Bar chart by country &rarr; click "Rwanda" &rarr; the country filter populates and other widgets refresh.</li>
+        <li>Clicking again on the same bar toggles the filter off.</li>
+      </ul>
+    </div>
+
+    <!-- M1-04 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M1-04</span>
+        <h4 class="ticket-title">Big-number / KPI widget</h4>
+        <span class="size size-s">Effort: S</span>
+      </div>
+      <p>Single number, optional delta vs prior period, optional sparkline, optional threshold band. Tenth ECharts component.</p>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>New <code>packages/frontend/components/charts/BigNumberChart.tsx</code>. Internally a custom layout; sparkline via ECharts' "line" type embedded.</li>
+        <li>Widget config: primary metric column, format (<code>'number' | 'currency' | 'percent'</code>), comparison column (optional), threshold bands.</li>
+        <li>Add to chart type enum and the <code>ChartBuilder</code> picker.</li>
+      </ul>
+
+      <h5>Acceptance criteria</h5>
+      <ul>
+        <li>Query returning <code>{ value, prev_value }</code> renders as <code>"1,234 ↑ 12%"</code> with the delta colored green.</li>
+      </ul>
+    </div>
+
+    <!-- M1-05 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M1-05</span>
+        <h4 class="ticket-title">Pivot / crosstab table widget</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>Two-axis aggregating table. v1 is client-side over query results — sufficient up to a few thousand rows.</p>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Add <code>@tanstack/react-table</code> (or hand-roll a small implementation; the matrix is at most 30×30 in v1).</li>
+        <li>New <code>PivotTable.tsx</code> in <code>components/charts/</code>.</li>
+        <li>Widget config: rows axis, columns axis, value axis, aggregator (<code>sum | avg | count | min | max</code>).</li>
+      </ul>
+
+      <h5>Acceptance criteria</h5>
+      <ul>
+        <li>Sales by region × month renders as a pivot with totals row and column.</li>
+      </ul>
+    </div>
+
+    <!-- M1-06 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M1-06</span>
+        <h4 class="ticket-title">Text / markdown widget</h4>
+        <span class="size size-xs">Effort: XS</span>
+      </div>
+      <p>Non-chart widget for context. <code>react-markdown</code> is already a dependency.</p>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>New <code>MarkdownWidget.tsx</code>. Edit-mode shows a textarea; view-mode shows the rendered output.</li>
+        <li>Treat as a special chart type in the widget config UI to avoid forking the widget model.</li>
+      </ul>
+    </div>
+
+    <!-- M1-07 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M1-07</span>
+        <h4 class="ticket-title">Auto-refresh interval</h4>
+        <span class="size size-xs">Effort: XS</span>
+      </div>
+      <p>Per-dashboard "refresh every N seconds" dropdown in the toolbar.</p>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Wire the refresh interval through the dashboard context to each widget's SWR <code>refreshInterval</code>.</li>
+        <li>Persist the chosen interval on the dashboard entity (add <code>refresh_interval_seconds int</code> column).</li>
+      </ul>
+    </div>
+
+    <!-- M1-08 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M1-08</span>
+        <h4 class="ticket-title">Time-series annotations</h4>
+        <span class="size size-s">Effort: S</span>
+      </div>
+      <p>Drop a vertical marker on line/area charts. Per-widget, stored in widget config (no new table).</p>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Widget config gains an "Annotations" tab: list of <code>{ date, label, color }</code>.</li>
+        <li>Line/Area chart components render via ECharts <code>markLine</code>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- MILESTONE 2 -->
+  <section class="section" id="m2">
+    <div class="milestone-head">
+      <div class="ms-eyebrow">Milestone 2 · ~6 weeks</div>
+      <h3 class="mt-0">Delivery &amp; performance</h3>
+      <p>Get dashboards out of DataGate and in front of people, fast. After M2 a dashboard can be cached, exported as a PDF, scheduled to a Slack channel, or set to alert on a threshold.</p>
+    </div>
+
+    <!-- M2-01 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M2-01</span>
+        <h4 class="ticket-title">Dashboard snapshot renderer</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>Headless render of a dashboard to PDF, PNG, and CSV. Foundation for delivery and on-demand export.</p>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>New module <code>packages/backend/src/modules/delivery/</code> with <code>SnapshotService</code>.</li>
+        <li>PDF/PNG: spawn Puppeteer (or call an existing catalog-screenshot binary if present), navigate to the embed-mode URL (depends on M3-01 partial — ship a temporary signed-token issuance scoped to internal renderer use).</li>
+        <li>CSV: per-widget, dump the underlying query result. Combine into a zip for the dashboard-level export.</li>
+      </ul>
+
+      <h5>API</h5>
+      <ul>
+        <li><code>POST /api/dashboards/:id/snapshot</code> &rarr; <code>{ format, filters? }</code> &rarr; returns a download URL.</li>
+      </ul>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Toolbar adds an "Export" menu with PDF, PNG, CSV.</li>
+      </ul>
+    </div>
+
+    <!-- M2-02 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M2-02</span>
+        <h4 class="ticket-title">Dashboard subscriptions (scheduled delivery)</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>Send a snapshot on a cron schedule to email or Slack. Reuses <code>@nestjs/schedule</code> + the snapshot renderer.</p>
+
+      <h5>Migration</h5>
+<pre><code><span class="tok-kw">CREATE TABLE</span> dashboard_subscriptions <span class="tok-kw">(</span>
+  <span class="tok-fn">id</span>              <span class="tok-kw">text</span> <span class="tok-kw">PRIMARY KEY</span>,
+  <span class="tok-fn">dashboard_id</span>    <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL REFERENCES</span> dashboards<span class="tok-kw">(</span>id<span class="tok-kw">)</span>,
+  <span class="tok-fn">organization_id</span> <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL</span>,
+  <span class="tok-fn">schedule_cron</span>   <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL</span>,
+  <span class="tok-fn">format</span>          <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL</span>,   <span class="tok-com">-- pdf | png | csv</span>
+  <span class="tok-fn">destination</span>     <span class="tok-kw">jsonb</span> <span class="tok-kw">NOT NULL</span>,  <span class="tok-com">-- { kind: email|slack, ... }</span>
+  <span class="tok-fn">filters</span>         <span class="tok-kw">jsonb</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-str">'{}'</span>,
+  <span class="tok-fn">enabled</span>         <span class="tok-kw">boolean</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-kw">true</span>,
+  <span class="tok-fn">last_run_at</span>     <span class="tok-kw">timestamptz</span>,
+  <span class="tok-fn">created_at</span>      <span class="tok-kw">timestamptz</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-fn">now</span><span class="tok-kw">()</span>,
+  <span class="tok-fn">updated_at</span>      <span class="tok-kw">timestamptz</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-fn">now</span><span class="tok-kw">()</span>
+<span class="tok-kw">)</span>;</code></pre>
+
+      <h5>Backend</h5>
+      <ul>
+        <li><code>DashboardDeliveryService</code>: on boot, register a cron job per enabled subscription via <code>SchedulerRegistry</code>. Re-register on subscription CRUD.</li>
+        <li>Email transport: existing SMTP config (reuse from invitation flow). Slack: incoming webhook URL on org settings.</li>
+        <li>Failure handling: <code>last_error</code> column, retry once after 60s, skip after that.</li>
+      </ul>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Subscriptions tab on dashboard settings. CRUD UI with cron-string helper.</li>
+      </ul>
+    </div>
+
+    <!-- M2-03 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M2-03</span>
+        <h4 class="ticket-title">Threshold alerts</h4>
+        <span class="size size-s">Effort: S</span>
+      </div>
+      <p>"When KPI X crosses Y, notify Z." Built as a special-case subscription rather than a new table.</p>
+
+      <h5>Migration</h5>
+      <p>Add to <code>dashboard_subscriptions</code>:</p>
+<pre><code><span class="tok-kw">ALTER TABLE</span> dashboard_subscriptions
+  <span class="tok-kw">ADD COLUMN</span> alert_widget_id <span class="tok-kw">text</span>,         <span class="tok-com">-- nullable</span>
+  <span class="tok-kw">ADD COLUMN</span> alert_predicate <span class="tok-kw">jsonb</span>;         <span class="tok-com">-- { column, op, value }</span></code></pre>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>When <code>alert_predicate</code> is set, the worker evaluates the predicate against the widget's query result. Fires only on edge transitions (false → true).</li>
+        <li>Record state in <code>last_alert_state</code> to avoid repeat sends.</li>
+      </ul>
+    </div>
+
+    <!-- M2-04 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M2-04</span>
+        <h4 class="ticket-title">Async query execution</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>Long-running queries leave the request thread. Required to lift the current 30s cap for power users.</p>
+
+      <h5>Infra</h5>
+      <ul>
+        <li>Add Bull (or NestJS Queues) backed by the same Redis from F-02.</li>
+      </ul>
+
+      <h5>API</h5>
+      <ul>
+        <li><code>POST /api/queries/execute-async</code> &rarr; <code>{ jobId }</code>.</li>
+        <li><code>GET /api/queries/jobs/:id</code> &rarr; status + result when done.</li>
+        <li>SSE channel <code>/api/queries/jobs/:id/stream</code> for live progress.</li>
+      </ul>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Query editor opts into async mode automatically when expected duration &gt; 10s (heuristic: prior runs).</li>
+      </ul>
+    </div>
+
+    <!-- M2-05 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M2-05</span>
+        <h4 class="ticket-title">Dashboard version history</h4>
+        <span class="size size-s">Effort: S</span>
+      </div>
+      <p>Snapshot the full dashboard JSON on each save. Restore by revision.</p>
+
+      <h5>Migration</h5>
+<pre><code><span class="tok-kw">CREATE TABLE</span> dashboard_revisions <span class="tok-kw">(</span>
+  <span class="tok-fn">id</span>           <span class="tok-kw">text</span> <span class="tok-kw">PRIMARY KEY</span>,
+  <span class="tok-fn">dashboard_id</span> <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL REFERENCES</span> dashboards<span class="tok-kw">(</span>id<span class="tok-kw">)</span>,
+  <span class="tok-fn">snapshot</span>     <span class="tok-kw">jsonb</span> <span class="tok-kw">NOT NULL</span>,
+  <span class="tok-fn">created_by</span>   <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL</span>,
+  <span class="tok-fn">created_at</span>   <span class="tok-kw">timestamptz</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-fn">now</span><span class="tok-kw">()</span>
+<span class="tok-kw">)</span>;
+<span class="tok-kw">CREATE INDEX</span> <span class="tok-kw">ON</span> dashboard_revisions <span class="tok-kw">(</span>dashboard_id, created_at <span class="tok-kw">DESC</span><span class="tok-kw">)</span>;</code></pre>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>Insert a revision on every <code>PATCH /dashboards/:id</code>. Cap at 100 per dashboard (delete oldest beyond that).</li>
+        <li><code>POST /dashboards/:id/restore</code> &rarr; <code>{ revisionId }</code>.</li>
+      </ul>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>"History" sidebar on the dashboard with a diff-light view (chart count change, layout change, filter change).</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- MILESTONE 3 -->
+  <section class="section" id="m3">
+    <div class="milestone-head">
+      <div class="ms-eyebrow">Milestone 3 · ~8 weeks</div>
+      <h3 class="mt-0">Embed &amp; semantic layer</h3>
+      <p>Open the door to embedded analytics and reusable metrics. After M3 DataGate can be dropped into another product behind a signed token, and analysts can name a metric once and reuse it everywhere.</p>
+    </div>
+
+    <!-- M3-01 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M3-01</span>
+        <h4 class="ticket-title">Signed-JWT embed mode</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>External host app obtains a short-lived JWT scoped to a dashboard + parameter overrides, then iframes DataGate.</p>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>New module <code>packages/backend/src/modules/embed/</code>.</li>
+        <li><code>POST /api/embed/token</code> (machine-to-machine, separate API key) &rarr; <code>{ dashboardId, parameters, ttlSeconds, userContext? }</code> &rarr; signed JWT.</li>
+        <li>Embed routes accept the token via query string or <code>Authorization</code> header.</li>
+        <li>Token claims pin the dashboard, parameter overrides (cannot be changed in-app), and an optional user context for RLS (M3-02).</li>
+      </ul>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>New route <code>/embed/[id]</code> renders the dashboard without app chrome (no sidebar, no top bar). Honors only the parameters the token allows.</li>
+        <li>Documentation page with copy-paste iframe snippet and a Node example for token issuance.</li>
+      </ul>
+    </div>
+
+    <!-- M3-02 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M3-02</span>
+        <h4 class="ticket-title">Row-level security on shares</h4>
+        <span class="size size-l">Effort: L</span>
+      </div>
+      <p>An RLS predicate is injected into every widget query for a shared dashboard. The predicate is templated against the recipient identity.</p>
+
+      <h5>Migration</h5>
+<pre><code><span class="tok-kw">ALTER TABLE</span> saved_queries
+  <span class="tok-kw">ADD COLUMN</span> rls_predicate <span class="tok-kw">text</span>;   <span class="tok-com">-- e.g. region = {{user.region}}</span></code></pre>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>Query executor: when called via embed/share with a user context, AND the predicate into the WHERE clause via the template engine.</li>
+        <li>Refuse to execute if the predicate references a missing user attribute (no implicit unsafe fallback).</li>
+      </ul>
+
+      <h5>Acceptance criteria</h5>
+      <ul>
+        <li>Same dashboard, different embed tokens with different user contexts, see different rows — verified with a unit-test fixture that asserts SQL diffs.</li>
+      </ul>
+    </div>
+
+    <!-- M3-03 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M3-03</span>
+        <h4 class="ticket-title">Saved metrics</h4>
+        <span class="size size-l">Effort: L</span>
+      </div>
+      <p>Named aggregates with a stable identifier. Widgets reference them instead of inlining SQL.</p>
+
+      <h5>Migration</h5>
+<pre><code><span class="tok-kw">CREATE TABLE</span> metrics <span class="tok-kw">(</span>
+  <span class="tok-fn">id</span>              <span class="tok-kw">text</span> <span class="tok-kw">PRIMARY KEY</span>,
+  <span class="tok-fn">organization_id</span> <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL</span>,
+  <span class="tok-fn">name</span>            <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL</span>,
+  <span class="tok-fn">slug</span>            <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL</span>,
+  <span class="tok-fn">saved_query_id</span>  <span class="tok-kw">text</span> <span class="tok-kw">REFERENCES</span> saved_queries<span class="tok-kw">(</span>id<span class="tok-kw">)</span>,
+  <span class="tok-fn">expression</span>      <span class="tok-kw">text</span> <span class="tok-kw">NOT NULL</span>,  <span class="tok-com">-- COUNT(DISTINCT user_id) FILTER (...)</span>
+  <span class="tok-fn">format</span>          <span class="tok-kw">jsonb</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-str">'{}'</span>,
+  <span class="tok-fn">created_at</span>      <span class="tok-kw">timestamptz</span> <span class="tok-kw">NOT NULL DEFAULT</span> <span class="tok-fn">now</span><span class="tok-kw">()</span>,
+  <span class="tok-kw">UNIQUE</span> <span class="tok-kw">(</span>organization_id, slug<span class="tok-kw">)</span>
+<span class="tok-kw">)</span>;</code></pre>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>Widget config can reference a metric by id; widget's <code>SELECT</code> is composed at render time from the metric expression + the widget's group-bys.</li>
+      </ul>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>New <code>/metrics</code> page with CRUD.</li>
+        <li>Widget builder gains "Use a metric" path alongside the existing "Pick from query result" path.</li>
+      </ul>
+    </div>
+
+    <!-- M3-04 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M3-04</span>
+        <h4 class="ticket-title">Dashboard tabs</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>Group widgets into named tabs in one dashboard.</p>
+
+      <h5>Migration</h5>
+      <p>Add to <code>dashboards</code>: <code>tabs jsonb NOT NULL DEFAULT '[{"id":"default","name":"Overview"}]'</code>. Each widget gains a <code>tab_id</code> field in its layout JSON.</p>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Tab bar above the grid. Adding/renaming/reordering tabs; deleting a tab moves widgets to the first tab (with a confirmation).</li>
+      </ul>
+    </div>
+
+    <!-- M3-05 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M3-05</span>
+        <h4 class="ticket-title">Geo map widget</h4>
+        <span class="size size-m">Effort: M</span>
+      </div>
+      <p>Choropleth (country/region shading) and scatter-on-map. Both supported natively by ECharts; needs a map data registration step.</p>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>Bundle ECharts world + country-level GeoJSON for a small set of regions (start with Rwanda + EAC).</li>
+        <li>New <code>MapChart.tsx</code> with two modes (<code>choropleth</code>, <code>scatter</code>).</li>
+        <li>Widget config: location column (country code, lat/lng), value column.</li>
+      </ul>
+    </div>
+
+    <!-- M3-06 -->
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="ticket-id">M3-06</span>
+        <h4 class="ticket-title">Lightweight question builder</h4>
+        <span class="size size-l">Effort: L</span>
+      </div>
+      <p>A schema-aware UI: pick a table, summarize by an aggregation, group by, filter — generate SQL behind the scenes. Doesn't need to match Metabase's full surface; even a 60% version expands the addressable audience.</p>
+
+      <h5>Backend</h5>
+      <ul>
+        <li>Extend the existing schema discovery endpoint to return column types and a "common values" sample for low-cardinality columns (drives filter UX).</li>
+        <li>New <code>POST /api/queries/build</code> &rarr; <code>{ tableRef, summarize, groupBy[], filters[] }</code> &rarr; returns generated SQL (does not save).</li>
+      </ul>
+
+      <h5>Frontend</h5>
+      <ul>
+        <li>New <code>/explore</code> route. Step-form UI: source &rarr; metric &rarr; grouping &rarr; filters &rarr; visualize.</li>
+        <li>"Save as saved query" hands off to the existing saved-query editor.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- SUMMARY TABLES -->
+  <section class="section" id="summary">
+    <p class="eyebrow">Reference</p>
+    <h2 class="mt-0">Cumulative changes</h2>
+
+    <h3>New entities</h3>
+    <table>
+      <thead><tr><th>Entity</th><th>Module</th><th>Introduced in</th></tr></thead>
+      <tbody>
+        <tr><td><code>dashboard_subscriptions</code></td><td>delivery</td><td>M2-02</td></tr>
+        <tr><td><code>dashboard_revisions</code></td><td>dashboard</td><td>M2-05</td></tr>
+        <tr><td><code>metrics</code></td><td>metrics</td><td>M3-03</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Column additions</h3>
+    <table>
+      <thead><tr><th>Table</th><th>Column</th><th>Introduced in</th></tr></thead>
+      <tbody>
+        <tr><td><code>saved_queries</code></td><td><code>parameters jsonb</code>, <code>cache_ttl_seconds int</code>, <code>rls_predicate text</code></td><td>M1-01, M3-02</td></tr>
+        <tr><td><code>dashboards</code></td><td><code>filters jsonb</code>, <code>refresh_interval_seconds int</code>, <code>tabs jsonb</code></td><td>M1-02, M1-07, M3-04</td></tr>
+        <tr><td><code>dashboard_subscriptions</code></td><td><code>alert_widget_id text</code>, <code>alert_predicate jsonb</code></td><td>M2-03</td></tr>
+      </tbody>
+    </table>
+
+    <h3>New backend modules</h3>
+    <table>
+      <thead><tr><th>Module</th><th>Purpose</th><th>Introduced in</th></tr></thead>
+      <tbody>
+        <tr><td><code>cache</code></td><td>Redis-backed query result cache</td><td>F-02</td></tr>
+        <tr><td><code>delivery</code></td><td>Snapshot renderer, subscriptions, alerts</td><td>M2-01 / M2-02 / M2-03</td></tr>
+        <tr><td><code>embed</code></td><td>Signed-JWT issuance, embed render mode</td><td>M3-01</td></tr>
+        <tr><td><code>metrics</code></td><td>Named aggregates</td><td>M3-03</td></tr>
+      </tbody>
+    </table>
+
+    <h3>New API endpoints</h3>
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Introduced in</th></tr></thead>
+      <tbody>
+        <tr><td><code>POST</code></td><td><code>/api/queries/:id/cache/purge</code></td><td>F-02</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/queries/execute-async</code></td><td>M2-04</td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/queries/jobs/:id</code></td><td>M2-04</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/queries/build</code></td><td>M3-06</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/dashboards/:id/snapshot</code></td><td>M2-01</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/dashboards/:id/restore</code></td><td>M2-05</td></tr>
+        <tr><td><code>GET/POST/PATCH/DELETE</code></td><td><code>/api/dashboards/:id/subscriptions</code></td><td>M2-02</td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/embed/token</code></td><td>M3-01</td></tr>
+        <tr><td><code>GET/POST/PATCH/DELETE</code></td><td><code>/api/metrics</code></td><td>M3-03</td></tr>
+      </tbody>
+    </table>
+
+    <h3>New frontend components</h3>
+    <table>
+      <thead><tr><th>Component</th><th>Location</th><th>Introduced in</th></tr></thead>
+      <tbody>
+        <tr><td><code>QueryParameterInput</code></td><td><code>components/QueryEditor/</code></td><td>M1-01</td></tr>
+        <tr><td><code>DashboardFilterBar</code></td><td><code>components/DashboardBuilder/</code></td><td>M1-02</td></tr>
+        <tr><td><code>BigNumberChart</code>, <code>PivotTable</code>, <code>MarkdownWidget</code>, <code>MapChart</code></td><td><code>components/charts/</code></td><td>M1-04, M1-05, M1-06, M3-05</td></tr>
+        <tr><td><code>EmbedRenderer</code></td><td><code>app/embed/[id]/</code></td><td>M3-01</td></tr>
+        <tr><td><code>SubscriptionForm</code>, <code>RevisionHistory</code></td><td><code>components/DashboardBuilder/</code></td><td>M2-02, M2-05</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ROLLOUT -->
+  <section class="section" id="rollout">
+    <p class="eyebrow">Operations</p>
+    <h2 class="mt-0">Rollout strategy</h2>
+    <p>Every user-visible feature in this plan ships behind an organization-scoped flag and rolls out through four cohorts. The flag schema lives in <code>organization_settings.feature_flags</code> — already a JSONB column — so wiring up a new flag requires no migration.</p>
+
+    <h3>Flag schema</h3>
+<pre><code><span class="tok-com">// organization_settings.feature_flags shape</span>
+{
+  <span class="tok-str">"viz.parameters"</span>:    <span class="tok-kw">true</span>,    <span class="tok-com">// M1-01</span>
+  <span class="tok-str">"viz.filters"</span>:       <span class="tok-kw">true</span>,    <span class="tok-com">// M1-02, M1-03</span>
+  <span class="tok-str">"viz.kpi_tile"</span>:      <span class="tok-kw">true</span>,    <span class="tok-com">// M1-04</span>
+  <span class="tok-str">"viz.pivot"</span>:         <span class="tok-kw">true</span>,    <span class="tok-com">// M1-05</span>
+  <span class="tok-str">"viz.markdown"</span>:      <span class="tok-kw">true</span>,    <span class="tok-com">// M1-06</span>
+  <span class="tok-str">"viz.auto_refresh"</span>:  <span class="tok-kw">true</span>,    <span class="tok-com">// M1-07</span>
+  <span class="tok-str">"viz.annotations"</span>:   <span class="tok-kw">true</span>,    <span class="tok-com">// M1-08</span>
+  <span class="tok-str">"viz.cache"</span>:         <span class="tok-kw">true</span>,    <span class="tok-com">// F-02</span>
+  <span class="tok-str">"viz.delivery"</span>:      <span class="tok-kw">false</span>,   <span class="tok-com">// M2-02, M2-03</span>
+  <span class="tok-str">"viz.async_queries"</span>: <span class="tok-kw">false</span>,   <span class="tok-com">// M2-04</span>
+  <span class="tok-str">"viz.versions"</span>:      <span class="tok-kw">false</span>,   <span class="tok-com">// M2-05</span>
+  <span class="tok-str">"viz.embed"</span>:         <span class="tok-kw">false</span>,   <span class="tok-com">// M3-01, M3-02</span>
+  <span class="tok-str">"viz.metrics"</span>:       <span class="tok-kw">false</span>,   <span class="tok-com">// M3-03</span>
+  <span class="tok-str">"viz.tabs"</span>:          <span class="tok-kw">false</span>,   <span class="tok-com">// M3-04</span>
+  <span class="tok-str">"viz.geo_map"</span>:       <span class="tok-kw">false</span>,   <span class="tok-com">// M3-05</span>
+  <span class="tok-str">"viz.explore"</span>:       <span class="tok-kw">false</span>    <span class="tok-com">// M3-06</span>
+}</code></pre>
+
+    <p>Naming rule: <code>viz.&lt;short-feature&gt;</code>, snake_case after the dot. Each flag controls a feature surface, not a single ticket — tickets that ship together (M1-02 / M1-03 / templated saved queries) gate behind one flag.</p>
+
+    <h3>Cohorts</h3>
+    <p>Every feature walks the same path:</p>
+
+    <table>
+      <thead>
+        <tr><th style="width:14%;">Cohort</th><th style="width:18%;">Duration</th><th>What happens</th><th style="width:16%;">Gate to next</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tag tag-ink">Dev</span></td>
+          <td>Until merge</td>
+          <td>Flag on for the dev org only. Engineering team builds and validates against the seed data.</td>
+          <td>PR review + green CI</td>
+        </tr>
+        <tr>
+          <td><span class="tag">Internal</span></td>
+          <td>3–5 days</td>
+          <td>Flag on for two internal orgs (datagate-team + datagate-finance). PM and design exercise the feature against real data. Bugs caught here cost a follow-up PR, not a hotfix.</td>
+          <td>Zero P0/P1 bugs open</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-accent">Canary</span></td>
+          <td>1–2 weeks</td>
+          <td>Flag on for one consenting external org. Monitor error rates, query durations, and qualitative feedback. The org must know they're on the canary.</td>
+          <td>No regression in core metrics for 5 consecutive days</td>
+        </tr>
+        <tr>
+          <td><span class="tag">GA</span></td>
+          <td>Open-ended</td>
+          <td>Flag flipped on for all orgs by default. The flag itself stays in the code for two stable releases as a kill-switch.</td>
+          <td>Two minor releases with no flag-related incidents</td>
+        </tr>
+        <tr>
+          <td><span class="tag">Sunset</span></td>
+          <td>One PR</td>
+          <td>Flag removed from code. The feature is just part of the product now.</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Per-milestone rollout shape</h3>
+    <ul>
+      <li><b>Foundations (F-01, F-02)</b> — no user-visible surface, but F-02 hides behind <code>viz.cache</code> so it can be disabled if cache invalidation bugs appear. F-01 is gated by being routed through opt-in saved queries: a saved query without parameters bypasses the engine entirely.</li>
+      <li><b>M1</b> — eight flags, one per widget/feature. Filters (<code>viz.filters</code>) is the most user-visible and goes to Canary last. Markdown, auto-refresh, and annotations can promote to GA quickly since they're additive.</li>
+      <li><b>M2</b> — delivery and async queries each carry incident risk (Puppeteer hangs, queue backups). Plan for one extra week in Canary for both.</li>
+      <li><b>M3</b> — <code>viz.embed</code> only goes GA after a paying customer has validated the host-app integration end-to-end. RLS (<code>viz.embed_rls</code>, gated under the same embed flag) cannot be canaried without a tenant whose data we can verify partitioned correctly.</li>
+    </ul>
+
+    <h3>Disable / kill-switch path</h3>
+    <p>Each feature respects its flag in three places:</p>
+    <ol>
+      <li>Backend route guards return <code>404</code> when the flag is off for the caller's org. No silent partial-disable.</li>
+      <li>Frontend feature components render <code>null</code> when the flag is off, and the nav entries / chart-type pickers omit the feature from the choices.</li>
+      <li>Scheduled jobs (subscriptions, alerts) check the flag at execution time, not at registration time, so flipping a flag immediately stops future fires without needing to re-register.</li>
+    </ol>
+
+    <div class="callout callout-warn">
+      <span class="mark">Don't</span>
+      <p>Flag checks must never depend on caching the flag value in memory. If an org enables <code>viz.embed</code> at 09:00, the first <code>POST /embed/token</code> at 09:01 must succeed without a process restart. Read the flag from the database per request (the existing <code>organization_settings</code> SWR cache is short enough).</p>
+    </div>
+
+    <h3>Migration safety</h3>
+    <p>All migrations in this plan are additive (new columns with defaults, new tables, no column type changes). The rollback plan for each:</p>
+    <ul>
+      <li>New columns with <code>DEFAULT</code>: rollback is <code>ALTER TABLE … DROP COLUMN</code>. Safe at any time.</li>
+      <li>New tables: rollback is <code>DROP TABLE … CASCADE</code> after disabling the corresponding flag for all orgs.</li>
+      <li>No data backfills are required by this plan. Any future plan that does require one must add an explicit "Backfill plan" section to its ticket.</li>
+    </ul>
+  </section>
+
+  <!-- RISKS -->
+  <section class="section" id="risks">
+    <p class="eyebrow">Risk</p>
+    <h2 class="mt-0">Things that could go wrong</h2>
+
+    <div class="callout callout-warn">
+      <span class="mark">Risk · template engine</span>
+      <p>SQL injection via parameter substitution is the highest-blast-radius bug in this plan. Mitigation: value-mode parameters bind through the driver, never string-concatenate; identifier mode validates against an allowlist sourced from live schema discovery; fuzzing tests in CI.</p>
+    </div>
+
+    <div class="callout callout-warn">
+      <span class="mark">Risk · embed RLS</span>
+      <p>A poorly written RLS predicate leaks rows across tenants. Mitigation: predicate references must resolve to a non-empty user attribute or the query is refused; integration test fixture asserts SQL diffs across user contexts.</p>
+    </div>
+
+    <div class="callout callout-warn">
+      <span class="mark">Risk · Puppeteer in production</span>
+      <p>Headless Chromium is heavy and flaky in resource-constrained containers. Mitigation: run the renderer as a separate worker process behind the existing queue; provision dedicated memory; document fallback to per-chart PNG composition if PDF fails.</p>
+    </div>
+
+    <div class="callout callout-warn">
+      <span class="mark">Risk · Redis dependency</span>
+      <p>A new infrastructure dependency adds a deployment failure mode. Mitigation: F-02 ships an in-process LRU fallback for solo-dev mode; Redis becomes required only when delivery or async queries are enabled.</p>
+    </div>
+  </section>
+
+  <!-- OPEN QUESTIONS -->
+  <section class="section" id="open">
+    <p class="eyebrow">Decisions needed</p>
+    <h2 class="mt-0">Open questions</h2>
+    <ol>
+      <li>Should dashboard filters be globally cascading by default, or opt-in per filter? Metabase makes them independent; Superset makes them cascading. Lean independent for v1; reconsider after user feedback.</li>
+      <li>For Puppeteer rendering: bundle Chromium inside the backend container, or call a separate worker service? Affects image size and ops surface.</li>
+      <li>Embed token: rotate per-render (every iframe load fetches a new one) or longer-lived (hours)? Trade-off between security and host-app complexity.</li>
+      <li>Saved metrics — do we need <code>metric_dimensions</code> as a separate concept (Superset model) or always derive group-bys from the widget? Start with the latter; revisit if calculations get repetitive.</li>
+      <li>How aggressively to cache by default? 5 minutes is a safe start, but stale data on a "live ops" dashboard would surprise users. Consider a per-dashboard override.</li>
+    </ol>
+  </section>
+
+  <!-- FOOTER -->
+  <section class="section">
+    <hr class="hr-rule" />
+    <p class="caption">DataGate · Visualization Implementation Plan · v0.1 · 2026-05-27</p>
+  </section>
+
+</main>
+
+</body>
+</html>
