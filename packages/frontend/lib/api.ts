@@ -627,6 +627,155 @@ export const api = {
     getCheckRuns: (id: string): Promise<any[]> =>
       request(`/data-quality/checks/${id}/runs`),
   },
+
+  savedQueries: {
+    list: (): Promise<SavedQuery[]> => request('/saved-queries'),
+    get: (id: string): Promise<SavedQuery> => request(`/saved-queries/${id}`),
+    create: (body: SavedQueryCreatePayload): Promise<SavedQuery> =>
+      request('/saved-queries', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Partial<SavedQueryCreatePayload>): Promise<SavedQuery> =>
+      request(`/saved-queries/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string): Promise<void> =>
+      request(`/saved-queries/${id}`, { method: 'DELETE' }),
+    execute: (
+      id: string,
+      parameters: Record<string, unknown> = {},
+    ): Promise<SavedQueryExecuteResult> =>
+      request(`/saved-queries/${id}/execute`, {
+        method: 'POST',
+        body: JSON.stringify({ parameters }),
+      }),
+  },
+
+  dashboards: {
+    list: (): Promise<Dashboard[]> => request('/dashboards'),
+    get: (id: string): Promise<Dashboard> => request(`/dashboards/${id}`),
+    create: (body: DashboardCreatePayload): Promise<Dashboard> =>
+      request('/dashboards', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Partial<DashboardCreatePayload>): Promise<Dashboard> =>
+      request(`/dashboards/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string): Promise<void> =>
+      request(`/dashboards/${id}`, { method: 'DELETE' }),
+  },
 };
+
+// ============================================================================
+// Types for the new namespaces (M1-01 / M1-02 backends)
+// ============================================================================
+
+export type SavedQueryParamType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'date'
+  | 'date_range'
+  | 'select'
+  | 'multi_select';
+
+export interface SavedQueryParamDef {
+  name: string;
+  type: SavedQueryParamType;
+  required: boolean;
+  default?: unknown;
+}
+
+export interface SavedQuery {
+  id: string;
+  organizationId: string;
+  createdBy: string;
+  connectionId: string;
+  name: string;
+  description: string | null;
+  sql: string;
+  parameters: SavedQueryParamDef[];
+  cacheTtlSeconds: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedQueryCreatePayload {
+  name: string;
+  description?: string;
+  connectionId: string;
+  sql: string;
+  parameters?: SavedQueryParamDef[];
+  cacheTtlSeconds?: number;
+}
+
+export interface SavedQueryExecuteResult {
+  id: string;
+  rows: Record<string, unknown>[];
+  rowCount: number;
+  fields: { name: string; type?: string }[];
+  executionTimeMs: number;
+  status: 'success' | 'error';
+}
+
+export type DashboardFilterType =
+  | 'date_range'
+  | 'date'
+  | 'select'
+  | 'multi_select'
+  | 'text'
+  | 'number';
+
+export interface DashboardFilterDef {
+  name: string;
+  type: DashboardFilterType;
+  label?: string;
+  default?: unknown;
+  options?: string[];
+}
+
+export interface DashboardWidget {
+  id: string;
+  type: string;
+  title?: string;
+  savedQueryId?: string;
+  parameterBindings?: Record<string, string>;
+  config?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface DashboardLayoutItem {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface Dashboard {
+  id: string;
+  organizationId: string;
+  createdBy: string;
+  name: string;
+  description: string | null;
+  widgets: DashboardWidget[];
+  layout: DashboardLayoutItem[];
+  filters: DashboardFilterDef[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DashboardCreatePayload {
+  name: string;
+  description?: string;
+  widgets?: DashboardWidget[];
+  layout?: DashboardLayoutItem[];
+  filters?: DashboardFilterDef[];
+}
 
 export { ApiError };
