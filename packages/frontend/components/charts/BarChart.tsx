@@ -16,12 +16,13 @@ interface BarChartProps {
   height?: string;
   horizontal?: boolean;
   stacked?: boolean;
+  onValueClick?: (name: string) => void;
 }
 
 /**
  * Bar chart component for categorical comparisons
  */
-export function BarChart({ data, title, height = '400px', horizontal = false, stacked = false }: BarChartProps) {
+export function BarChart({ data, title, height = '400px', horizontal = false, stacked = false, onValueClick }: BarChartProps) {
   const option: EChartsOption = {
     title: title ? {
       text: title,
@@ -100,5 +101,5 @@ export function BarChart({ data, title, height = '400px', horizontal = false, st
     }))
   };
 
-  return <BaseChart option={option} height={height} />;
+  return <BaseChart option={option} height={height} onValueClick={onValueClick} />;
 }
