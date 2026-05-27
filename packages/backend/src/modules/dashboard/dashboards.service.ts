@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Dashboard,
+  DashboardFilterDef,
   DashboardLayoutItem,
   DashboardWidgetConfig,
 } from '../../database/entities';
@@ -11,6 +16,9 @@ import {
   CreateDashboardDto,
   UpdateDashboardDto,
 } from './dto/dashboard.dto';
+
+const FILTER_NAME_RX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const REQUIRES_OPTIONS = new Set(['select', 'multi_select']);
 
 @Injectable()
 export class DashboardsService {
@@ -39,6 +47,9 @@ export class DashboardsService {
     organizationId: string,
     userId: string,
   ): Promise<Dashboard> {
+    const filters = (dto.filters ?? []) as DashboardFilterDef[];
+    this.assertFilterDefs(filters);
+
     const entity = this.repo.create({
       id: uuidv4(),
       organizationId,
@@ -47,6 +58,7 @@ export class DashboardsService {
       description: dto.description ?? null,
       widgets: (dto.widgets ?? []) as DashboardWidgetConfig[],
       layout: (dto.layout ?? []) as DashboardLayoutItem[],
+      filters,
     });
     return this.repo.save(entity);
   }
@@ -58,6 +70,10 @@ export class DashboardsService {
   ): Promise<Dashboard> {
     const d = await this.getById(id, organizationId);
 
+    if (dto.filters !== undefined) {
+      this.assertFilterDefs(dto.filters as DashboardFilterDef[]);
+      d.filters = dto.filters as DashboardFilterDef[];
+    }
     if (dto.name !== undefined) d.name = dto.name;
     if (dto.description !== undefined) d.description = dto.description;
     if (dto.widgets !== undefined) {
@@ -68,6 +84,28 @@ export class DashboardsService {
     }
 
     return this.repo.save(d);
+  }
+
+  private assertFilterDefs(defs: DashboardFilterDef[]): void {
+    const seen = new Set<string>();
+    for (const f of defs) {
+      if (!f || typeof f.name !== 'string' || !FILTER_NAME_RX.test(f.name)) {
+        throw new BadRequestException(
+          `Invalid filter name "${f?.name}"; must match [a-zA-Z_][a-zA-Z0-9_]*`,
+        );
+      }
+      if (seen.has(f.name)) {
+        throw new BadRequestException(`Duplicate filter "${f.name}"`);
+      }
+      seen.add(f.name);
+      if (REQUIRES_OPTIONS.has(f.type)) {
+        if (!Array.isArray(f.options) || f.options.length === 0) {
+          throw new BadRequestException(
+            `Filter "${f.name}" of type "${f.type}" requires a non-empty options array`,
+          );
+        }
+      }
+    }
   }
 
   async remove(id: string, organizationId: string): Promise<void> {

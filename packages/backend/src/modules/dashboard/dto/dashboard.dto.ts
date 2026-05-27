@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -10,6 +11,46 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+
+const FILTER_TYPES = [
+  'date_range',
+  'date',
+  'select',
+  'multi_select',
+  'text',
+  'number',
+] as const;
+
+export type DashboardFilterTypeDto = (typeof FILTER_TYPES)[number];
+
+export class DashboardFilterDto {
+  @ApiProperty()
+  @IsString()
+  name: string;
+
+  @ApiProperty({ enum: FILTER_TYPES })
+  @IsIn(FILTER_TYPES as unknown as string[])
+  type: DashboardFilterTypeDto;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  default?: unknown;
+
+  @ApiProperty({
+    required: false,
+    type: [String],
+    description: 'Allowed values for select / multi_select filters',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  options?: string[];
+}
 
 export class DashboardLayoutItemDto {
   @ApiProperty()
@@ -95,6 +136,14 @@ export class CreateDashboardDto {
   @ValidateNested({ each: true })
   @Type(() => DashboardLayoutItemDto)
   layout?: DashboardLayoutItemDto[];
+
+  @ApiProperty({ type: [DashboardFilterDto], required: false, default: [] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(16)
+  @ValidateNested({ each: true })
+  @Type(() => DashboardFilterDto)
+  filters?: DashboardFilterDto[];
 }
 
 export class UpdateDashboardDto {
@@ -123,4 +172,12 @@ export class UpdateDashboardDto {
   @ValidateNested({ each: true })
   @Type(() => DashboardLayoutItemDto)
   layout?: DashboardLayoutItemDto[];
+
+  @ApiProperty({ type: [DashboardFilterDto], required: false })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(16)
+  @ValidateNested({ each: true })
+  @Type(() => DashboardFilterDto)
+  filters?: DashboardFilterDto[];
 }
