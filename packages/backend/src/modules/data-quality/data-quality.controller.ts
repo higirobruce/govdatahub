@@ -18,6 +18,7 @@ import { User, UserRole } from '../../database/entities';
 import { ProfilingService } from './profiling.service';
 import { QualityChecksService, CreateQualityCheckDto, UpdateQualityCheckDto } from './quality-checks.service';
 import { ProfileTableDto } from './dto/profile-table.dto';
+import { SuggestChecksDto } from './dto/suggest-checks.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('data-quality')
@@ -57,6 +58,16 @@ export class DataQualityController {
       body.schemaName,
       body.tableName,
     );
+  }
+
+  @Post('suggest')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
+  @HttpCode(HttpStatus.OK)
+  suggestChecks(
+    @CurrentUser() user: User,
+    @Body() dto: SuggestChecksDto,
+  ) {
+    return this.qualityChecksService.suggestChecks(user.organizationId, dto, user.id);
   }
 
   // ─── Quality checks ──────────────────────────────────────────────────────
