@@ -7,13 +7,13 @@ const loopbackResolver = async () => [{ address: '127.0.0.1' }];
 describe('isPrivateIp', () => {
   it.each([
     '127.0.0.1', '10.0.0.5', '172.16.0.1', '172.31.255.255', '192.168.1.1',
-    '169.254.169.254', '0.0.0.0', '100.64.0.1', '::1', '::',
-    'fe80::1', 'fd00::1', '::ffff:127.0.0.1',
+    '169.254.169.254', '0.0.0.0', '100.64.0.1', '100.127.255.255', '::1', '::',
+    'fe80::1', 'fe9a::1', 'fc00::1', 'fd00::1', '::ffff:127.0.0.1',
   ])('flags %s as private', (ip) => {
     expect(isPrivateIp(ip)).toBe(true);
   });
 
-  it.each(['93.184.216.34', '8.8.8.8', '2606:4700::6810:84e5'])(
+  it.each(['93.184.216.34', '8.8.8.8', '2606:4700::6810:84e5', '::ffff:8.8.8.8'])(
     'allows public %s',
     (ip) => {
       expect(isPrivateIp(ip)).toBe(false);
@@ -41,6 +41,7 @@ describe('assertSafeUrl', () => {
       assertSafeUrl('http://metadata.google.internal/computeMetadata'),
     ).rejects.toThrow();
     await expect(assertSafeUrl('http://foo.internal/x')).rejects.toThrow();
+    await expect(assertSafeUrl('http://printer.local/x')).rejects.toThrow();
   });
 
   it('rejects literal private IPs', async () => {

@@ -17,7 +17,7 @@ export function isPrivateIp(ip: string): boolean {
   if (ip.includes(':')) {
     const addr = ip.toLowerCase().replace(/^\[|\]$/g, '').split('%')[0];
     if (addr === '::' || addr === '::1') return true;
-    if (addr.startsWith('fe80:')) return true; // link-local
+    if (/^fe[89ab]/.test(addr)) return true; // link-local fe80::/10
     if (addr.startsWith('fc') || addr.startsWith('fd')) return true; // ULA
     if (addr.startsWith('::ffff:')) return isPrivateIp(addr.slice(7)); // v4-mapped
     return false;
