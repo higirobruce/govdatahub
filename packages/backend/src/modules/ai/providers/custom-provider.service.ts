@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import {
   IAiProvider,
@@ -77,6 +77,10 @@ export class CustomProviderService implements IAiProvider {
 
   async explainSql(sql: string, schemaContext: SchemaContext, settings: OrganizationSettings): Promise<string> {
     return `Custom provider does not support SQL explanations. Query: ${sql.substring(0, 50)}...`;
+  }
+
+  async generateJson(prompt: string, settings: OrganizationSettings): Promise<any> {
+    throw new BadRequestException('Custom provider does not support structured output');
   }
 
   async testConnection(settings: OrganizationSettings): Promise<{

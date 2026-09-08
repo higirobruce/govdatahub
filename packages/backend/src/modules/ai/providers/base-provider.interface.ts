@@ -94,4 +94,7 @@ export interface IAiProvider {
    * Get provider name
    */
   getName(): string;
+
+  /** One-shot structured-output call. Throws if the provider cannot return valid JSON after one retry. */
+  generateJson(prompt: string, settings: OrganizationSettings): Promise<any>;
 }
