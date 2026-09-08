@@ -1,3 +1,13 @@
+import type {
+  Connection,
+  SchemaInfo,
+  TableInfo,
+  ColumnInfo,
+  QueryResult,
+  SavedCrossQuery,
+} from '@/types';
+import type { User, AuthResponse } from '@/types/auth';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 class ApiError extends Error {
@@ -81,7 +91,7 @@ async function request<T>(
 export const api = {
   // Auth
   auth: {
-    login: (credentials: { email: string; password: string }) =>
+    login: (credentials: { email: string; password: string }): Promise<AuthResponse> =>
       request('/auth/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
@@ -91,17 +101,17 @@ export const api = {
       password: string;
       firstName: string;
       lastName: string;
-    }) =>
+    }): Promise<AuthResponse> =>
       request('/auth/register', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    me: () => request('/auth/me'),
+    me: (): Promise<User> => request('/auth/me'),
   },
 
   // Connections
   connections: {
-    list: () => request('/connections'),
+    list: (): Promise<Connection[]> => request('/connections'),
     get: (id: string) => request(`/connections/${id}`),
     create: (data: any) =>
       request('/connections', {
@@ -120,20 +130,20 @@ export const api = {
 
   // Schema
   schema: {
-    getSchemas: (connectionId: string) =>
+    getSchemas: (connectionId: string): Promise<SchemaInfo[]> =>
       request(`/connections/${connectionId}/schema/schemas`),
-    getTables: (connectionId: string, schema?: string) => {
+    getTables: (connectionId: string, schema?: string): Promise<TableInfo[]> => {
       const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
       return request(`/connections/${connectionId}/schema/tables${params}`);
     },
-    getColumns: (connectionId: string, table: string, schema?: string) => {
+    getColumns: (connectionId: string, table: string, schema?: string): Promise<ColumnInfo[]> => {
       const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
       return request(
         `/connections/${connectionId}/schema/tables/${encodeURIComponent(table)}/columns${params}`
       );
     },
     // Staging schema endpoints
-    getStagingTables: (): Promise<any> =>
+    getStagingTables: (): Promise<StagingTable[]> =>
       request('/schema/staging/tables'),
     getStagingColumns: (table: string): Promise<any> =>
       request(`/schema/staging/tables/${encodeURIComponent(table)}/columns`),
@@ -141,12 +151,12 @@ export const api = {
 
   // Queries
   queries: {
-    execute: (data: any) =>
+    execute: (data: any): Promise<QueryResult> =>
       request('/query', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    executeStaging: (sqlQuery: string): Promise<any> =>
+    executeStaging: (sqlQuery: string): Promise<QueryResult> =>
       request('/query/staging', {
         method: 'POST',
         body: JSON.stringify({ sqlQuery }),
@@ -164,7 +174,7 @@ export const api = {
 
   // Transformations
   transformations: {
-    list: (status?: string) => {
+    list: (status?: string): Promise<Transformation[]> => {
       const params = status ? `?status=${encodeURIComponent(status)}` : '';
       return request(`/transformations${params}`);
     },
@@ -224,7 +234,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    listSaved: () => request('/cross-query/saved'),
+    listSaved: (): Promise<SavedCrossQuery[]> => request('/cross-query/saved'),
     getSaved: (id: string) => request(`/cross-query/saved/${id}`),
     deleteSaved: (id: string) =>
       request(`/cross-query/saved/${id}`, {
@@ -665,6 +675,32 @@ export const api = {
       request(`/dashboards/${id}`, { method: 'DELETE' }),
   },
 };
+
+// ============================================================================
+// Types for endpoints with no shared type in '@/types' yet
+// ============================================================================
+
+export interface Transformation {
+  id: string;
+  name: string;
+  description: string;
+  sourceConnectionId: string;
+  sqlQuery: string;
+  outputConfig: {
+    mode: 'cache';
+    maxRows?: number;
+  };
+  status: 'active' | 'paused';
+  createdAt: string;
+  lastRunAt: string | null;
+}
+
+export interface StagingTable {
+  name: string;
+  schema: string;
+  rowCount: number | null;
+  sizeBytes: number;
+}
 
 // ============================================================================
 // Types for the new namespaces (M1-01 / M1-02 backends)

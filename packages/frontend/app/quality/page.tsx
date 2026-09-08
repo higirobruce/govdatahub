@@ -82,7 +82,7 @@ export default function QualityPage() {
   const [connectionFilter, setConnectionFilter] = useState('');
 
   const { data: connections } = useSWR<Connection[]>('/connections', () =>
-    api.connections.list() as Promise<Connection[]>
+    api.connections.list()
   );
   const { data: checks, mutate: mutateChecks } = useSWR(
     `/data-quality/checks?connectionId=${connectionFilter}`,

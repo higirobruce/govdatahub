@@ -34,19 +34,19 @@ export function QualityCheckForm({ existingCheck, onSaved, onCancel }: QualityCh
   const [error, setError] = useState('');
 
   const { data: connections } = useSWR<Connection[]>('/connections', () =>
-    api.connections.list() as Promise<Connection[]>
+    api.connections.list()
   );
   const { data: schemas } = useSWR<any[]>(
     connectionId ? `/schema/${connectionId}/schemas` : null,
-    () => api.schema.getSchemas(connectionId) as Promise<any[]>,
+    () => api.schema.getSchemas(connectionId),
   );
   const { data: tables } = useSWR<any[]>(
     connectionId && schemaName ? `/schema/${connectionId}/${schemaName}/tables` : null,
-    () => api.schema.getTables(connectionId, schemaName) as Promise<any[]>,
+    () => api.schema.getTables(connectionId, schemaName),
   );
   const { data: columns } = useSWR<any[]>(
     connectionId && schemaName && tableName ? `/schema/${connectionId}/${schemaName}/${tableName}/columns` : null,
-    () => api.schema.getColumns(connectionId, tableName, schemaName) as Promise<any[]>,
+    () => api.schema.getColumns(connectionId, tableName, schemaName),
   );
 
   const selectedType = CHECK_TYPES.find((t) => t.value === checkType);

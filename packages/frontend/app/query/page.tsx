@@ -33,6 +33,9 @@ interface StagingTable {
 
 export default function QueryPage() {
   const { showToast } = useToast();
+  // Relies on this page rendering dynamically (no static prerender) — if the
+  // build ever forces static generation for this route again, this call needs
+  // a Suspense boundary per Next's useSearchParams() prerendering rules.
   const searchParams = useSearchParams();
   const [dataSource, setDataSource] = useState<DataSource>('connections');
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
@@ -56,17 +59,13 @@ export default function QueryPage() {
     new Set(['data-sources'])
   );
 
-  const { data: connections } = useSWR<Connection[]>('/connections', async () => {
-    const result = await api.connections.list();
-    return result as Connection[];
-  });
+  const { data: connections } = useSWR<Connection[]>('/connections', () =>
+    api.connections.list()
+  );
 
   const { data: stagingTables } = useSWR<StagingTable[]>(
     dataSource === 'staging' ? '/schema/staging/tables' : null,
-    async () => {
-      const result = await api.schema.getStagingTables();
-      return result as StagingTable[];
-    }
+    () => api.schema.getStagingTables()
   );
 
   // Fetch organization settings for NL2SQL
@@ -162,18 +161,18 @@ export default function QueryPage() {
 
     try {
       if (dataSource === 'connections') {
-        const result = (await api.queries.execute({
+        const result = await api.queries.execute({
           connectionId: selectedConnectionId,
           sql: sql.trim(),
           cacheResults: false,
-        })) as QueryResult;
+        });
         setQueryResult(result);
         showToast(
           `Query executed successfully: ${result.rowCount} rows returned in ${result.executionTimeMs}ms`,
           'success'
         );
       } else {
-        const result = (await api.queries.executeStaging(sql.trim())) as QueryResult;
+        const result = await api.queries.executeStaging(sql.trim());
         setQueryResult(result);
         showToast(
           `Query executed successfully: ${result.rowCount} rows returned in ${result.executionTimeMs}ms`,

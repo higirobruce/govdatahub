@@ -30,7 +30,7 @@ function IngestConfig({
   const [connections, setConnections] = useState<Connection[]>([]);
 
   useEffect(() => {
-    api.connections.list().then((data: unknown) => setConnections(data as Connection[])).catch(() => {});
+    api.connections.list().then((data) => setConnections(data)).catch(() => {});
   }, []);
 
   return (
@@ -92,7 +92,7 @@ function TransformConfig({
   const [transformations, setTransformations] = useState<any[]>([]);
 
   useEffect(() => {
-    api.transformations.list().then((data: unknown) => setTransformations(data as any[])).catch(() => {});
+    api.transformations.list().then((data) => setTransformations(data)).catch(() => {});
   }, []);
 
   return (
@@ -126,7 +126,7 @@ function CrossQueryConfig({
 
   useEffect(() => {
     api.crossQuery.listSaved()
-      .then((qs: unknown) => { setSavedQueries(qs as any[]); setLoaded(true); })
+      .then((qs) => { setSavedQueries(qs); setLoaded(true); })
       .catch(() => setLoaded(true));
   }, []);
 

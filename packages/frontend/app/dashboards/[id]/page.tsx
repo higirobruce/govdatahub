@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation';
 import useSWR from 'swr';
 import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
 import { api, type DashboardWidget } from '@/lib/api';
 import { DashboardFilterBar } from '@/components/DashboardBuilder/DashboardFilterBar';
 import {
