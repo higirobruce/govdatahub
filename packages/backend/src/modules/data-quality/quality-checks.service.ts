@@ -10,8 +10,13 @@ import {
   IsIn,
   MaxLength,
 } from 'class-validator';
-import { QualityCheck, QualityCheckRun } from '../../database/entities';
+import { QualityCheck, QualityCheckRun, ColumnProfile } from '../../database/entities';
 import { ConnectionsService } from '../connections/connections.service';
+import { ProfilingService } from './profiling.service';
+import { AiService } from '../ai/ai.service';
+import { AiAuditService } from '../ai/ai-audit.service';
+import { SettingsService } from '../settings/settings.service';
+import { SuggestChecksDto } from './dto/suggest-checks.dto';
 
 export class CreateQualityCheckDto {
   @IsString() @IsNotEmpty() connectionId: string;
@@ -33,6 +38,22 @@ export class UpdateQualityCheckDto {
   @IsOptional() @IsIn(['active', 'inactive']) status?: 'active' | 'inactive';
 }
 
+/** The only checkTypes an AI suggestion is ever allowed to produce — never custom_sql. */
+const ALLOWED_SUGGESTION_CHECK_TYPES = new Set([
+  'not_null',
+  'unique',
+  'min_rows',
+  'max_rows',
+  'freshness',
+]);
+
+export interface SuggestedCheck {
+  checkType: string;
+  columnName?: string;
+  config: Record<string, any>;
+  rationale: string;
+}
+
 function quoteId(dbType: string, name: string): string {
   if (dbType === 'mysql') return `\`${name.replace(/`/g, '')}\``;
   if (dbType === 'sqlserver') return `[${name.replace(/[\[\]]/g, '')}]`;
@@ -49,6 +70,10 @@ export class QualityChecksService {
     @InjectRepository(QualityCheckRun)
     private runsRepo: Repository<QualityCheckRun>,
     private connectionsService: ConnectionsService,
+    private profilingService: ProfilingService,
+    private aiService: AiService,
+    private aiAudit: AiAuditService,
+    private settingsService: SettingsService,
   ) {}
 
   async create(dto: CreateQualityCheckDto, organizationId: string): Promise<QualityCheck> {
@@ -174,6 +199,112 @@ export class QualityChecksService {
     const checks = await this.findAll(organizationId, { connectionId, schemaName, tableName });
     const active = checks.filter((c) => c.status === 'active');
     return Promise.all(active.map((c) => this.runCheck(c.id, organizationId)));
+  }
+
+  // ─── AI-suggested quality checks ────────────────────────────────────────────
+
+  /**
+   * Suggest quality checks for a table based on its latest column profile.
+   * Requires a profile to already exist (via ProfilingService.profileTable).
+   * The AI response is filtered to the 5 allowed checkTypes (never custom_sql)
+   * and to column names that actually exist on the profiled table.
+   */
+  async suggestChecks(
+    organizationId: string,
+    dto: SuggestChecksDto,
+    userId?: string,
+  ): Promise<SuggestedCheck[]> {
+    const profile = await this.profilingService.getLatestProfile(
+      dto.connectionId,
+      organizationId,
+      dto.schemaName,
+      dto.tableName,
+    );
+
+    if (!profile) {
+      throw new BadRequestException('Profile the table first');
+    }
+
+    const settings = await this.settingsService.getOrganizationSettings(organizationId);
+    const provider = this.aiService.getProvider(settings.aiProvider);
+
+    const knownColumnNames = new Set(profile.columnProfiles.map((c) => c.name));
+    const columnSummary = this.formatColumnProfiles(profile.columnProfiles);
+
+    const prompt = `You are a data quality expert. Given the following column statistics for table ${dto.schemaName}.${dto.tableName} (${profile.rowCount ?? 'unknown'} rows), suggest data quality checks.
+
+COLUMN STATISTICS:
+${columnSummary}
+
+Only suggest checks of these types: not_null, unique, min_rows, max_rows, freshness. NEVER suggest custom_sql.
+Respond as JSON: {"suggestions": [{"checkType": "...", "columnName": "...", "config": {...}, "rationale": "..."}]}`;
+
+    const promptChars = columnSummary.length;
+    const startTime = Date.now();
+    let result: any;
+    try {
+      result = await provider.generateJson(prompt, settings);
+    } catch (error: any) {
+      const latencyMs = Date.now() - startTime;
+      await this.aiAudit.log({
+        organizationId,
+        userId,
+        feature: 'quality_suggest',
+        model: settings.aiModel,
+        promptChars,
+        responseChars: 0,
+        latencyMs,
+        success: false,
+        errorMessage: error.message || 'AI provider error',
+        executed: false,
+      });
+      this.logger.error('AI provider error:', error);
+      throw new BadRequestException(
+        `Failed to suggest quality checks: ${error.message || 'AI provider error'}`,
+      );
+    }
+    const latencyMs = Date.now() - startTime;
+
+    const rawSuggestions: any[] = Array.isArray(result?.suggestions) ? result.suggestions : [];
+
+    const suggestions: SuggestedCheck[] = rawSuggestions
+      .filter((s) => s && ALLOWED_SUGGESTION_CHECK_TYPES.has(s.checkType))
+      .filter((s) => s.columnName == null || knownColumnNames.has(s.columnName))
+      .map((s) => ({
+        checkType: s.checkType,
+        columnName: s.columnName ?? undefined,
+        config: s.config && typeof s.config === 'object' ? s.config : {},
+        rationale: typeof s.rationale === 'string' ? s.rationale : '',
+      }));
+
+    const responseChars = JSON.stringify(suggestions).length;
+
+    await this.aiAudit.log({
+      organizationId,
+      userId,
+      feature: 'quality_suggest',
+      model: settings.aiModel,
+      promptChars,
+      responseChars,
+      latencyMs,
+      success: true,
+      executed: false,
+    });
+
+    return suggestions;
+  }
+
+  private formatColumnProfiles(columns: ColumnProfile[]): string {
+    return columns
+      .map((c) => {
+        const parts = [`- ${c.name} (${c.dataType}): ${c.nullPercent}% null, ${c.distinctPercent}% distinct`];
+        if (c.min !== undefined) parts.push(`min=${c.min}`);
+        if (c.max !== undefined) parts.push(`max=${c.max}`);
+        if (c.avg !== undefined) parts.push(`avg=${c.avg}`);
+        if (c.stddev !== undefined) parts.push(`stddev=${c.stddev}`);
+        return parts.join(', ');
+      })
+      .join('\n');
   }
 
   // ─── SQL generation ────────────────────────────────────────────────────────
