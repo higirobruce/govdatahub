@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import useSWR from 'swr';
 import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
@@ -77,6 +78,12 @@ function DashboardView({
 
   return (
     <div className="p-6">
+      <Link
+        href="/dashboards"
+        className="inline-block mb-3 text-xs text-muted-foreground underline underline-offset-2"
+      >
+        ← All dashboards
+      </Link>
       <header className="mb-4 flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-semibold">{dashboard.name}</h1>
