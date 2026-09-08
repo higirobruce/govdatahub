@@ -109,7 +109,7 @@ function renderChart(
     default:
       return (
         <Placeholder error>
-          Chart type "{type}" is not yet supported by SavedQueryWidget
+          Chart type &quot;{type}&quot; is not yet supported by SavedQueryWidget
         </Placeholder>
       );
   }

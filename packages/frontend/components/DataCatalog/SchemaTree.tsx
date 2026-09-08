@@ -24,12 +24,12 @@ export default function SchemaTree({
 
   const { data: schemas, error: schemasError } = useSWR<SchemaInfo[]>(
     connectionId ? `/connections/${connectionId}/schemas` : null,
-    () => api.schema.getSchemas(connectionId)
+    () => api.schema.getSchemas(connectionId) as Promise<SchemaInfo[]>
   );
 
   const { data: tables, error: tablesError } = useSWR<TableInfo[]>(
     selectedSchema ? `/connections/${connectionId}/tables/${selectedSchema}` : null,
-    () => api.schema.getTables(connectionId, selectedSchema || undefined)
+    () => api.schema.getTables(connectionId, selectedSchema || undefined) as Promise<TableInfo[]>
   );
 
   const toggleSchema = (schemaName: string) => {
@@ -185,7 +185,7 @@ function TableNode({
 
   const { data: columns } = useSWR<ColumnInfo[]>(
     isExpanded ? `/connections/${connectionId}/tables/${table.name}/columns` : null,
-    () => api.schema.getColumns(connectionId, table.name, table.schema)
+    () => api.schema.getColumns(connectionId, table.name, table.schema) as Promise<ColumnInfo[]>
   );
 
   // Helper to determine if a column name needs quoting (has uppercase, special chars, or is a reserved word)

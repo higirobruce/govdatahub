@@ -218,11 +218,6 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    getTablesMetadata: (connectionIds: string[]) =>
-      request('/cross-query/metadata/tables', {
-        method: 'POST',
-        body: JSON.stringify({ connectionIds }),
-      }),
     // Saved queries
     saveQuery: (data: any) =>
       request('/cross-query/saved', {

@@ -243,7 +243,7 @@ export function CatalogIntegrationTab() {
       <div className="bg-white rounded-xl border border-[#e8e8e8] overflow-hidden">
         <div className="px-5 py-4 border-b border-[#f0f0f0] flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-[#1a1a1a]">What's pushed to the catalog</h3>
+            <h3 className="text-sm font-semibold text-[#1a1a1a]">What&apos;s pushed to the catalog</h3>
             <p className="text-xs text-[#aaaaaa] mt-0.5">
               Each sync pushes the following assets to {status.provider ?? 'OpenMetadata'}
             </p>

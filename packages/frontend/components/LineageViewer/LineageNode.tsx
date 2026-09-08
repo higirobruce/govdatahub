@@ -51,7 +51,7 @@ const STATUS_ICONS = {
 export const LineageNode = memo(({ data }: NodeProps<LineageNodeData>) => {
   const { nodeType, label, metadata, onClick } = data;
   const Icon = NODE_ICONS[nodeType];
-  const StatusIcon = metadata.status ? STATUS_ICONS[metadata.status] : null;
+  const StatusIcon = metadata.status ? STATUS_ICONS[metadata.status as keyof typeof STATUS_ICONS] : null;
 
   return (
     <div

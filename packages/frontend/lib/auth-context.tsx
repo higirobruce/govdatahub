@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Verify token and get user data
       const userData = await api.auth.me();
-      setUser(userData);
+      setUser(userData as User);
       setError(null);
     } catch (err: any) {
       console.error('Failed to load user:', err);
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setLoading(true);
-      const response: AuthResponse = await api.auth.login(credentials);
+      const response: AuthResponse = await api.auth.login(credentials) as AuthResponse;
 
       // Store token
       localStorage.setItem(TOKEN_KEY, response.accessToken);
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setLoading(true);
-      const response: AuthResponse = await api.auth.register(data);
+      const response: AuthResponse = await api.auth.register(data) as AuthResponse;
 
       // Store token
       localStorage.setItem(TOKEN_KEY, response.accessToken);

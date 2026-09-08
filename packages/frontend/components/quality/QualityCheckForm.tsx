@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
+import { Connection } from '@/types';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 
@@ -32,18 +33,20 @@ export function QualityCheckForm({ existingCheck, onSaved, onCancel }: QualityCh
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const { data: connections } = useSWR('/connections', () => api.connections.list());
-  const { data: schemas } = useSWR(
+  const { data: connections } = useSWR<Connection[]>('/connections', () =>
+    api.connections.list() as Promise<Connection[]>
+  );
+  const { data: schemas } = useSWR<any[]>(
     connectionId ? `/schema/${connectionId}/schemas` : null,
-    () => api.schema.getSchemas(connectionId),
+    () => api.schema.getSchemas(connectionId) as Promise<any[]>,
   );
-  const { data: tables } = useSWR(
+  const { data: tables } = useSWR<any[]>(
     connectionId && schemaName ? `/schema/${connectionId}/${schemaName}/tables` : null,
-    () => api.schema.getTables(connectionId, schemaName),
+    () => api.schema.getTables(connectionId, schemaName) as Promise<any[]>,
   );
-  const { data: columns } = useSWR(
+  const { data: columns } = useSWR<any[]>(
     connectionId && schemaName && tableName ? `/schema/${connectionId}/${schemaName}/${tableName}/columns` : null,
-    () => api.schema.getColumns(connectionId, tableName, schemaName),
+    () => api.schema.getColumns(connectionId, tableName, schemaName) as Promise<any[]>,
   );
 
   const selectedType = CHECK_TYPES.find((t) => t.value === checkType);

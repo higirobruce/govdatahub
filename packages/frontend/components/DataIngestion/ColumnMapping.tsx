@@ -173,7 +173,7 @@ export function ColumnMapping({
           {mappedCount < totalCount && (
             <div className="mt-6 p-4 bg-muted rounded-lg">
               <p className="text-sm text-muted-foreground">
-                💡 Unmapped columns will be skipped during import. Use "Auto Map" to
+                💡 Unmapped columns will be skipped during import. Use &quot;Auto Map&quot; to
                 automatically match columns by name.
               </p>
             </div>
