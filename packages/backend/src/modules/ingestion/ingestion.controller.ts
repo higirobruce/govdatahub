@@ -21,7 +21,8 @@ import { UploadFileDto, ImportJobResponseDto, PreviewResponseDto, ImportFromUrlD
 import { ImportJobStatus, ImportTargetType } from '../../database/entities';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User } from '../../database/entities';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole } from '../../database/entities';
 
 // File upload type
 interface UploadedFileType {
@@ -44,6 +45,7 @@ export class IngestionController {
    * Generate preview of file data (first 100 rows)
    */
   @Post('preview')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Preview file data without importing' })
   @ApiConsumes('multipart/form-data')
@@ -94,6 +96,7 @@ export class IngestionController {
    * Start file import job
    */
   @Post('upload')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Upload and import file' })
   @ApiConsumes('multipart/form-data')
@@ -179,6 +182,7 @@ export class IngestionController {
    * Import file from URL
    */
   @Post('import/url')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Import file from URL' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   async importFromUrl(
@@ -207,6 +211,7 @@ export class IngestionController {
    * Import data from database connection
    */
   @Post('import/database')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Import data from database connection to staging' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   async importFromDatabase(
@@ -278,6 +283,7 @@ export class IngestionController {
    * Delete import job
    */
   @Delete('jobs/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete import job' })
   async deleteJob(
@@ -339,6 +345,7 @@ export class IngestionController {
    * Delete staged dataset
    */
   @Delete('staged/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete staged dataset' })
   async deleteStagedData(

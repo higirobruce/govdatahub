@@ -18,7 +18,8 @@ import { ConnectionResponseDto } from './dto/connection-response.dto';
 import { TestConnectionResponseDto } from './dto/test-connection.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User } from '../../database/entities';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole } from '../../database/entities';
 
 @ApiTags('connections')
 @Controller('connections')
@@ -46,6 +47,7 @@ export class ConnectionsController {
   }
 
   @Post()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
   @ApiOperation({
     summary: 'Create a new database connection',
     description: 'Add a new database connection with encrypted credentials',
@@ -118,6 +120,7 @@ export class ConnectionsController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete a connection',
