@@ -469,7 +469,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    explainSql: (data: { sql: string; connectionIds?: string[] }): Promise<any> =>
+    explainSql: (data: { sql: string; connectionIds?: string[] }): Promise<ExplainSqlResponse> =>
       request('/nl2sql/explain', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -807,6 +807,12 @@ export interface DashboardCreatePayload {
   widgets?: DashboardWidget[];
   layout?: DashboardLayoutItem[];
   filters?: DashboardFilterDef[];
+}
+
+export interface ExplainSqlResponse {
+  explanation: string;
+  tables: string[];
+  operations: string[];
 }
 
 export { ApiError };
