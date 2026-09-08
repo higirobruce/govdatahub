@@ -79,7 +79,7 @@ export interface IAiProvider {
   /**
    * Explain what a SQL query does in natural language
    */
-  explainSql(sql: string, schemaContext: SchemaContext): Promise<string>;
+  explainSql(sql: string, schemaContext: SchemaContext, settings: OrganizationSettings): Promise<string>;
 
   /**
    * Test connection to AI provider

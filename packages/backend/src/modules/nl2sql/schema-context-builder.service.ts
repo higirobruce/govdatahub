@@ -110,8 +110,9 @@ export class SchemaContextBuilderService {
         // Get columns for this table
         const columnsResponse = await this.schemaService.getColumns(
           connection.id,
-          table.schema,
-          table.name
+          connection.organizationId,
+          table.name,
+          table.schema
         );
         const columns = columnsResponse.slice(0, maxColumnsPerTable);
 
@@ -128,6 +129,7 @@ export class SchemaContextBuilderService {
           columns: columnSchemas,
         });
       } catch (error) {
+        this.logger.warn(`Failed to load columns for ${table.schema}.${table.name}: ${error.message}`);
         this.logger.error(`Failed to build schema for table ${table.name}:`, error);
         // Continue with other tables
       }
@@ -169,8 +171,9 @@ export class SchemaContextBuilderService {
     for (const table of tables.slice(0, 10)) {
       const columnsResponse = await this.schemaService.getColumns(
         connectionId,
-        table.schema,
-        table.name
+        connection.organizationId,
+        table.name,
+        table.schema
       );
 
       const columnSchemas: ColumnSchema[] = columnsResponse.map(col => ({

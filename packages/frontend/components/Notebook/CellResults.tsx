@@ -1,6 +1,7 @@
 'use client';
 
 import { CellRuntimeState } from '@/types/notebook';
+import { QueryResult } from '@/types';
 import ResultsTable from '@/components/QueryInterface/ResultsTable';
 import { Loader2, AlertCircle } from 'lucide-react';
 
@@ -31,6 +32,11 @@ export function CellResults({ runtime }: CellResultsProps) {
 
   if (runtime.status === 'success' && runtime.result) {
     const { rowCount, executionTimeMs } = runtime.result;
+    const queryResult: QueryResult = {
+      id: 'notebook-cell-result',
+      status: 'success',
+      ...runtime.result,
+    };
     return (
       <div className="mt-2">
         <div className="flex items-center gap-2 px-1 mb-2">
@@ -39,7 +45,7 @@ export function CellResults({ runtime }: CellResultsProps) {
           </span>
         </div>
         <div className="min-w-0">
-          <ResultsTable result={runtime.result} />
+          <ResultsTable result={queryResult} />
         </div>
       </div>
     );

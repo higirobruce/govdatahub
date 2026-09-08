@@ -36,10 +36,12 @@ export function ResultsViewer({ result }: ResultsViewerProps) {
 
   // Convert CrossQueryResult to QueryResult format for compatibility
   const queryResult: QueryResult = {
+    id: 'cross-query-result',
     fields: result.fields,
     rows: result.rows,
     rowCount: result.rowCount,
     executionTimeMs: result.executionTimeMs,
+    status: 'success',
   };
 
   const handleExportCSV = () => {

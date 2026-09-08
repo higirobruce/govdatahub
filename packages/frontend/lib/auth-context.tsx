@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { User, LoginCredentials, RegisterData, AuthResponse } from '@/types/auth';
+import { User, LoginCredentials, RegisterData } from '@/types/auth';
 import { api } from './api';
 
 interface AuthContextType {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setLoading(true);
-      const response: AuthResponse = await api.auth.login(credentials);
+      const response = await api.auth.login(credentials);
 
       // Store token
       localStorage.setItem(TOKEN_KEY, response.accessToken);
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setLoading(true);
-      const response: AuthResponse = await api.auth.register(data);
+      const response = await api.auth.register(data);
 
       // Store token
       localStorage.setItem(TOKEN_KEY, response.accessToken);

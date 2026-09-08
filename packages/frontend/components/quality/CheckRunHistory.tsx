@@ -43,7 +43,7 @@ export function CheckRunHistory({ runs }: CheckRunHistoryProps) {
     return (
       <div className="text-center py-8 text-sm text-[#aaaaaa]">
         <Clock className="h-8 w-8 mx-auto mb-2 text-[#dddddd]" />
-        No runs yet — click "Run" to execute this check
+        No runs yet — click &quot;Run&quot; to execute this check
       </div>
     );
   }

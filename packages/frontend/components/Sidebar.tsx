@@ -23,6 +23,7 @@ import {
   BookOpen,
   Workflow,
   ShieldCheck,
+  Library,
 } from 'lucide-react';
 
 interface NavItem {
@@ -54,6 +55,7 @@ export function Sidebar() {
         { id: 'connections', label: 'Connections', href: '/connections', icon: <Database /> },
         { id: 'staged', label: 'Staged Data', href: '/staged', icon: <FileText /> },
         { id: 'ingestion', label: 'Data Ingestion', href: '/ingestion', icon: <Upload /> },
+        { id: 'catalog', label: 'Data Catalog', href: '/catalog', icon: <Library /> },
       ],
     },
     {
@@ -69,6 +71,7 @@ export function Sidebar() {
       items: [
         // { id: 'charts', label: 'Charts', href: '/charts', icon: <BarChart3 /> },
         { id: 'dashboards', label: 'Dashboard Builder', href: '/dashboards', icon: <LayoutDashboard /> },
+        { id: 'dashboard-analytics', label: 'Usage Analytics', href: '/dashboard-analytics', icon: <BarChart3 /> },
       ],
     },
     {
