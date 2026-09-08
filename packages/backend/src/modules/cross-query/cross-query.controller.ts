@@ -27,6 +27,7 @@ import { QueryBuilderService } from './query-builder.service';
 import { ExecuteCrossQueryDto } from './dto/execute-cross-query.dto';
 import { CrossQueryResultDto } from './dto/cross-query-result.dto';
 import { QueryDefinitionDto } from './dto/query-definition.dto';
+import { ValidateQueryDto } from './dto/validate-query.dto';
 
 @Controller('cross-query')
 @UseGuards(JwtAuthGuard)
@@ -45,7 +46,7 @@ export class CrossQueryController {
   @ApiResponse({ status: 200, description: 'Query is valid' })
   @ApiResponse({ status: 400, description: 'Query validation failed' })
   async validateQuery(
-    @Body() dto: { queryDefinition: QueryDefinitionDto },
+    @Body() dto: ValidateQueryDto,
     @CurrentUser() user: User,
   ) {
     // Validation happens automatically via class-validator decorators

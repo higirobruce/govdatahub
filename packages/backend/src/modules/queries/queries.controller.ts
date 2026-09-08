@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth }
 import { Throttle } from '@nestjs/throttler';
 import { QueriesService } from './queries.service';
 import { ExecuteQueryDto } from './dto/execute-query.dto';
+import { ExecuteStagingQueryDto } from './dto/execute-staging-query.dto';
 import { QueryResultDto } from './dto/query-result.dto';
 import { QueryHistory, User } from '../../database/entities';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -156,7 +157,7 @@ export class QueriesController {
     description: 'Unauthorized',
   })
   executeStagingQuery(
-    @Body() body: { sqlQuery: string },
+    @Body() body: ExecuteStagingQueryDto,
     @CurrentUser() user: User,
   ): Promise<QueryResultDto> {
     return this.queriesService.executeStagingQuery(body.sqlQuery, user.organizationId);

@@ -17,6 +17,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { User, UserRole } from '../../database/entities';
 import { ProfilingService } from './profiling.service';
 import { QualityChecksService, CreateQualityCheckDto, UpdateQualityCheckDto } from './quality-checks.service';
+import { ProfileTableDto } from './dto/profile-table.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('data-quality')
@@ -48,7 +49,7 @@ export class DataQualityController {
   @HttpCode(HttpStatus.OK)
   profileTable(
     @CurrentUser() user: User,
-    @Body() body: { connectionId: string; schemaName: string; tableName: string },
+    @Body() body: ProfileTableDto,
   ) {
     return this.profilingService.profileTable(
       body.connectionId,

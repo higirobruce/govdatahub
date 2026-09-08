@@ -26,6 +26,7 @@ import { CreateTransformationDto } from './dto/create-transformation.dto';
 import { UpdateTransformationDto } from './dto/update-transformation.dto';
 import { TransformationResponseDto } from './dto/transformation-response.dto';
 import { TransformationRunResponseDto } from './dto/transformation-run-response.dto';
+import { ValidateSqlDto } from './dto/validate-sql.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -371,7 +372,7 @@ export class TransformationsController {
     description: 'Validation result',
   })
   validateSql(
-    @Body() dto: { sqlQuery: string },
+    @Body() dto: ValidateSqlDto,
   ): Promise<{ valid: boolean; error?: string }> {
     return this.transformationsService.validateSql(dto.sqlQuery);
   }
