@@ -162,18 +162,18 @@ export default function QueryPage() {
 
     try {
       if (dataSource === 'connections') {
-        const result = await api.queries.execute({
+        const result = (await api.queries.execute({
           connectionId: selectedConnectionId,
           sql: sql.trim(),
           cacheResults: false,
-        });
+        })) as QueryResult;
         setQueryResult(result);
         showToast(
           `Query executed successfully: ${result.rowCount} rows returned in ${result.executionTimeMs}ms`,
           'success'
         );
       } else {
-        const result = await api.queries.executeStaging(sql.trim());
+        const result = (await api.queries.executeStaging(sql.trim())) as QueryResult;
         setQueryResult(result);
         showToast(
           `Query executed successfully: ${result.rowCount} rows returned in ${result.executionTimeMs}ms`,
@@ -610,8 +610,8 @@ export default function QueryPage() {
       {showAddToDashboard && queryResult && (
         <AddToDashboardModal
           queryResult={queryResult}
-          sql={sql}
           onClose={() => setShowAddToDashboard(false)}
+          onAdd={() => setShowAddToDashboard(false)}
         />
       )}
     </div>
