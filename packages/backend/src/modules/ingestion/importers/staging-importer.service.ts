@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { StagedData } from '../../../database/entities';
@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class StagingImporterService {
   private readonly logger = new Logger(StagingImporterService.name);
+  private static readonly SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
   constructor(
     @InjectRepository(StagedData)
@@ -81,6 +82,22 @@ export class StagingImporterService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Drops a staging table. The name must be a plain SQL identifier —
+   * staging tables are always created as staging_<org>_<name>, so anything
+   * else is treated as an injection attempt.
+   */
+  async dropTable(tableName: string): Promise<void> {
+    if (
+      !tableName ||
+      tableName.length > 128 ||
+      !StagingImporterService.SAFE_IDENTIFIER.test(tableName)
+    ) {
+      throw new BadRequestException(`Invalid staging table name`);
+    }
+    await this.dataSource.query(`DROP TABLE IF EXISTS "${tableName}"`);
   }
 
   /**

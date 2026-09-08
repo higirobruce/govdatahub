@@ -403,9 +403,7 @@ export class IngestionService {
 
     // Drop the staging table
     try {
-      await this.stagingImporter['dataSource'].query(
-        `DROP TABLE IF EXISTS ${stagedData.tableName}`
-      );
+      await this.stagingImporter.dropTable(stagedData.tableName);
       this.logger.log(`Dropped staging table ${stagedData.tableName}`);
     } catch (error) {
       this.logger.warn(
