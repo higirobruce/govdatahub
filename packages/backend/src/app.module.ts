@@ -60,6 +60,7 @@ import { DataProductsModule } from './modules/data-products/data-products.module
 import { UsersModule } from './modules/users/users.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
+import { CatalogSearchModule } from './modules/catalog-search/catalog-search.module';
 
 @Module({
   imports: [
@@ -155,6 +156,7 @@ import { AlertsModule } from './modules/alerts/alerts.module';
     UsersModule,
     AdminModule,
     AlertsModule,
+    CatalogSearchModule,
   ],
   controllers: [AppController],
   providers: [
