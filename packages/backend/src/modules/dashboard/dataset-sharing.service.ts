@@ -15,6 +15,7 @@ import { ConnectionsService } from '../connections/connections.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { ConfigService } from '@nestjs/config';
 import { validateReadOnlySql } from '../../common/readonly-sql.validator';
+import { sha256Hex } from '../../common/hash.util';
 
 /**
  * Dataset Sharing Service
@@ -89,13 +90,20 @@ export class DatasetSharingService {
     share.organizationId = organizationId;
     share.createdBy = userId;
     share.accessLevel = dto.accessLevel;
-    share.apiKey = dto.generateApiKey ? this.generateApiKey() : undefined;
-    share.shareToken = dto.generateShareToken ? this.generateShareToken() : undefined;
+    const plainApiKey = dto.generateApiKey ? this.generateApiKey() : undefined;
+    const plainShareToken = dto.generateShareToken ? this.generateShareToken() : undefined;
+    share.apiKey = plainApiKey ? sha256Hex(plainApiKey) : undefined;
+    share.shareToken = plainShareToken ? sha256Hex(plainShareToken) : undefined;
     share.active = true;
     share.rowCount = metadata.rowCount;
     share.schema = metadata.schema;
 
-    return await this.datasetShareRepository.save(share);
+    const saved = await this.datasetShareRepository.save(share);
+    return {
+      ...saved,
+      apiKey: plainApiKey ?? saved.apiKey,
+      shareToken: plainShareToken ?? saved.shareToken,
+    };
   }
 
   async getShares(organizationId: string): Promise<DatasetShare[]> {
@@ -119,14 +127,18 @@ export class DatasetSharingService {
 
   async regenerateApiKey(shareId: string, organizationId: string): Promise<DatasetShare> {
     const share = await this.getShare(shareId, organizationId);
-    share.apiKey = this.generateApiKey();
-    return await this.datasetShareRepository.save(share);
+    const plainApiKey = this.generateApiKey();
+    share.apiKey = sha256Hex(plainApiKey);
+    const saved = await this.datasetShareRepository.save(share);
+    return { ...saved, apiKey: plainApiKey };
   }
 
   async regenerateShareToken(shareId: string, organizationId: string): Promise<DatasetShare> {
     const share = await this.getShare(shareId, organizationId);
-    share.shareToken = this.generateShareToken();
-    return await this.datasetShareRepository.save(share);
+    const plainShareToken = this.generateShareToken();
+    share.shareToken = sha256Hex(plainShareToken);
+    const saved = await this.datasetShareRepository.save(share);
+    return { ...saved, shareToken: plainShareToken };
   }
 
   async deleteShare(shareId: string, organizationId: string): Promise<void> {
@@ -137,7 +149,7 @@ export class DatasetSharingService {
 
   async getDataByApiKey(apiKey: string): Promise<any> {
     const share = await this.datasetShareRepository.findOne({
-      where: { apiKey, active: true },
+      where: { apiKey: sha256Hex(apiKey), active: true },
     });
 
     if (!share) {
@@ -155,7 +167,7 @@ export class DatasetSharingService {
 
   async getDataByShareToken(shareToken: string): Promise<any> {
     const share = await this.datasetShareRepository.findOne({
-      where: { shareToken, active: true },
+      where: { shareToken: sha256Hex(shareToken), active: true },
     });
 
     if (!share) {
@@ -362,7 +374,7 @@ export class DatasetSharingService {
   ): Promise<any> {
     // Validate and get share
     const share = await this.datasetShareRepository.findOne({
-      where: { apiKey, active: true },
+      where: { apiKey: sha256Hex(apiKey), active: true },
     });
 
     if (!share) {
@@ -397,7 +409,7 @@ export class DatasetSharingService {
   ): Promise<any> {
     // Validate and get share
     const share = await this.datasetShareRepository.findOne({
-      where: { shareToken, active: true },
+      where: { shareToken: sha256Hex(shareToken), active: true },
     });
 
     if (!share) {
