@@ -667,7 +667,13 @@ export default function QueryPage() {
         <AddToDashboardModal
           queryResult={queryResult}
           onClose={() => setShowAddToDashboard(false)}
-          onAdd={() => setShowAddToDashboard(false)}
+          onAdd={(chartConfig) => {
+            const existingCharts = JSON.parse(localStorage.getItem('pendingDashboardCharts') || '[]');
+            existingCharts.push(chartConfig);
+            localStorage.setItem('pendingDashboardCharts', JSON.stringify(existingCharts));
+            showToast(`Chart "${chartConfig.title}" added! Go to Dashboard Builder to see it.`, 'success');
+            setShowAddToDashboard(false);
+          }}
         />
       )}
     </div>

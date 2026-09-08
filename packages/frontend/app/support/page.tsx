@@ -3,7 +3,7 @@
 import { PageHeader } from '@/components/ui/page-header';
 import { HelpCircle, BookOpen, FileCode2, Bug } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/api$/, '');
 
 const resources = [
   {
