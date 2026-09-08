@@ -14,6 +14,7 @@ import { CreateShareDto } from './dto/create-share.dto';
 import { ConnectionsService } from '../connections/connections.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { ConfigService } from '@nestjs/config';
+import { validateReadOnlySql } from '../../common/readonly-sql.validator';
 
 /**
  * Dataset Sharing Service
@@ -587,41 +588,6 @@ export class DatasetSharingService {
    * @throws BadRequestException if query contains dangerous patterns
    */
   private validateSqlQuery(sqlQuery: string): void {
-    if (!sqlQuery || typeof sqlQuery !== 'string') {
-      throw new BadRequestException('SQL query is required');
-    }
-
-    const query = sqlQuery.toLowerCase().trim();
-
-    // Must be a SELECT query
-    if (!query.startsWith('select')) {
-      throw new BadRequestException('Only SELECT queries are allowed');
-    }
-
-    // Block dangerous patterns
-    const dangerousPatterns = [
-      /;\s*(drop|delete|insert|update|alter|create|truncate|grant|revoke)/i,
-      /--/,
-      /\/\*/,
-      /xp_cmdshell/i,
-      /exec\s*\(/i,
-      /execute\s*\(/i,
-      /script/i,
-      /<script/i,
-    ];
-
-    for (const pattern of dangerousPatterns) {
-      if (pattern.test(sqlQuery)) {
-        throw new BadRequestException(
-          'Query contains dangerous patterns and has been blocked',
-        );
-      }
-    }
-
-    // Additional validation - no semicolons except at the end
-    const semicolonCount = (sqlQuery.match(/;/g) || []).length;
-    if (semicolonCount > 1 || (semicolonCount === 1 && !sqlQuery.trim().endsWith(';'))) {
-      throw new BadRequestException('Multiple statements are not allowed');
-    }
+    validateReadOnlySql(sqlQuery);
   }
 }
