@@ -200,8 +200,11 @@ export class TransformationsController {
     status: 429,
     description: 'Rate limit exceeded',
   })
-  executeNow(@Param('id') id: string): Promise<TransformationRunResponseDto> {
-    return this.executorService.execute(id, 'manual');
+  executeNow(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ): Promise<TransformationRunResponseDto> {
+    return this.executorService.execute(id, 'manual', user.organizationId);
   }
 
   @Post(':id/pause')

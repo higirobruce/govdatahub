@@ -180,6 +180,7 @@ export class PipelinesExecutorService implements OnModuleInit {
         const result = await this.transformationsExecutorService.execute(
           transformationId,
           'scheduled',
+          organizationId,
         );
         return { rowsProcessed: result.rowsProcessed ?? undefined };
       }
