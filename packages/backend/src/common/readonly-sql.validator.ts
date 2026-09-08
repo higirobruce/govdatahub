@@ -7,7 +7,7 @@ import { BadRequestException } from '@nestjs/common';
  */
 const FORBIDDEN_PATTERNS: RegExp[] = [
   /\b(drop|delete|insert|update|alter|create|truncate|grant|revoke|vacuum|reindex|merge|copy|call|do)\b/i,
-  /\b(pg_read_file|pg_write_file|pg_ls_dir|pg_sleep|pg_terminate_backend|pg_cancel_backend|lo_import|lo_export|dblink|xp_cmdshell)\b/i,
+  /\b(pg_read_file|pg_write_file|pg_ls_\w+|pg_read_binary_file|pg_stat_file|pg_sleep|pg_terminate_backend|pg_cancel_backend|lo_import|lo_export|lo_get|dblink|xp_cmdshell)\b/i,
   /\binto\s+(outfile|dumpfile)\b/i,
   /\bexec(ute)?\s*\(/i,
 ];
