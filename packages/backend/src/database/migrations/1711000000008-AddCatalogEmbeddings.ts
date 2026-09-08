@@ -22,8 +22,8 @@ export class AddCatalogEmbeddings1711000000008 implements MigrationInterface {
     );
 
     // Prefer ivfflat (per the design brief). Fall back to hnsw if ivfflat creation
-    // fails on this Postgres build, and finally to no vector index at all (search
-    // still works via a full scan, just slower) so the migration never blocks.
+    // fails on this Postgres build. If both fail, fail the migration loudly rather
+    // than silently leaving the table without a vector index.
     try {
       await queryRunner.query(
         `CREATE INDEX "idx_catalog_embeddings_vec" ON "catalog_embeddings" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 100)`,
@@ -34,11 +34,8 @@ export class AddCatalogEmbeddings1711000000008 implements MigrationInterface {
           `CREATE INDEX "idx_catalog_embeddings_vec" ON "catalog_embeddings" USING hnsw ("embedding" vector_cosine_ops)`,
         );
       } catch (hnswError) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          'AddCatalogEmbeddings1711000000008: could not create a vector index (ivfflat or hnsw). ' +
-            'catalog_embeddings was created WITHOUT a vector index; similarity search will fall back ' +
-            'to a full table scan until an index is added manually.',
+        throw new Error(
+          `Failed to create a vector index (ivfflat and hnsw both failed): ${(hnswError as Error).message}`,
         );
       }
     }
