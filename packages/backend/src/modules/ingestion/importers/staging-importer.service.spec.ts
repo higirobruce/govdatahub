@@ -3,7 +3,7 @@ import { StagingImporterService } from './staging-importer.service';
 
 describe('StagingImporterService.dropTable (SEC-05)', () => {
   let service: StagingImporterService;
-  const stagedDataRepository = {};
+  const stagedDataRepository = { find: jest.fn(), delete: jest.fn() };
   const dataSource = { query: jest.fn() };
 
   beforeEach(() => {
@@ -35,5 +35,41 @@ describe('StagingImporterService.dropTable (SEC-05)', () => {
       BadRequestException,
     );
     expect(dataSource.query).not.toHaveBeenCalled();
+  });
+});
+
+describe('StagingImporterService.deleteStagedData (SEC-05)', () => {
+  let service: StagingImporterService;
+  const stagedDataRepository = { find: jest.fn(), delete: jest.fn() };
+  const dataSource = { query: jest.fn() };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new StagingImporterService(
+      stagedDataRepository as any,
+      dataSource as any,
+    );
+  });
+
+  it('delegates to dropTable and refuses a malformed tableName without executing a query', async () => {
+    const dropTableSpy = jest.spyOn(service, 'dropTable');
+    stagedDataRepository.find.mockResolvedValue([
+      { tableName: 'foo"; DROP TABLE users;--' },
+    ]);
+    stagedDataRepository.delete.mockResolvedValue({ affected: 1 });
+
+    // deleteStagedData swallows per-table drop failures (existing behavior)
+    // so it resolves even though the underlying drop was rejected.
+    await expect(
+      service.deleteStagedData('job-1', 'org-1'),
+    ).resolves.toBeUndefined();
+
+    expect(dropTableSpy).toHaveBeenCalledWith('foo"; DROP TABLE users;--');
+    expect(dataSource.query).not.toHaveBeenCalled();
+    // Metadata deletion still proceeds despite the rejected drop.
+    expect(stagedDataRepository.delete).toHaveBeenCalledWith({
+      importJobId: 'job-1',
+      organizationId: 'org-1',
+    });
   });
 });

@@ -143,7 +143,7 @@ export class StagingImporterService {
     // Drop staging tables
     for (const staged of stagedData) {
       try {
-        await this.dataSource.query(`DROP TABLE IF EXISTS ${staged.tableName}`);
+        await this.dropTable(staged.tableName);
         this.logger.log(`Dropped staging table ${staged.tableName}`);
       } catch (error) {
         this.logger.warn(
