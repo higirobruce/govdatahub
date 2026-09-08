@@ -9,6 +9,7 @@ import { AiModule } from '../ai/ai.module';
 import { SettingsModule } from '../settings/settings.module';
 import { SchemaModule } from '../schema/schema.module';
 import { QueriesModule } from '../queries/queries.module';
+import { ConnectionsModule } from '../connections/connections.module';
 
 /**
  * NL2SQL Module
@@ -27,6 +28,7 @@ import { QueriesModule } from '../queries/queries.module';
  * - SettingsModule: Organization settings
  * - SchemaModule: Database schema discovery
  * - QueriesModule: Query execution
+ * - ConnectionsModule: Driver access for schema-context enrichment (FKs, sample rows)
  */
 @Module({
   imports: [
@@ -35,6 +37,7 @@ import { QueriesModule } from '../queries/queries.module';
     SettingsModule,
     SchemaModule,
     QueriesModule,
+    ConnectionsModule,
   ],
   controllers: [Nl2sqlController],
   providers: [

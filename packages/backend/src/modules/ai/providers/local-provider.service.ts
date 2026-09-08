@@ -299,10 +299,21 @@ INSTRUCTIONS:
           formatted += columnDesc + '\n';
         }
 
-        // Add sample data if available
+        // Add foreign-key relationships if available
+        if (table.relationships && table.relationships.length > 0) {
+          formatted += 'Relationships:\n';
+          for (const relationship of table.relationships) {
+            formatted += `  - ${relationship.sourceTable}.${relationship.sourceColumn} -> ${relationship.targetTable}.${relationship.targetColumn} (${relationship.type})\n`;
+          }
+        }
+
+        // Add sample data if available (compact, one line per row)
         if (table.sampleData && table.sampleData.length > 0) {
-          formatted += `Sample data (first ${table.sampleData.length} rows):\n`;
-          formatted += JSON.stringify(table.sampleData, null, 2) + '\n';
+          const rows = table.sampleData.slice(0, 3);
+          formatted += `Sample data (${rows.length} row${rows.length === 1 ? '' : 's'}):\n`;
+          for (const row of rows) {
+            formatted += `  ${JSON.stringify(row)}\n`;
+          }
         }
       }
     }

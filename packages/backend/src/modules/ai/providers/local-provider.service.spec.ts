@@ -45,6 +45,61 @@ describe('LocalProviderService.explainSql (COR-06)', () => {
   });
 });
 
+describe('LocalProviderService prompt enrichment (foreign keys + sample rows)', () => {
+  let provider: LocalProviderService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    provider = new LocalProviderService();
+  });
+
+  it('includes relationships and sample rows in the generated prompt', async () => {
+    mockedAxios.post.mockResolvedValue({ data: { response: 'SELECT 1' } });
+
+    const schemaContext = {
+      connections: [
+        {
+          connectionId: 'conn-1',
+          connectionName: 'main-db',
+          databaseType: 'postgresql',
+          tables: [
+            {
+              name: 'orders',
+              schema: 'public',
+              columns: [{ name: 'id', type: 'uuid', nullable: false, primaryKey: true }],
+              relationships: [
+                {
+                  type: 'many-to-one',
+                  sourceTable: 'orders',
+                  targetTable: 'customers',
+                  sourceColumn: 'customer_id',
+                  targetColumn: 'id',
+                },
+              ],
+              sampleData: [{ id: 'o1', customer_id: 'c1' }],
+            },
+          ],
+        },
+      ],
+    } as any;
+
+    await provider.generateSql({
+      naturalLanguageQuery: 'show me orders',
+      schemaContext,
+      settings: {
+        aiApiEndpoint: 'http://gpu:11434',
+        aiModel: 'x',
+        maxRowsLimit: 100,
+      } as any,
+    });
+
+    const [, body] = mockedAxios.post.mock.calls[0];
+    const prompt = (body as any).prompt as string;
+    expect(prompt).toContain('orders.customer_id -> customers.id');
+    expect(prompt).toContain('"id":"o1"');
+  });
+});
+
 describe('LocalProviderService.generateJson', () => {
   let provider: LocalProviderService;
 
