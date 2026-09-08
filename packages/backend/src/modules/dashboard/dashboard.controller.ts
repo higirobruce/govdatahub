@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../../database/entities';
 import { DatasetCatalogService } from './dataset-catalog.service';
 import { DatasetSharingService } from './dataset-sharing.service';
 import { CreateShareDto } from './dto/create-share.dto';
@@ -45,6 +47,7 @@ export class DashboardController {
   }
 
   @Post('shares')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
   @ApiOperation({ summary: 'Create a new dataset share' })
   async createShare(@Body() dto: CreateShareDto, @Request() req: any) {
     return await this.sharingService.createShare(
@@ -62,6 +65,7 @@ export class DashboardController {
   }
 
   @Post('shares/:id/regenerate-api-key')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
   @ApiOperation({ summary: 'Regenerate API key for share' })
   @ApiParam({ name: 'id', description: 'Share ID' })
   async regenerateApiKey(@Param('id') id: string, @Request() req: any) {
@@ -72,6 +76,7 @@ export class DashboardController {
   }
 
   @Post('shares/:id/regenerate-token')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
   @ApiOperation({ summary: 'Regenerate share token' })
   @ApiParam({ name: 'id', description: 'Share ID' })
   async regenerateShareToken(@Param('id') id: string, @Request() req: any) {
@@ -82,6 +87,7 @@ export class DashboardController {
   }
 
   @Delete('shares/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
   @ApiOperation({ summary: 'Delete a share' })
   @ApiParam({ name: 'id', description: 'Share ID' })
   @HttpCode(HttpStatus.NO_CONTENT)

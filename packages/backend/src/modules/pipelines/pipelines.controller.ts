@@ -13,7 +13,8 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User } from '../../database/entities';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole } from '../../database/entities';
 import { PipelinesService } from './pipelines.service';
 import { PipelinesExecutorService } from './pipelines-executor.service';
 import { CreatePipelineDto } from './dto/create-pipeline.dto';
@@ -28,6 +29,7 @@ export class PipelinesController {
   ) {}
 
   @Post()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   create(@Body() dto: CreatePipelineDto, @CurrentUser() user: User) {
     return this.pipelinesService.create(dto, user.organizationId, user.id);
   }
@@ -43,6 +45,7 @@ export class PipelinesController {
   }
 
   @Patch(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   update(
     @Param('id') id: string,
     @Body() dto: UpdatePipelineDto,
@@ -52,12 +55,14 @@ export class PipelinesController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string, @CurrentUser() user: User) {
     return this.pipelinesService.remove(id, user.organizationId);
   }
 
   @Post(':id/run')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   triggerRun(@Param('id') id: string, @CurrentUser() user: User) {
     return this.pipelinesExecutorService.run(id, user.organizationId, 'manual');
   }

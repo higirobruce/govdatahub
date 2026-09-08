@@ -100,20 +100,21 @@ export class CatalogService {
     result.add(await this.syncLineage(organizationId));
     result.add(await this.syncQueryUsage(organizationId));
 
-    // Persist sync result
-    await this.settingsRepo
-      .createQueryBuilder()
-      .update(OrganizationSettings)
-      .set({
-        catalogConfig: () =>
-          `jsonb_set(jsonb_set(
-            COALESCE("catalog_config", '{}'::jsonb),
-            '{lastSyncAt}',
-            '"${new Date().toISOString()}"'
-          ), '{lastSyncResult}', '${JSON.stringify({ synced: result.synced, errors: result.errors, categories: result.categories })}'::jsonb)`,
-      })
-      .where('organization_id = :organizationId', { organizationId })
-      .execute();
+    // Persist sync result (load-merge-save: preserves other catalogConfig keys
+    // and lets TypeORM parameterize everything — error strings may contain quotes)
+    const settings = await this.settingsRepo.findOne({ where: { organizationId } });
+    if (settings) {
+      settings.catalogConfig = {
+        ...(settings.catalogConfig ?? {}),
+        lastSyncAt: new Date().toISOString(),
+        lastSyncResult: {
+          synced: result.synced,
+          errors: result.errors,
+          categories: result.categories,
+        },
+      } as unknown as typeof settings.catalogConfig;
+      await this.settingsRepo.save(settings);
+    }
 
     this.logger.log(
       `Catalog sync done for org ${organizationId}: ${result.synced} synced (conn=${result.categories.connections} tables=${result.categories.tables} pipelines=${result.categories.pipelines} lineage=${result.categories.lineage} queries=${result.categories.queries}), ${result.errors.length} errors`,

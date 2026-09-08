@@ -37,12 +37,13 @@ export class TransformationsExecutorService {
   async execute(
     transformationId: string,
     triggerType: 'manual' | 'scheduled',
+    organizationId: string,
   ): Promise<TransformationRunResponseDto> {
     const runId = uuidv4();
     const startTime = Date.now();
 
     // 1. Load transformation
-    const transformation = await this.loadTransformation(transformationId);
+    const transformation = await this.loadTransformation(transformationId, organizationId);
 
     // 2. Validate transformation is not paused
     if (transformation.status === 'paused') {
@@ -115,9 +116,12 @@ export class TransformationsExecutorService {
     }
   }
 
-  private async loadTransformation(id: string): Promise<Transformation> {
+  private async loadTransformation(
+    id: string,
+    organizationId: string,
+  ): Promise<Transformation> {
     const transformation = await this.transformationsRepository.findOne({
-      where: { id },
+      where: { id, organizationId },
     });
 
     if (!transformation) {

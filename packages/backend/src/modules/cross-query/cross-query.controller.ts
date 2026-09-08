@@ -16,20 +16,22 @@ import {
   ApiBearerAuth,
   ApiResponse,
 } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User, SavedCrossQuery } from '../../database/entities';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole, SavedCrossQuery } from '../../database/entities';
 import { CrossQueryExecutorService } from './cross-query-executor.service';
 import { QueryBuilderService } from './query-builder.service';
 import { ExecuteCrossQueryDto } from './dto/execute-cross-query.dto';
 import { CrossQueryResultDto } from './dto/cross-query-result.dto';
 import { QueryDefinitionDto } from './dto/query-definition.dto';
+import { ValidateQueryDto } from './dto/validate-query.dto';
 
 @Controller('cross-query')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 @ApiTags('cross-query')
 export class CrossQueryController {
@@ -45,7 +47,7 @@ export class CrossQueryController {
   @ApiResponse({ status: 200, description: 'Query is valid' })
   @ApiResponse({ status: 400, description: 'Query validation failed' })
   async validateQuery(
-    @Body() dto: { queryDefinition: QueryDefinitionDto },
+    @Body() dto: ValidateQueryDto,
     @CurrentUser() user: User,
   ) {
     // Validation happens automatically via class-validator decorators
@@ -76,6 +78,7 @@ export class CrossQueryController {
   }
 
   @Post('saved')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Save cross-database query for reuse' })
   @ApiResponse({ status: 201, description: 'Query saved successfully' })
   @ApiResponse({ status: 400, description: 'Invalid query definition' })
@@ -170,6 +173,7 @@ export class CrossQueryController {
   }
 
   @Delete('saved/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete saved query' })
   @ApiResponse({ status: 204, description: 'Query deleted successfully' })

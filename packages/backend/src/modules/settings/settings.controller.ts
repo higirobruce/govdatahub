@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SettingsService } from './settings.service';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../../database/entities';
 import { OrganizationSettings } from '../../database/entities/organization-settings.entity';
 import { AiProviderInfo } from './dto/ai-provider-config.dto';
 
@@ -21,6 +23,7 @@ export class SettingsController {
   }
 
   @Put()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
   @ApiOperation({ summary: 'Update organization settings' })
   @ApiResponse({ status: 200, description: 'Settings updated successfully' })
   async updateSettings(

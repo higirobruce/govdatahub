@@ -66,6 +66,28 @@ export class IngestionService {
   }
 
   /**
+   * Redact auth and header secrets from source config.
+   * Never persists raw credentials — keeps only non-secret metadata.
+   */
+  private redactSourceConfig(
+    auth?: Record<string, any>,
+    headers?: Record<string, any>,
+  ): Record<string, any> | undefined {
+    if (!auth && !headers) {
+      return undefined;
+    }
+
+    const redacted: Record<string, any> = {};
+    if (auth) {
+      redacted.auth = { type: auth.type };
+    }
+    if (headers) {
+      redacted.headerNames = Object.keys(headers);
+    }
+    return redacted;
+  }
+
+  /**
    * Generate preview of file data without importing
    */
   async generatePreview(
@@ -403,9 +425,7 @@ export class IngestionService {
 
     // Drop the staging table
     try {
-      await this.stagingImporter['dataSource'].query(
-        `DROP TABLE IF EXISTS ${stagedData.tableName}`
-      );
+      await this.stagingImporter.dropTable(stagedData.tableName);
       this.logger.log(`Dropped staging table ${stagedData.tableName}`);
     } catch (error) {
       this.logger.warn(
@@ -533,12 +553,8 @@ export class IngestionService {
         fileSize: downloadResult.buffer.length,
         sourceType: downloadResult.sourceType,
         sourceUrl: url,
-        sourceConfig: uploadDto.auth || uploadDto.headers
-          ? {
-              auth: uploadDto.auth,
-              headers: uploadDto.headers,
-            }
-          : undefined,
+        // Never persist credentials — keep only non-secret metadata for the job record.
+        sourceConfig: this.redactSourceConfig(uploadDto.auth, uploadDto.headers),
         targetType: uploadDto.targetType,
         targetTable: uploadDto.targetTable,
         connectionId: uploadDto.connectionId,

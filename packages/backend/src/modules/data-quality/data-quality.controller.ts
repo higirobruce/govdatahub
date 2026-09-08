@@ -13,9 +13,11 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User } from '../../database/entities';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole } from '../../database/entities';
 import { ProfilingService } from './profiling.service';
 import { QualityChecksService, CreateQualityCheckDto, UpdateQualityCheckDto } from './quality-checks.service';
+import { ProfileTableDto } from './dto/profile-table.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('data-quality')
@@ -43,10 +45,11 @@ export class DataQualityController {
   }
 
   @Post('profiles')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.OK)
   profileTable(
     @CurrentUser() user: User,
-    @Body() body: { connectionId: string; schemaName: string; tableName: string },
+    @Body() body: ProfileTableDto,
   ) {
     return this.profilingService.profileTable(
       body.connectionId,
@@ -73,6 +76,7 @@ export class DataQualityController {
   }
 
   @Post('checks')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   createCheck(@CurrentUser() user: User, @Body() dto: CreateQualityCheckDto) {
     return this.qualityChecksService.create(dto, user.organizationId);
   }
@@ -83,6 +87,7 @@ export class DataQualityController {
   }
 
   @Patch('checks/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   updateCheck(
     @CurrentUser() user: User,
     @Param('id') id: string,
@@ -92,12 +97,14 @@ export class DataQualityController {
   }
 
   @Delete('checks/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   removeCheck(@CurrentUser() user: User, @Param('id') id: string) {
     return this.qualityChecksService.remove(id, user.organizationId);
   }
 
   @Post('checks/:id/run')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.OK)
   runCheck(@CurrentUser() user: User, @Param('id') id: string) {
     return this.qualityChecksService.runCheck(id, user.organizationId);

@@ -11,10 +11,11 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User } from '../../database/entities';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole } from '../../database/entities';
 import { NotebooksService } from './notebooks.service';
 import { CreateNotebookDto } from './dto/create-notebook.dto';
 import { UpdateNotebookDto } from './dto/update-notebook.dto';
@@ -24,7 +25,7 @@ import { SaveAsTransformationDto } from './dto/save-as-transformation.dto';
 @ApiTags('notebooks')
 @ApiBearerAuth()
 @Controller('notebooks')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 export class NotebooksController {
   constructor(private readonly notebooksService: NotebooksService) {}
 
@@ -35,6 +36,7 @@ export class NotebooksController {
   }
 
   @Post()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Create a new empty notebook' })
   create(@Body() dto: CreateNotebookDto, @CurrentUser() user: User) {
     return this.notebooksService.create(dto, user.organizationId, user.id);
@@ -47,6 +49,7 @@ export class NotebooksController {
   }
 
   @Patch(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Update notebook name, description, or cells' })
   update(
     @Param('id') id: string,
@@ -57,6 +60,7 @@ export class NotebooksController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a notebook' })
   remove(@Param('id') id: string, @CurrentUser() user: User) {
@@ -64,6 +68,7 @@ export class NotebooksController {
   }
 
   @Post(':id/cells/:cellId/execute')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiOperation({ summary: 'Execute a SQL cell against a connection' })
   executeCell(
@@ -81,6 +86,7 @@ export class NotebooksController {
   }
 
   @Post(':id/save-as-transformation')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Save selected SQL cells as a reusable Transformation' })
   saveAsTransformation(
     @Param('id') id: string,

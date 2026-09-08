@@ -15,23 +15,14 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { IngestionService } from './ingestion.service';
 import { UploadFileDto, ImportJobResponseDto, PreviewResponseDto, ImportFromUrlDto, ImportFromDatabaseDto } from './dto';
 import { ImportJobStatus, ImportTargetType } from '../../database/entities';
-
-// Note: Replace with actual auth guards when authentication is implemented
-// For now, using a placeholder decorator
-const CurrentUser = () => {
-  return (target: any, propertyKey: string, parameterIndex: number) => {
-    // Placeholder - will be replaced with actual implementation
-  };
-};
-
-interface User {
-  id: string;
-  organizationId: string;
-}
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole } from '../../database/entities';
 
 // File upload type
 interface UploadedFileType {
@@ -44,9 +35,9 @@ interface UploadedFileType {
 }
 
 @Controller('ingestion')
-@UseGuards(ThrottlerGuard)
 @ApiTags('ingestion')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 export class IngestionController {
   constructor(private readonly ingestionService: IngestionService) {}
 
@@ -54,7 +45,10 @@ export class IngestionController {
    * Generate preview of file data (first 100 rows)
    */
   @Post('preview')
-  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 200 * 1024 * 1024 } }),
+  )
   @ApiOperation({ summary: 'Preview file data without importing' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -75,15 +69,14 @@ export class IngestionController {
   @Throttle({ default: { ttl: 60000, limit: 20 } })
   async preview(
     @UploadedFile() file: UploadedFileType,
-    @Body('config') config?: string,
-    @CurrentUser() user?: User
+    @CurrentUser() user: User,
+    @Body('config') config?: string
   ): Promise<PreviewResponseDto> {
     if (!file) {
       throw new BadRequestException('File is required');
     }
 
-    // For now, use a default organization ID until auth is implemented
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
 
     let parsedConfig: Record<string, unknown> | undefined;
     if (config) {
@@ -105,7 +98,10 @@ export class IngestionController {
    * Start file import job
    */
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 200 * 1024 * 1024 } }),
+  )
   @ApiOperation({ summary: 'Upload and import file' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -140,10 +136,10 @@ export class IngestionController {
   async upload(
     @UploadedFile() file: UploadedFileType,
     @Body('targetType') targetType: string,
+    @CurrentUser() user: User,
     @Body('targetTable') targetTable?: string,
     @Body('connectionId') connectionId?: string,
-    @Body('config') config?: string,
-    @CurrentUser() user?: User
+    @Body('config') config?: string
   ): Promise<ImportJobResponseDto> {
     if (!file) {
       throw new BadRequestException('File is required');
@@ -161,7 +157,7 @@ export class IngestionController {
       );
     }
 
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
 
     const uploadDto: UploadFileDto = {
       targetType: targetType as ImportTargetType,
@@ -190,13 +186,14 @@ export class IngestionController {
    * Import file from URL
    */
   @Post('import/url')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Import file from URL' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   async importFromUrl(
     @Body() dto: ImportFromUrlDto,
-    @CurrentUser() user?: User
+    @CurrentUser() user: User
   ): Promise<ImportJobResponseDto> {
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
 
     const uploadDto: UploadFileDto = {
       targetType: dto.targetType || ImportTargetType.STAGING,
@@ -218,13 +215,14 @@ export class IngestionController {
    * Import data from database connection
    */
   @Post('import/database')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Import data from database connection to staging' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   async importFromDatabase(
     @Body() dto: ImportFromDatabaseDto,
-    @CurrentUser() user?: User
+    @CurrentUser() user: User
   ): Promise<ImportJobResponseDto> {
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
 
     const importJob = await this.ingestionService.importFromDatabase(
       dto.connectionId,
@@ -249,9 +247,9 @@ export class IngestionController {
   @ApiOperation({ summary: 'Get import job details' })
   async getJob(
     @Param('id') id: string,
-    @CurrentUser() user?: User
+    @CurrentUser() user: User
   ): Promise<ImportJobResponseDto> {
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
     const importJob = await this.ingestionService.getImportJob(
       id,
       organizationId
@@ -265,12 +263,12 @@ export class IngestionController {
   @Get('jobs')
   @ApiOperation({ summary: 'List import jobs' })
   async listJobs(
+    @CurrentUser() user: User,
     @Query('status') status?: ImportJobStatus,
     @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-    @CurrentUser() user?: User
+    @Query('offset') offset?: number
   ): Promise<{ jobs: ImportJobResponseDto[]; total: number }> {
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
 
     const result = await this.ingestionService.listImportJobs(
       organizationId,
@@ -289,13 +287,14 @@ export class IngestionController {
    * Delete import job
    */
   @Delete('jobs/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete import job' })
   async deleteJob(
     @Param('id') id: string,
-    @CurrentUser() user?: User
+    @CurrentUser() user: User
   ): Promise<void> {
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
     await this.ingestionService.deleteImportJob(id, organizationId);
   }
 
@@ -305,11 +304,11 @@ export class IngestionController {
   @Get('staged')
   @ApiOperation({ summary: 'List all staged datasets' })
   async listStagedData(
+    @CurrentUser() user: User,
     @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-    @CurrentUser() user?: User
+    @Query('offset') offset?: number
   ): Promise<{ datasets: any[]; total: number }> {
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
 
     const result = await this.ingestionService.listStagedData(
       organizationId,
@@ -327,9 +326,9 @@ export class IngestionController {
   @ApiOperation({ summary: 'Get staged dataset details including data' })
   async getStagedData(
     @Param('id') id: string,
-    @CurrentUser() user?: User
+    @CurrentUser() user: User
   ): Promise<any> {
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
     return await this.ingestionService.getStagedData(id, organizationId);
   }
 
@@ -340,9 +339,9 @@ export class IngestionController {
   @ApiOperation({ summary: 'Get staged data for a specific import job' })
   async getStagedDataByJobId(
     @Param('id') id: string,
-    @CurrentUser() user?: User
+    @CurrentUser() user: User
   ): Promise<any[]> {
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
     return await this.ingestionService.getStagedDataByJobId(id, organizationId);
   }
 
@@ -350,13 +349,14 @@ export class IngestionController {
    * Delete staged dataset
    */
   @Delete('staged/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete staged dataset' })
   async deleteStagedData(
     @Param('id') id: string,
-    @CurrentUser() user?: User
+    @CurrentUser() user: User
   ): Promise<void> {
-    const organizationId = user?.organizationId || '8498b154-4864-433b-8573-93ae7d2ee200';
+    const organizationId = user.organizationId;
     await this.ingestionService.deleteStagedDataById(id, organizationId);
   }
 
