@@ -49,6 +49,7 @@ import { NotebooksModule } from './modules/notebooks/notebooks.module';
 import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { DataQualityModule } from './modules/data-quality/data-quality.module';
+import { CatalogSearchModule } from './modules/catalog-search/catalog-search.module';
 
 @Module({
   imports: [
@@ -131,6 +132,7 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module';
     PipelinesModule,
     CatalogModule,
     DataQualityModule,
+    CatalogSearchModule,
   ],
   controllers: [AppController],
   providers: [
