@@ -3,7 +3,12 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Nl2sqlService } from './nl2sql.service';
 import { GenerateSqlDto, ExplainSqlDto } from './dto/nl2sql-request.dto';
-import { GenerateSqlResponseDto, ExplainSqlResponseDto } from './dto/nl2sql-response.dto';
+import { DiagnoseSqlDto } from './dto/diagnose-sql.dto';
+import {
+  GenerateSqlResponseDto,
+  ExplainSqlResponseDto,
+  DiagnoseSqlResponseDto,
+} from './dto/nl2sql-response.dto';
 
 /**
  * NL2SQL Controller
@@ -77,5 +82,32 @@ export class Nl2sqlController {
       dto.connectionIds,
       userId
     );
+  }
+
+  /**
+   * Diagnose a failing SQL query and suggest a fix (error doctor)
+   */
+  @Post('diagnose')
+  @ApiOperation({
+    summary: 'Diagnose failing SQL',
+    description: 'Diagnoses why a SQL query failed and, if confident, suggests a corrected version.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'SQL diagnosed successfully',
+    type: DiagnoseSqlResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - AI provider error',
+  })
+  async diagnoseSql(
+    @Req() req,
+    @Body() dto: DiagnoseSqlDto
+  ): Promise<DiagnoseSqlResponseDto> {
+    const organizationId = req.user.organizationId;
+    const userId = req.user.id;
+
+    return this.nl2sqlService.diagnoseSql(organizationId, dto, userId);
   }
 }

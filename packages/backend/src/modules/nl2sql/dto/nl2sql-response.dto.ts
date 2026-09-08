@@ -17,3 +17,9 @@ export class ExplainSqlResponseDto {
   tables: string[];
   operations: string[];
 }
+
+export class DiagnoseSqlResponseDto {
+  diagnosis: string;
+  suggestedSql: string | null;
+  validationWarnings: string[];
+}

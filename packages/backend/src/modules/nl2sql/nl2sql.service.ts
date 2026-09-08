@@ -6,8 +6,9 @@ import { SchemaContextBuilderService } from './schema-context-builder.service';
 import { SqlValidatorService } from './sql-validator.service';
 import { QueriesService } from '../queries/queries.service';
 import { GenerateSqlDto } from './dto/nl2sql-request.dto';
-import { GenerateSqlResponseDto, ExplainSqlResponseDto } from './dto/nl2sql-response.dto';
-import { NL2SqlRequest } from '../ai/providers/base-provider.interface';
+import { GenerateSqlResponseDto, ExplainSqlResponseDto, DiagnoseSqlResponseDto } from './dto/nl2sql-response.dto';
+import { DiagnoseSqlDto } from './dto/diagnose-sql.dto';
+import { NL2SqlRequest, SchemaContext } from '../ai/providers/base-provider.interface';
 
 /**
  * NL2SQL Service
@@ -296,6 +297,145 @@ export class Nl2sqlService {
       tables,
       operations,
     };
+  }
+
+  /**
+   * Error doctor: diagnose a failing SQL query and, if confident, suggest a fix.
+   *
+   * Builds schema context (no sample data), prompts the AI provider for a JSON
+   * diagnosis + optional suggested SQL, runs the existing SQL validator against
+   * any suggested SQL WITHOUT blocking on validation failures (a suggestion that
+   * fails validation is still returned, with warnings surfaced), and audits the
+   * request under the `error_doctor` feature.
+   */
+  async diagnoseSql(
+    organizationId: string,
+    dto: DiagnoseSqlDto,
+    userId?: string
+  ): Promise<DiagnoseSqlResponseDto> {
+    this.logger.log(`Diagnosing failing SQL: ${dto.sql.substring(0, 50)}...`);
+
+    // 1. Get organization settings
+    const settings = await this.settingsService.getOrganizationSettings(organizationId);
+
+    // 2. Build schema context (no sample data needed for diagnosis)
+    const schemaContext = await this.schemaContextBuilder.buildContext(
+      organizationId,
+      dto.connectionIds,
+      {
+        includeSampleData: false,
+        maxTablesPerConnection: 20,
+        maxColumnsPerTable: 50,
+      }
+    );
+
+    // 3. Get AI provider
+    const provider = this.aiService.getProvider(settings.aiProvider);
+
+    // 4. Build prompt
+    const schemaSummary = this.formatSchemaSummary(schemaContext);
+    const prompt = `You are a SQL expert helping debug a failing query.
+
+FAILING SQL:
+${dto.sql}
+
+DATABASE ERROR:
+${dto.errorMessage}
+
+DATABASE SCHEMA:
+${schemaSummary}
+
+Diagnose the cause of the failure. If you are confident in a corrected version of the SQL, provide it; otherwise set suggestedSql to null.
+Respond as JSON: {"diagnosis": "...", "suggestedSql": "..." }`;
+
+    const promptChars = dto.sql.length + dto.errorMessage.length;
+    const startTime = Date.now();
+    let result: any;
+    try {
+      result = await provider.generateJson(prompt, settings);
+    } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      await this.aiAudit.log({
+        organizationId,
+        userId,
+        feature: 'error_doctor',
+        model: settings.aiModel,
+        promptChars,
+        responseChars: 0,
+        latencyMs,
+        success: false,
+        errorMessage: error.message || 'AI provider error',
+        executed: false,
+      });
+      this.logger.error('AI provider error:', error);
+      throw new BadRequestException(
+        `Failed to diagnose SQL: ${error.message || 'AI provider error'}`
+      );
+    }
+    const latencyMs = Date.now() - startTime;
+
+    const diagnosis = typeof result?.diagnosis === 'string' ? result.diagnosis : '';
+    const suggestedSql =
+      typeof result?.suggestedSql === 'string' && result.suggestedSql.trim().length > 0
+        ? result.suggestedSql
+        : null;
+    const responseChars = diagnosis.length + (suggestedSql?.length || 0);
+
+    // 5. Validate suggested SQL (if any) WITHOUT blocking on failure
+    let validationWarnings: string[] = [];
+    if (suggestedSql) {
+      const validationResult = this.sqlValidator.validate(suggestedSql, settings);
+      validationWarnings = [...validationResult.errors, ...validationResult.warnings];
+    }
+
+    // 6. Record audit trail
+    await this.aiAudit.log({
+      organizationId,
+      userId,
+      feature: 'error_doctor',
+      model: settings.aiModel,
+      promptChars,
+      responseChars,
+      latencyMs,
+      success: true,
+      generatedSql: suggestedSql,
+      executed: false,
+    });
+
+    return {
+      diagnosis,
+      suggestedSql,
+      validationWarnings,
+    };
+  }
+
+  /**
+   * Render a compact, human-readable schema summary (tables + columns) for
+   * inclusion in AI prompts. No sample data is included.
+   */
+  private formatSchemaSummary(schemaContext: SchemaContext): string {
+    let formatted = '';
+
+    for (const connection of schemaContext.connections) {
+      formatted += `\n--- ${connection.connectionName} (${connection.databaseType}) ---\n`;
+
+      for (const table of connection.tables) {
+        formatted += `\nTable: ${table.schema ? table.schema + '.' : ''}${table.name}\n`;
+        formatted += 'Columns:\n';
+
+        for (const column of table.columns) {
+          let columnDesc = `  - ${column.name} (${column.type})`;
+          if (column.primaryKey) columnDesc += ' [PRIMARY KEY]';
+          if (column.foreignKey) {
+            columnDesc += ` [FOREIGN KEY -> ${column.foreignKey.referencedTable}.${column.foreignKey.referencedColumn}]`;
+          }
+          if (!column.nullable) columnDesc += ' [NOT NULL]';
+          formatted += columnDesc + '\n';
+        }
+      }
+    }
+
+    return formatted.trim();
   }
 
   /**
