@@ -474,6 +474,23 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    diagnose: (data: {
+      sql: string;
+      errorMessage: string;
+      connectionIds?: string[];
+    }): Promise<DiagnoseSqlResponse> =>
+      request('/nl2sql/diagnose', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
+
+  // Catalog Search (semantic search over the catalog index)
+  catalogSearch: {
+    search: (q: string): Promise<CatalogSearchResult[]> =>
+      request(`/catalog-search?q=${encodeURIComponent(q)}`),
+    reindex: (): Promise<{ indexed: number }> =>
+      request('/catalog-search/reindex', { method: 'POST' }),
   },
 
   lineage: {
@@ -631,6 +648,13 @@ export const api = {
 
     getCheckRuns: (id: string): Promise<any[]> =>
       request(`/data-quality/checks/${id}/runs`),
+
+    suggestChecks: (body: {
+      connectionId: string;
+      schemaName: string;
+      tableName: string;
+    }): Promise<SuggestedCheck[]> =>
+      request('/data-quality/suggest', { method: 'POST', body: JSON.stringify(body) }),
   },
 
   savedQueries: {
@@ -813,6 +837,28 @@ export interface ExplainSqlResponse {
   explanation: string;
   tables: string[];
   operations: string[];
+}
+
+export interface DiagnoseSqlResponse {
+  diagnosis: string;
+  suggestedSql: string | null;
+  validationWarnings: string[];
+}
+
+export interface CatalogSearchResult {
+  object_type: string;
+  object_key: string;
+  content: string;
+  score: number;
+}
+
+// Response shape verified against QualityChecksService.suggestChecks — a plain
+// array of suggestions, NOT wrapped in a `{ suggestions: [...] }` envelope.
+export interface SuggestedCheck {
+  checkType: string;
+  columnName?: string;
+  config: Record<string, any>;
+  rationale: string;
 }
 
 export { ApiError };

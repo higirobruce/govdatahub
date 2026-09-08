@@ -16,6 +16,7 @@ import { QueryVisualization } from '@/components/QueryVisualization';
 import { AddToDashboardModal } from '@/components/DashboardBuilder/AddToDashboardModal';
 import { useToast } from '@/components/ui/toast';
 import { OrganizationSettings } from '@/types/settings';
+import { DiagnoseSqlResponse } from '@/lib/api';
 import { exportQueryResultsToCsv, exportQueryResultsToJson, exportQueryResultsToExcel } from '@/lib/export-utils';
 import { DropdownMenu, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
@@ -56,6 +57,10 @@ export default function QueryPage() {
   const [sqlWarnings, setSqlWarnings] = useState<string[]>([]);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
+
+  // SQL error doctor ("Fix with AI") state
+  const [diagnosis, setDiagnosis] = useState<DiagnoseSqlResponse | null>(null);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
 
   // Sidebar state
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -160,6 +165,7 @@ export default function QueryPage() {
 
     setIsExecuting(true);
     setError(null);
+    setDiagnosis(null);
     setQueryResult(null);
 
     try {
@@ -259,6 +265,33 @@ export default function QueryPage() {
     } finally {
       setIsExplaining(false);
     }
+  };
+
+  // SQL error doctor: diagnose the current error and suggest a fix
+  const handleFixWithAi = async () => {
+    if (!error || !sql.trim()) return;
+    setIsDiagnosing(true);
+    setDiagnosis(null);
+    try {
+      const connectionIds =
+        dataSource === 'connections' && selectedConnectionId
+          ? [selectedConnectionId]
+          : undefined;
+      const result = await api.nl2sql.diagnose({ sql, errorMessage: error, connectionIds });
+      setDiagnosis(result);
+    } catch (err: any) {
+      showToast(`Diagnosis failed: ${err.message || 'AI provider error'}`, 'error');
+    } finally {
+      setIsDiagnosing(false);
+    }
+  };
+
+  const handleApplySuggestedSql = () => {
+    if (diagnosis?.suggestedSql) {
+      setSql(diagnosis.suggestedSql);
+    }
+    setDiagnosis(null);
+    setError(null);
   };
 
   const handleStagingTableChange = (value: string) => {
@@ -585,11 +618,54 @@ export default function QueryPage() {
               <div className="mx-6 mt-4 mb-2 bg-[#fee2e2] border border-[#fca5a5] rounded-lg p-4">
                 <div className="flex gap-3">
                   <AlertCircle className="h-5 w-5 text-[#ef4444] flex-shrink-0" />
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-sm font-medium text-[#991b1b]">Error</h3>
                     <p className="mt-1 text-sm text-[#991b1b]">{error}</p>
+                    {settings?.aiProvider && (
+                      <button
+                        onClick={handleFixWithAi}
+                        disabled={isDiagnosing}
+                        className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-[#991b1b] underline underline-offset-2 disabled:opacity-50"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {isDiagnosing ? 'Diagnosing…' : 'Fix with AI'}
+                      </button>
+                    )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* SQL Error Doctor panel — mirrors the AI Explanation panel styling */}
+            {diagnosis && (
+              <div className="mx-6 mb-2 bg-[#eff6ff] border border-[#bfdbfe] rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-[#1e40af] flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    SQL Error Doctor
+                  </p>
+                  <button
+                    onClick={() => setDiagnosis(null)}
+                    className="text-xs text-[#1e40af] underline underline-offset-2"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <p className="text-xs text-[#1e40af] whitespace-pre-wrap">{diagnosis.diagnosis}</p>
+                {diagnosis.validationWarnings.length > 0 && (
+                  <ul className="mt-2 text-xs text-[#1e40af] list-disc list-inside space-y-1">
+                    {diagnosis.validationWarnings.map((warning, idx) => (
+                      <li key={idx}>{warning}</li>
+                    ))}
+                  </ul>
+                )}
+                {diagnosis.suggestedSql && (
+                  <div className="mt-3">
+                    <Button size="sm" onClick={handleApplySuggestedSql} className="gap-1.5">
+                      Apply suggested SQL
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 

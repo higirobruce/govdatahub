@@ -3,19 +3,27 @@
 import { useState } from 'react';
 import useSWR from 'swr';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, CatalogSearchResult } from '@/lib/api';
 import { Connection } from '@/types';
 import SchemaTree from '@/components/DataCatalog/SchemaTree';
 import StagingDataCatalog from '@/components/DataCatalog/StagingDataCatalog';
 import { PageHeader } from '@/components/ui/page-header';
-import { FolderOpen } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
+import { FolderOpen, Sparkles, Loader2 } from 'lucide-react';
 
 type ViewMode = 'connections' | 'staging';
 
 export default function CatalogPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
   const [viewMode, setViewMode] = useState<ViewMode>('connections');
+
+  // Semantic catalog search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<CatalogSearchResult[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isReindexing, setIsReindexing] = useState(false);
 
   const { data: connections } = useSWR<Connection[]>('/connections', async () => {
     const result = await api.connections.list();
@@ -27,12 +35,98 @@ export default function CatalogPage() {
     router.push(`/query?table=${encodeURIComponent(fullTableName)}&connection=${selectedConnectionId}`);
   };
 
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const results = await api.catalogSearch.search(searchQuery.trim());
+      setSearchResults(results);
+    } catch (err: any) {
+      showToast(err.message || 'Catalog search failed', 'error');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleReindex = async () => {
+    setIsReindexing(true);
+    try {
+      const result = await api.catalogSearch.reindex();
+      showToast(`Reindexed ${result.indexed} item${result.indexed === 1 ? '' : 's'}`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Reindex failed', 'error');
+    } finally {
+      setIsReindexing(false);
+    }
+  };
+
   return (
     <div className="w-full">
       <PageHeader
         title="Data Catalog"
         subtitle="Browse schemas, tables, and columns from all data sources"
       />
+
+      {/* Semantic Search */}
+      <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-6 mb-6">
+        <h3 className="text-sm font-semibold text-[#1a1a1a] mb-3 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-indigo-500" />
+          Semantic Search
+        </h3>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSearch();
+            }}
+            placeholder="Search tables, columns, pipelines, queries…"
+            className="flex-1 rounded-md border border-[#dddddd] px-3 py-2 text-[13px] focus:border-[#1a1a1a] focus:ring-1 focus:ring-[#1a1a1a] outline-none"
+          />
+          <button
+            onClick={handleSearch}
+            disabled={isSearching || !searchQuery.trim()}
+            className="px-4 py-2 text-sm rounded-md bg-[#1a1a1a] text-white hover:bg-[#2a2a2a] disabled:opacity-50 transition-colors flex items-center gap-1.5"
+          >
+            {isSearching && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isSearching ? 'Searching…' : 'Search'}
+          </button>
+          <button
+            onClick={handleReindex}
+            disabled={isReindexing}
+            className="px-3 py-2 text-xs rounded-md bg-[#f5f5f5] text-[#555555] hover:bg-[#eeeeee] disabled:opacity-50 transition-colors"
+            title="Rebuild the semantic search index from the latest catalog data"
+          >
+            {isReindexing ? 'Reindexing…' : 'Reindex'}
+          </button>
+        </div>
+
+        {isSearching && (
+          <div className="mt-4 flex items-center justify-center py-6 text-sm text-[#aaaaaa]">
+            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Searching catalog…
+          </div>
+        )}
+
+        {!isSearching && searchResults !== null && (
+          <div className="mt-4 space-y-2">
+            {searchResults.length === 0 ? (
+              <p className="text-sm text-[#aaaaaa] text-center py-4">No matches found</p>
+            ) : (
+              searchResults.map((result, idx) => (
+                <div key={`${result.object_type}-${result.object_key}-${idx}`} className="border border-[#f0f0f0] rounded-lg p-3">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-mono font-medium text-[#1a1a1a] truncate">{result.object_key}</span>
+                    <span className="text-[10px] text-[#aaaaaa] shrink-0">score {result.score.toFixed(2)}</span>
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wide text-[#aaaaaa] mb-1">{result.object_type}</div>
+                  <p className="text-xs text-[#555555]">{result.content}</p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
 
       {/* View Mode Tabs */}
       <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">
