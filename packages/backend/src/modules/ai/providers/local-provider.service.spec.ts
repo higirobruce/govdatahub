@@ -100,6 +100,7 @@ describe('LocalProviderService prompt enrichment (foreign keys + sample rows)', 
   });
 });
 
+
 describe('LocalProviderService.generateJson', () => {
   let provider: LocalProviderService;
 
