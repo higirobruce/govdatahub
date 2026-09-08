@@ -15,7 +15,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { SavedQueriesService } from './saved-queries.service';
 import {
   CreateSavedQueryDto,
@@ -29,7 +29,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('saved-queries')
 @Controller('saved-queries')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class SavedQueriesController {
   constructor(private readonly savedQueriesService: SavedQueriesService) {}

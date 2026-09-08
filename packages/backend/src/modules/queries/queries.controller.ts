@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { QueriesService } from './queries.service';
 import { ExecuteQueryDto } from './dto/execute-query.dto';
 import { QueryResultDto } from './dto/query-result.dto';
@@ -10,7 +10,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('queries')
 @Controller('query')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class QueriesController {
   constructor(private readonly queriesService: QueriesService) {}

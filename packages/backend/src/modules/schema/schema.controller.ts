@@ -1,6 +1,5 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { SchemaService } from './schema.service';
 import { SchemaInfo, TableInfo, ColumnInfo } from '../connections/drivers/database-driver.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -9,7 +8,7 @@ import { User } from '../../database/entities';
 
 @ApiTags('schema')
 @Controller('connections/:connectionId/schema')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class SchemaController {
   constructor(private readonly schemaService: SchemaService) {}
@@ -124,7 +123,7 @@ export class SchemaController {
 
 @ApiTags('schema')
 @Controller('schema/staging')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class StagingSchemaController {
   constructor(private readonly schemaService: SchemaService) {}

@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { ConnectionsService } from './connections.service';
 import { CreateConnectionDto } from './dto/create-connection.dto';
 import { ConnectionResponseDto } from './dto/connection-response.dto';
@@ -23,7 +22,7 @@ import { User } from '../../database/entities';
 
 @ApiTags('connections')
 @Controller('connections')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ConnectionsController {
   private readonly logger = new Logger(ConnectionsController.name);

@@ -6,7 +6,6 @@ import {
   Param,
   Query,
   Body,
-  UseGuards,
   UseInterceptors,
   UploadedFile,
   HttpCode,
@@ -15,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { IngestionService } from './ingestion.service';
 import { UploadFileDto, ImportJobResponseDto, PreviewResponseDto, ImportFromUrlDto, ImportFromDatabaseDto } from './dto';
 import { ImportJobStatus, ImportTargetType } from '../../database/entities';
@@ -44,7 +43,6 @@ interface UploadedFileType {
 }
 
 @Controller('ingestion')
-@UseGuards(ThrottlerGuard)
 @ApiTags('ingestion')
 @ApiBearerAuth()
 export class IngestionController {

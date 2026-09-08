@@ -11,7 +11,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../../database/entities';
@@ -24,7 +24,7 @@ import { SaveAsTransformationDto } from './dto/save-as-transformation.dto';
 @ApiTags('notebooks')
 @ApiBearerAuth()
 @Controller('notebooks')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 export class NotebooksController {
   constructor(private readonly notebooksService: NotebooksService) {}
 

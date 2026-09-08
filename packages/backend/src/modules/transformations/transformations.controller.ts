@@ -19,7 +19,7 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { TransformationsService } from './transformations.service';
 import { TransformationsExecutorService } from './transformations-executor.service';
 import { CreateTransformationDto } from './dto/create-transformation.dto';
@@ -32,7 +32,7 @@ import { User } from '../../database/entities';
 
 @ApiTags('transformations')
 @Controller('transformations')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class TransformationsController {
   constructor(

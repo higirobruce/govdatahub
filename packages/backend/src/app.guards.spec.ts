@@ -17,6 +17,17 @@ describe('Global guard wiring', () => {
     expect(guardNames).toContain('ThrottlerGuard');
   });
 
+  it('registers the global guards in the order: JwtAuthGuard, RolesGuard, ThrottlerGuard', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { AppModule } = require('./app.module');
+    const providers = Reflect.getMetadata('providers', AppModule) ?? [];
+    const appGuards = providers.filter(
+      (p: any) => p && typeof p === 'object' && p.provide === APP_GUARD,
+    );
+    const guardNames = appGuards.map((p: any) => p.useClass?.name);
+    expect(guardNames).toEqual(['JwtAuthGuard', 'RolesGuard', 'ThrottlerGuard']);
+  });
+
   it('PublicDatasetController is marked @Public', () => {
     expect(Reflect.getMetadata(IS_PUBLIC_KEY, PublicDatasetController)).toBe(true);
   });
