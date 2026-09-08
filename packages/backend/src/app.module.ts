@@ -37,6 +37,7 @@ import {
   SavedDashboard,
   AlertRule,
   AlertEvent,
+  AiInteraction,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -109,6 +110,7 @@ import { CatalogSearchModule } from './modules/catalog-search/catalog-search.mod
           SavedDashboard,
           AlertRule,
           AlertEvent,
+          AiInteraction,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',

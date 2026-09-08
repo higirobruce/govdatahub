@@ -39,3 +39,4 @@ export { SavedDashboard } from './saved-dashboard.entity';
 export { AlertRule } from './alert-rule.entity';
 export type { AlertOperator, NotificationChannel } from './alert-rule.entity';
 export { AlertEvent } from './alert-event.entity';
+export { AiInteraction } from './ai-interaction.entity';

@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { AiService } from '../ai/ai.service';
+import { AiAuditService } from '../ai/ai-audit.service';
 import { SettingsService } from '../settings/settings.service';
 import { SchemaContextBuilderService } from './schema-context-builder.service';
 import { SqlValidatorService } from './sql-validator.service';
@@ -25,6 +26,7 @@ export class Nl2sqlService {
 
   constructor(
     private aiService: AiService,
+    private aiAudit: AiAuditService,
     private settingsService: SettingsService,
     private schemaContextBuilder: SchemaContextBuilderService,
     private sqlValidator: SqlValidatorService,
@@ -83,21 +85,49 @@ export class Nl2sqlService {
     };
 
     // 5. Generate SQL using AI
+    const startTime = Date.now();
     let aiResponse;
     try {
       aiResponse = await provider.generateSql(request);
     } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      await this.aiAudit.log({
+        organizationId,
+        userId,
+        feature: 'nl2sql_generate',
+        model: settings.aiModel,
+        promptChars: dto.query.length,
+        responseChars: 0,
+        latencyMs,
+        success: false,
+        errorMessage: error.message || 'AI provider error',
+        executed: false,
+      });
       this.logger.error('AI provider error:', error);
       throw new BadRequestException(
         `Failed to generate SQL: ${error.message || 'AI provider error'}`
       );
     }
+    const latencyMs = Date.now() - startTime;
+    const responseChars = aiResponse.sql?.length || 0;
 
     // 6. Validate generated SQL
     const validationResult = this.sqlValidator.validate(aiResponse.sql, settings);
 
     if (!validationResult.isValid) {
       this.logger.warn('Generated SQL failed validation:', validationResult.errors);
+      await this.aiAudit.log({
+        organizationId,
+        userId,
+        feature: 'nl2sql_generate',
+        model: settings.aiModel,
+        promptChars: dto.query.length,
+        responseChars,
+        latencyMs,
+        success: true,
+        generatedSql: aiResponse.sql,
+        executed: false,
+      });
       return {
         sql: aiResponse.sql,
         reasoning: aiResponse.reasoning,
@@ -142,6 +172,18 @@ export class Nl2sqlService {
         }
       } catch (error) {
         this.logger.error('Query execution error:', error);
+        await this.aiAudit.log({
+          organizationId,
+          userId,
+          feature: 'nl2sql_generate',
+          model: settings.aiModel,
+          promptChars: dto.query.length,
+          responseChars,
+          latencyMs,
+          success: true,
+          generatedSql: finalSql,
+          executed: false,
+        });
         // Don't throw - return the SQL with execution error as warning
         return {
           sql: finalSql,
@@ -156,7 +198,20 @@ export class Nl2sqlService {
       }
     }
 
-    // 9. Return response
+    // 9. Record audit trail and return response
+    await this.aiAudit.log({
+      organizationId,
+      userId,
+      feature: 'nl2sql_generate',
+      model: settings.aiModel,
+      promptChars: dto.query.length,
+      responseChars,
+      latencyMs,
+      success: true,
+      generatedSql: finalSql,
+      executed: Boolean(executionResult),
+    });
+
     return {
       sql: finalSql,
       reasoning: settings.nl2sqlShowReasoning ? aiResponse.reasoning : undefined,
@@ -173,7 +228,8 @@ export class Nl2sqlService {
   async explainSql(
     organizationId: string,
     sql: string,
-    connectionIds?: string[]
+    connectionIds?: string[],
+    userId?: string
   ): Promise<ExplainSqlResponseDto> {
     this.logger.log(`Explaining SQL: ${sql.substring(0, 50)}...`);
 
@@ -195,15 +251,41 @@ export class Nl2sqlService {
     const provider = this.aiService.getProvider(settings.aiProvider);
 
     // 4. Get explanation
+    const startTime = Date.now();
     let explanation;
     try {
       explanation = await provider.explainSql(sql, schemaContext, settings);
     } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      await this.aiAudit.log({
+        organizationId,
+        userId,
+        feature: 'nl2sql_explain',
+        model: settings.aiModel,
+        promptChars: sql.length,
+        responseChars: 0,
+        latencyMs,
+        success: false,
+        errorMessage: error.message || 'AI provider error',
+        executed: false,
+      });
       this.logger.error('AI provider error:', error);
       throw new BadRequestException(
         `Failed to explain SQL: ${error.message || 'AI provider error'}`
       );
     }
+    const latencyMs = Date.now() - startTime;
+    await this.aiAudit.log({
+      organizationId,
+      userId,
+      feature: 'nl2sql_explain',
+      model: settings.aiModel,
+      promptChars: sql.length,
+      responseChars: explanation.length || 0,
+      latencyMs,
+      success: true,
+      executed: false,
+    });
 
     // 5. Extract tables and operations from SQL
     const tables = this.extractTablesFromSql(sql);
