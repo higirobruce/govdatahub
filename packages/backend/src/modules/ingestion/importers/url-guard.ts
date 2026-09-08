@@ -19,7 +19,30 @@ export function isPrivateIp(ip: string): boolean {
     if (addr === '::' || addr === '::1') return true;
     if (/^fe[89ab]/.test(addr)) return true; // link-local fe80::/10
     if (addr.startsWith('fc') || addr.startsWith('fd')) return true; // ULA
-    if (addr.startsWith('::ffff:')) return isPrivateIp(addr.slice(7)); // v4-mapped
+    // NAT64 well-known prefix (RFC 6052) — embedded IPv4 is attacker-controlled
+    // and unauthenticated, so block outright rather than trust it.
+    if (addr.startsWith('64:ff9b:')) return true;
+    if (addr.startsWith('::ffff:')) {
+      const embedded = addr.slice(7);
+      if (embedded.includes('.')) return isPrivateIp(embedded); // dotted v4-mapped
+      // WHATWG URL serializes bracketed dotted v4-mapped literals to hex form,
+      // e.g. new URL('http://[::ffff:127.0.0.1]/').hostname === '[::ffff:7f00:1]'.
+      // Parse the trailing one-or-two 16-bit hex groups as the 32-bit IPv4 value.
+      const groups = embedded.split(':');
+      if (groups.length === 1 || groups.length === 2) {
+        const hi = groups.length === 2 ? parseInt(groups[0], 16) : 0;
+        const lo = parseInt(groups[groups.length - 1], 16);
+        if (Number.isInteger(hi) && Number.isInteger(lo) && hi >= 0 && hi <= 0xffff && lo >= 0 && lo <= 0xffff) {
+          const combined = (hi << 16) | lo;
+          const a = (combined >>> 24) & 0xff;
+          const b = (combined >>> 16) & 0xff;
+          const c = (combined >>> 8) & 0xff;
+          const d = combined & 0xff;
+          return isPrivateIp(`${a}.${b}.${c}.${d}`);
+        }
+      }
+      return true; // unrecognized v4-mapped form — fail closed
+    }
     return false;
   }
   const parts = ip.split('.').map(Number);
@@ -32,6 +55,7 @@ export function isPrivateIp(ip: string): boolean {
   if (a === 169 && b === 254) return true; // link-local + cloud metadata
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
+  if (a >= 224) return true; // multicast 224/4, reserved 240/4, broadcast 255.255.255.255
   return false;
 }
 
