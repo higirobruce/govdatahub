@@ -46,7 +46,9 @@ export class IngestionController {
    */
   @Post('preview')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 200 * 1024 * 1024 } }),
+  )
   @ApiOperation({ summary: 'Preview file data without importing' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -97,7 +99,9 @@ export class IngestionController {
    */
   @Post('upload')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 200 * 1024 * 1024 } }),
+  )
   @ApiOperation({ summary: 'Upload and import file' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
