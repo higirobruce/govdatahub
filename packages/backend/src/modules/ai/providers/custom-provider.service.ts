@@ -75,7 +75,7 @@ export class CustomProviderService implements IAiProvider {
     }
   }
 
-  async explainSql(sql: string, schemaContext: SchemaContext): Promise<string> {
+  async explainSql(sql: string, schemaContext: SchemaContext, settings: OrganizationSettings): Promise<string> {
     return `Custom provider does not support SQL explanations. Query: ${sql.substring(0, 50)}...`;
   }
 

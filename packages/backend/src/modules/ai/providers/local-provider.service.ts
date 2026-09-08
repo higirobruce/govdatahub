@@ -63,27 +63,22 @@ export class LocalProviderService implements IAiProvider {
     }
   }
 
-  async explainSql(sql: string, schemaContext: SchemaContext): Promise<string> {
-    // For explain, we can use a simpler prompt
+  async explainSql(
+    sql: string,
+    schemaContext: SchemaContext,
+    settings: OrganizationSettings,
+  ): Promise<string> {
+    const endpoint = settings.aiApiEndpoint || this.DEFAULT_OLLAMA_ENDPOINT;
+    const model = settings.aiModel || 'codellama';
     const prompt = `Explain what this SQL query does in simple terms:\n\n${sql}`;
 
-    // Use a lightweight model for explanations
-    try {
-      const response = await axios.post(
-        `${this.DEFAULT_OLLAMA_ENDPOINT}/api/generate`,
-        {
-          model: 'llama2',
-          prompt,
-          stream: false,
-        },
-        { timeout: 30000 }
-      );
+    this.logger.log(`Explaining SQL with local model: ${model} at ${endpoint}`);
 
-      return response.data.response;
-    } catch (error) {
-      this.logger.error('Error explaining SQL:', error);
-      return 'Unable to explain SQL at this time.';
+    const isOllama = endpoint.includes('11434') || !endpoint.includes('/v1');
+    if (isOllama) {
+      return this.callOllamaApi(endpoint, model, prompt, settings);
     }
+    return this.callOpenAICompatibleApi(endpoint, model, prompt, settings);
   }
 
   async testConnection(settings: OrganizationSettings): Promise<{
