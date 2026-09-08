@@ -32,3 +32,4 @@ export type { ColumnProfile } from './table-profile.entity';
 export { QualityCheck } from './quality-check.entity';
 export type { CheckType, CheckStatus, RunStatus } from './quality-check.entity';
 export { QualityCheckRun } from './quality-check-run.entity';
+export { AiInteraction } from './ai-interaction.entity';

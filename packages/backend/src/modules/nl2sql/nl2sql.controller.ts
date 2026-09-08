@@ -42,7 +42,7 @@ export class Nl2sqlController {
     @Body() dto: GenerateSqlDto
   ): Promise<GenerateSqlResponseDto> {
     const organizationId = req.user.organizationId;
-    const userId = req.user.userId;
+    const userId = req.user.id;
 
     return this.nl2sqlService.generateSql(organizationId, userId, dto);
   }
@@ -69,11 +69,13 @@ export class Nl2sqlController {
     @Body() dto: ExplainSqlDto
   ): Promise<ExplainSqlResponseDto> {
     const organizationId = req.user.organizationId;
+    const userId = req.user.id;
 
     return this.nl2sqlService.explainSql(
       organizationId,
       dto.sql,
-      dto.connectionIds
+      dto.connectionIds,
+      userId
     );
   }
 }

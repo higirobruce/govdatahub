@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiService } from './ai.service';
+import { AiAuditService } from './ai-audit.service';
+import { AiController } from './ai.controller';
 import { LocalProviderService } from './providers/local-provider.service';
 import { CustomProviderService } from './providers/custom-provider.service';
+import { AiInteraction } from '../../database/entities';
 
 /**
  * AI Module - Provides AI/NL2SQL functionality
@@ -22,11 +26,14 @@ import { CustomProviderService } from './providers/custom-provider.service';
  * - AZURE: Azure OpenAI Service
  */
 @Module({
+  imports: [TypeOrmModule.forFeature([AiInteraction])],
+  controllers: [AiController],
   providers: [
     AiService,
+    AiAuditService,
     LocalProviderService,
     CustomProviderService,
   ],
-  exports: [AiService],
+  exports: [AiService, AiAuditService],
 })
 export class AiModule {}
