@@ -23,9 +23,10 @@ import {
   UpdateSavedQueryDto,
 } from './dto/saved-query.dto';
 import { QueryResultDto } from './dto/query-result.dto';
-import { SavedQuery, User } from '../../database/entities';
+import { SavedQuery, User, UserRole } from '../../database/entities';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('saved-queries')
 @Controller('saved-queries')
@@ -53,6 +54,7 @@ export class SavedQueriesController {
   }
 
   @Post()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Create a saved query' })
   @ApiResponse({ status: 201, type: SavedQuery })
   create(
@@ -63,6 +65,7 @@ export class SavedQueriesController {
   }
 
   @Patch(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Update a saved query' })
   @ApiResponse({ status: 200, type: SavedQuery })
   update(
@@ -74,6 +77,7 @@ export class SavedQueriesController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete a saved query' })
   @ApiResponse({ status: 204, description: 'Deleted' })

@@ -21,7 +21,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User, SavedCrossQuery } from '../../database/entities';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole, SavedCrossQuery } from '../../database/entities';
 import { CrossQueryExecutorService } from './cross-query-executor.service';
 import { QueryBuilderService } from './query-builder.service';
 import { ExecuteCrossQueryDto } from './dto/execute-cross-query.dto';
@@ -77,6 +78,7 @@ export class CrossQueryController {
   }
 
   @Post('saved')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({ summary: 'Save cross-database query for reuse' })
   @ApiResponse({ status: 201, description: 'Query saved successfully' })
   @ApiResponse({ status: 400, description: 'Invalid query definition' })
@@ -171,6 +173,7 @@ export class CrossQueryController {
   }
 
   @Delete('saved/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete saved query' })
   @ApiResponse({ status: 204, description: 'Query deleted successfully' })
