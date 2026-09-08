@@ -36,8 +36,13 @@ const MYSQL_FK_QUERY = `
   SELECT TABLE_SCHEMA AS table_schema, TABLE_NAME AS table_name, COLUMN_NAME AS column_name,
          REFERENCED_TABLE_SCHEMA AS foreign_table_schema, REFERENCED_TABLE_NAME AS foreign_table_name, REFERENCED_COLUMN_NAME AS foreign_column_name
   FROM information_schema.KEY_COLUMN_USAGE
-  WHERE REFERENCED_TABLE_NAME IS NOT NULL LIMIT ${MAX_RELATIONSHIPS_PER_CONNECTION}
+  WHERE REFERENCED_TABLE_NAME IS NOT NULL AND TABLE_SCHEMA = DATABASE() LIMIT ${MAX_RELATIONSHIPS_PER_CONNECTION}
 `;
+
+/** Relationship row shape carrying the source schema, used only for schema-aware attachment. */
+interface EnrichedRelationship extends RelationshipSchema {
+  sourceSchema?: string;
+}
 
 /**
  * Schema Context Builder Service
@@ -218,7 +223,7 @@ export class SchemaContextBuilderService {
       if (includeSampleData) {
         for (const table of tableSchemas.slice(0, MAX_SAMPLE_TABLES)) {
           try {
-            table.sampleData = await this.fetchSampleRows(driver, table);
+            table.sampleData = await this.fetchSampleRows(driver, table, connection.type);
           } catch (error) {
             this.logger.warn(
               `Failed to fetch sample rows for ${table.schema ? table.schema + '.' : ''}${table.name}: ${error.message}`
@@ -227,15 +232,22 @@ export class SchemaContextBuilderService {
         }
       }
     } finally {
-      await driver.disconnect();
+      try {
+        await driver.disconnect();
+      } catch (error) {
+        this.logger.warn(`Failed to disconnect enrichment driver for connection ${connection.id}: ${error.message}`);
+      }
     }
   }
 
   /**
-   * Query information_schema for foreign-key constraints and map to RelationshipSchema.
-   * Capped at MAX_RELATIONSHIPS_PER_CONNECTION rows.
+   * Query information_schema for foreign-key constraints and map to RelationshipSchema
+   * (plus the source schema, needed only for schema-aware attachment). Capped at
+   * MAX_RELATIONSHIPS_PER_CONNECTION rows. The MySQL query is scoped to the current
+   * database via `TABLE_SCHEMA = DATABASE()` to avoid leaking FK metadata from other
+   * databases visible to the connection's user on a shared server.
    */
-  private async fetchRelationships(driver: DatabaseDriver, databaseType: string): Promise<RelationshipSchema[]> {
+  private async fetchRelationships(driver: DatabaseDriver, databaseType: string): Promise<EnrichedRelationship[]> {
     const sql = databaseType === 'mysql' ? MYSQL_FK_QUERY : POSTGRES_FK_QUERY;
     const result = await driver.query(sql);
     const rows = result.rows || [];
@@ -246,39 +258,56 @@ export class SchemaContextBuilderService {
       targetTable: row.foreign_table_name,
       sourceColumn: row.column_name,
       targetColumn: row.foreign_column_name,
+      sourceSchema: row.table_schema,
     }));
   }
 
   /**
-   * Group relationships by their source table and attach them to the matching TableSchema.
+   * Group relationships by (schema, source table) and attach them to the matching TableSchema.
+   * Matching on name alone would cross-attach relationships between same-named tables that
+   * live in different schemas.
    */
-  private attachRelationships(tableSchemas: TableSchema[], relationships: RelationshipSchema[]): void {
+  private attachRelationships(tableSchemas: TableSchema[], relationships: EnrichedRelationship[]): void {
     if (relationships.length === 0) {
       return;
     }
 
-    const bySourceTable = new Map<string, RelationshipSchema[]>();
+    const bySourceKey = new Map<string, RelationshipSchema[]>();
     for (const relationship of relationships) {
-      const existing = bySourceTable.get(relationship.sourceTable) || [];
-      existing.push(relationship);
-      bySourceTable.set(relationship.sourceTable, existing);
+      const key = this.tableKey(relationship.sourceSchema, relationship.sourceTable);
+      const existing = bySourceKey.get(key) || [];
+      existing.push({
+        type: relationship.type,
+        sourceTable: relationship.sourceTable,
+        targetTable: relationship.targetTable,
+        sourceColumn: relationship.sourceColumn,
+        targetColumn: relationship.targetColumn,
+      });
+      bySourceKey.set(key, existing);
     }
 
     for (const table of tableSchemas) {
-      const matches = bySourceTable.get(table.name);
+      const matches = bySourceKey.get(this.tableKey(table.schema, table.name));
       if (matches && matches.length > 0) {
         table.relationships = matches;
       }
     }
   }
 
+  private tableKey(schema: string | undefined | null, name: string): string {
+    return `${schema ?? ''}::${name}`;
+  }
+
   /**
    * Fetch up to MAX_SAMPLE_ROWS rows from a table. Skips (with a warning) any table whose
    * schema/table name fails identifier validation, to prevent SQL injection via interpolation.
+   * Identifiers are quoted per dialect: double quotes for postgresql, backticks for mysql
+   * (MySQL does not use ANSI double-quote identifiers unless ANSI_QUOTES is set).
    */
   private async fetchSampleRows(
     driver: DatabaseDriver,
-    table: TableSchema
+    table: TableSchema,
+    databaseType: string
   ): Promise<Record<string, any>[] | undefined> {
     if (!IDENTIFIER_RE.test(table.name) || (table.schema && !IDENTIFIER_RE.test(table.schema))) {
       this.logger.warn(
@@ -287,7 +316,10 @@ export class SchemaContextBuilderService {
       return undefined;
     }
 
-    const qualifiedName = table.schema ? `"${table.schema}"."${table.name}"` : `"${table.name}"`;
+    const quote = databaseType === 'mysql' ? '`' : '"';
+    const qualifiedName = table.schema
+      ? `${quote}${table.schema}${quote}.${quote}${table.name}${quote}`
+      : `${quote}${table.name}${quote}`;
     const result = await driver.query(`SELECT * FROM ${qualifiedName} LIMIT ${MAX_SAMPLE_ROWS}`);
     return (result.rows || []).slice(0, MAX_SAMPLE_ROWS);
   }

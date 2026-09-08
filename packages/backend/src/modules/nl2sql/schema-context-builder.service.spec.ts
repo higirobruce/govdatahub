@@ -172,6 +172,83 @@ describe('SchemaContextBuilderService (COR-01)', () => {
     expect(driver.query).toHaveBeenCalledTimes(1);
   });
 
+  it('quotes sample-row queries with backticks for mysql connections (not postgres double-quotes)', async () => {
+    connectionRepository.find.mockResolvedValue([
+      { id: 'conn-1', name: 'mysql-db', type: 'mysql', organizationId: 'org-1' },
+    ]);
+    schemaService.getTables.mockResolvedValue([
+      { name: 'orders', schema: 'shop' },
+    ] as any);
+    schemaService.getColumns.mockResolvedValue([
+      { name: 'id', type: 'int', nullable: false, isPrimaryKey: true },
+    ] as any);
+
+    connectionsService.getDriver.mockResolvedValue(driver);
+    driver.query
+      .mockResolvedValueOnce({ rows: [], rowCount: 0, fields: [] }) // relationships query
+      .mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1, fields: [] }); // sample rows query
+
+    const ctx = await service.buildContext('org-1', undefined, {
+      includeSampleData: true,
+      maxTablesPerConnection: 20,
+      maxColumnsPerTable: 50,
+    });
+
+    const sampleQuery = driver.query.mock.calls[1][0] as string;
+    expect(sampleQuery).toContain('FROM `shop`.`orders`');
+    expect(sampleQuery).not.toContain('"shop"."orders"');
+    expect(ctx.connections[0].tables[0].sampleData).toEqual([{ id: 1 }]);
+  });
+
+  it('scopes relationships attachment to matching (schema, table) pairs, not name alone', async () => {
+    connectionRepository.find.mockResolvedValue([
+      { id: 'conn-1', name: 'main-db', type: 'postgresql', organizationId: 'org-1' },
+    ]);
+    schemaService.getTables.mockResolvedValue([
+      { name: 'orders', schema: 'shop_a' },
+      { name: 'orders', schema: 'shop_b' },
+    ] as any);
+    schemaService.getColumns.mockResolvedValue([
+      { name: 'id', type: 'uuid', nullable: false, isPrimaryKey: true },
+    ] as any);
+
+    connectionsService.getDriver.mockResolvedValue(driver);
+    driver.query.mockResolvedValueOnce({
+      rows: [
+        {
+          table_schema: 'shop_a',
+          table_name: 'orders',
+          column_name: 'customer_id',
+          foreign_table_schema: 'shop_a',
+          foreign_table_name: 'customers',
+          foreign_column_name: 'id',
+        },
+      ],
+      rowCount: 1,
+      fields: [],
+    });
+
+    const ctx = await service.buildContext('org-1', undefined, {
+      includeSampleData: false,
+      maxTablesPerConnection: 20,
+      maxColumnsPerTable: 50,
+    });
+
+    const [shopATable, shopBTable] = ctx.connections[0].tables;
+    expect(shopATable.schema).toBe('shop_a');
+    expect(shopATable.relationships).toEqual([
+      {
+        type: 'many-to-one',
+        sourceTable: 'orders',
+        targetTable: 'customers',
+        sourceColumn: 'customer_id',
+        targetColumn: 'id',
+      },
+    ]);
+    expect(shopBTable.schema).toBe('shop_b');
+    expect(shopBTable.relationships).toBeUndefined();
+  });
+
   it('does not attempt enrichment for non-postgres/mysql connections', async () => {
     connectionRepository.find.mockResolvedValue([
       { id: 'conn-1', name: 'snowflake-db', type: 'snowflake', organizationId: 'org-1' },
