@@ -481,7 +481,7 @@ audit.
 
 | Phase | Content |
 |---|---|
-| 1 | Deduplicate one source. Materialize, deterministic normalize, block, score, cluster, review queue, crosswalk, `no_duplicates` check. No model except field alignment. |
+| 1 | Deduplicate one source. Materialize, deterministic normalize, block, score, cluster, review queue, crosswalk, evaluation, `no_duplicates` check. **Zero model calls** — the field map is entered by hand, and every governance control is in place before any model exists. |
 | 2 | The models. Lazy adjudication with reasons; model normalization for `org_name` and `address`; the `vector` blocking pass and `match_value_vectors`; model-suggested field mapping in the wizard. |
 | 3 | Linkage across two sources. Right source, cross-source clusters, golden record and survivorship, Cross-Query integration, lineage edges. |
 | 4 | Quality. The reranker tier, Fellegi–Sunter weights from the collected labels, incremental re-match, the `match` pipeline step. |
