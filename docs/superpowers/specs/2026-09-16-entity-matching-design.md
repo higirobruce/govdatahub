@@ -534,14 +534,15 @@ New environment variables, added to both `.env.example` files:
 
 ## 15. Glossary
 
-There is no `CONTEXT.md` in this repository; this section is the ubiquitous
-language for the feature and should move into one if it is created.
+The canonical glossary for the project is `CONTEXT.md` at the repository root.
+This section repeats the matching terms for readers of this spec alone; where
+the two differ, `CONTEXT.md` wins.
 
 | Term | Meaning |
 |---|---|
 | **Match project** | The configuration: sources, field map, blocking passes, thresholds, allow-list, lawful basis |
 | **Match run** | One execution of a match project |
-| **Source** | A live `Connection` table or a `StagedData` dataset |
+| **Match source** | A live `Connection` table or a `StagedData` dataset. Always qualified — the bare word "source" collides with `Connection`. |
 | **Workspace** | The per-project tables in schema `matching` holding the copied, normalized columns |
 | **Blocking pass** | One indexed rule that proposes candidate pairs |
 | **Candidate pair** | Two records a blocking pass proposed |
