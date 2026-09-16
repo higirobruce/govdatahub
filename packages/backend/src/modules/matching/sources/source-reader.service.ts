@@ -41,36 +41,98 @@ function paramPlaceholder(dbType: string): string {
   return '$1';
 }
 
-/** Connection types whose `DatabaseDriver.query()` cannot bind parameters — see `assertPageableDialect`. */
-const UNSUPPORTED_KEYSET_TYPES = new Set(['snowflake', 'bigquery', 'clickhouse']);
+/**
+ * Connection types whose `DatabaseDriver.query()` cannot page this reader —
+ * four, not three. An earlier pass (this task's original review round)
+ * checked `snowflake`/`bigquery`/`clickhouse` plus `postgres`/`mysql` as
+ * controls and never enumerated the remaining five signatures, missing
+ * `mongodb`. See `assertPageableDialect` below for why each is refused.
+ */
+const UNSUPPORTED_KEYSET_TYPES = new Set(['snowflake', 'bigquery', 'clickhouse', 'mongodb']);
 
 /**
- * Refuses a connection type whose driver cannot bind query parameters,
- * before any SQL is built.
+ * Refuses a connection type that cannot page this reader, before any SQL
+ * is built.
  *
+ * Three are refused because their driver cannot bind query parameters:
  * `snowflake.driver.ts` and `bigquery.driver.ts` declare `query(sql:
  * string)` with no `params` argument at all — TypeScript's structural
  * typing still lets that satisfy `DatabaseDriver.query(sql, params?)`, so
  * nothing catches this at compile time — and `clickhouse.driver.ts`
  * accepts `params` but discards it (`_params?: any[]`). Keyset pagination
  * depends on `afterKey` being bound, not interpolated (see
- * `paramPlaceholder` above); on these three drivers the bound value would
+ * `paramPlaceholder` above); on these three the bound value would
  * silently vanish, leaving the literal placeholder token in the SQL text,
  * and the query would either fail with a confusing engine error or,
  * worse, return the same page forever.
  *
- * This is a pre-existing gap in those three driver implementations, not a
- * limitation of entity matching — fixing it means threading each client's
- * own binding API (BigQuery named parameters, Snowflake `binds`) and
- * testing against three hosted services, which is its own piece of work.
- * Refusing here, fail-closed, is the correct choice until that work
- * happens. Do not delete this guard to make a downstream failure go away
- * — the driver, not this reader, is what's missing.
+ * The fourth, `mongodb`, is refused for a different and more fundamental
+ * reason: `mongodb.driver.ts`'s `query()` does not speak SQL at all — it
+ * `JSON.parse(sql)`s its argument and expects `{"collection":...,
+ * "filter":...}`. This reader would hand it `SELECT "id" FROM ...` and it
+ * would die inside `JSON.parse` with a raw JSON-syntax error, which is
+ * exactly the confusing, undiagnosable failure this guard exists to
+ * prevent. `data-quality/profiling.service.ts` already refuses MongoDB
+ * explicitly for the same underlying reason — this is an established
+ * pattern in this codebase, not a special case invented here. A Mongo
+ * collection is genuinely reachable as a source: that driver implements
+ * `getSchemas`/`getTables`/`getColumns` like any SQL driver would.
+ *
+ * The three bind-incapable drivers are a pre-existing gap in those driver
+ * implementations, not a limitation of entity matching — fixing it means
+ * threading each client's own binding API (BigQuery named parameters,
+ * Snowflake `binds`) and testing against three hosted services, which is
+ * its own piece of work. Refusing here, fail-closed, is the correct
+ * choice until that work happens. Do not delete this guard to make a
+ * downstream failure go away — the driver, not this reader, is what's
+ * missing.
  */
 function assertPageableDialect(dbType: string): void {
+  if (dbType === 'mongodb') {
+    throw new BadRequestException(
+      `Connection type "mongodb" is not a SQL engine — the entity-matching reader emits SQL and cannot page a MongoDB source.`,
+    );
+  }
   if (UNSUPPORTED_KEYSET_TYPES.has(dbType)) {
     throw new BadRequestException(
       `Connection type "${dbType}" does not support bound query parameters, which keyset pagination requires — the entity-matching reader cannot page this source.`,
+    );
+  }
+}
+
+/**
+ * Ceiling on `limit`, matching the `MAX_RESULT_ROWS` convention used
+ * elsewhere in this codebase (`queries.service.ts`,
+ * `transformations-executor.service.ts`, `dataset-sharing.service.ts`,
+ * all default to 10,000) — this reader isn't wired to `ConfigService`, so
+ * it hardcodes the same number rather than reaching for a config value no
+ * caller can yet supply.
+ */
+const MAX_PAGE_LIMIT = 10_000;
+
+/**
+ * `limit` is interpolated directly into `LIMIT ${limit}` (there is no SQL
+ * bind position for a `LIMIT` clause's row count in any of the six
+ * pageable dialects here), so unlike `afterKey` it can never be a bound
+ * parameter — it must be validated before it ever reaches the SQL string.
+ * `limit` is a public-API parameter, not an internal constant: nothing
+ * about TypeScript's `number` type survives a serialization boundary
+ * (a queued job payload, or a later controller reading `req.query.limit`),
+ * so this is checked at runtime rather than trusted from the type
+ * signature. Rejects rather than silently clamps, in the same fail-closed
+ * style as `assertColumnAllowed` and `assertPageableDialect` elsewhere in
+ * this file — a caller passing a bad limit has a bug worth surfacing, not
+ * a value worth quietly overriding.
+ */
+function assertValidLimit(limit: number): void {
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new BadRequestException(
+      `Invalid page limit ${JSON.stringify(limit)} — must be a positive integer.`,
+    );
+  }
+  if (limit > MAX_PAGE_LIMIT) {
+    throw new BadRequestException(
+      `Page limit ${limit} exceeds the maximum of ${MAX_PAGE_LIMIT}.`,
     );
   }
 }
@@ -145,6 +207,7 @@ export class SourceReaderService {
     limit: number,
   ): Promise<SourcePage> {
     assertColumnAllowed(source.primaryKey, allowlist);
+    assertValidLimit(limit);
     const columns = this.projectionColumns(source.primaryKey, allowlist);
 
     if (source.kind === 'staged') {
