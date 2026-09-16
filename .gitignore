@@ -64,3 +64,6 @@ temp/
 
 # Claude Code internal
 .claude/
+
+# Subagent-driven-development scratch workspace (ledger, briefs, review packages)
+.superpowers/
