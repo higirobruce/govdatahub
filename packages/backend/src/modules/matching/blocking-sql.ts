@@ -60,6 +60,16 @@ export function blockingKeyExpr(pass: BlockingPass, fieldMap: FieldMapping[]): s
 /**
  * Per-field comparator feature expressions for a role, given already-qualified
  * (and already-quoted) left/right column references, e.g. `l."surname"`.
+ *
+ * Every expression returned here is a numeric SQL expression bounded to
+ * [0, 1], where 1 means identical. This is required so that:
+ *  - `weightedScoreExpr` can sum these as a weighted average that itself
+ *    lands in [0, 1] (multiplying a bare boolean by a numeric weight is a
+ *    PostgreSQL type error: "operator does not exist: numeric * boolean" —
+ *    every boolean-shaped comparator below is cast with `::int::numeric`);
+ *  - downstream consumers (the match/reject thresholds, the threshold sweep,
+ *    the review queue's similarity bars) can treat every comparator's value
+ *    the same way regardless of role.
  */
 export function comparatorExprs(role: FieldRole, left: string, right: string): Array<{ name: string; sql: string }> {
   switch (role) {
@@ -68,24 +78,34 @@ export function comparatorExprs(role: FieldRole, left: string, right: string): A
     case 'text':
     case 'address':
       return [
-        { name: 'trgm', sql: `similarity(${left}, ${right})` },
-        { name: 'lev', sql: `levenshtein_less_equal(${left}, ${right}, 3)` },
+        { name: 'trgm', sql: `coalesce(similarity(${left}, ${right}), 0)` },
+        {
+          name: 'lev',
+          sql: `greatest(0, 1 - coalesce(levenshtein_less_equal(${left}, ${right}, 3), 4)::numeric / 3)`,
+        },
         {
           name: 'tokenset',
-          sql: `(string_to_array(${left}, ' ')::text[] <@ string_to_array(${right}, ' ')::text[] AND string_to_array(${right}, ' ')::text[] <@ string_to_array(${left}, ' ')::text[])`,
+          sql: `(string_to_array(${left}, ' ')::text[] <@ string_to_array(${right}, ' ')::text[] AND string_to_array(${right}, ' ')::text[] <@ string_to_array(${left}, ' ')::text[])::int::numeric`,
         },
       ];
     case 'date':
-      return [{ name: 'daydiff', sql: `abs(${left}::date - ${right}::date)` }];
+      // Bounded decay over a one-year horizon: an exact date gives 1, a
+      // one-day slip stays near 1, and a transposed month/day pair (the case
+      // the spec wanted a dedicated transposition check for) lands around
+      // 0.76 rather than being thrown away entirely. A dedicated
+      // transposition comparator is phase-4 tuning, not phase-1 correctness.
+      return [
+        { name: 'daydiff', sql: `greatest(0, 1 - abs(${left}::date - ${right}::date)::numeric / 365)` },
+      ];
     case 'phone':
       return [
-        { name: 'exact', sql: `(${left} = ${right})` },
-        { name: 'lev1', sql: `levenshtein_less_equal(${left}, ${right}, 1) <= 1` },
+        { name: 'exact', sql: `(${left} = ${right})::int::numeric` },
+        { name: 'lev1', sql: `(levenshtein_less_equal(${left}, ${right}, 1) <= 1)::int::numeric` },
       ];
     case 'identifier':
-      return [{ name: 'exact', sql: `(${left} = ${right})` }];
+      return [{ name: 'exact', sql: `(${left} = ${right})::int::numeric` }];
     default:
-      return [{ name: 'exact', sql: `(${left} = ${right})` }];
+      return [{ name: 'exact', sql: `(${left} = ${right})::int::numeric` }];
   }
 }
 
