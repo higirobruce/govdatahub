@@ -743,7 +743,7 @@ describe('SourceReaderService', () => {
 
   it('selects only the primary key and allow-listed columns', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    await service.readPage(source, ['surname', 'dob'], 'org1', null, 100);
+    await service.readPage(source, ['id', 'surname', 'dob'], 'org1', null, 100);
     const sql = query.mock.calls[0][0] as string;
     expect(sql).toContain('"id"');
     expect(sql).toContain('"surname"');
@@ -753,7 +753,7 @@ describe('SourceReaderService', () => {
 
   it('pages by keyset rather than offset', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    await service.readPage(source, ['surname'], 'org1', 'abc', 100);
+    await service.readPage(source, ['id', 'surname'], 'org1', 'abc', 100);
     const sql = query.mock.calls[0][0] as string;
     expect(sql).toMatch(/WHERE "id" > /);
     expect(sql).toContain('ORDER BY "id"');
@@ -765,13 +765,13 @@ describe('SourceReaderService', () => {
     query.mockResolvedValue({
       rows: [{ id: 'k1', surname: 'a' }, { id: 'k2', surname: 'b' }], rowCount: 2, fields: [],
     });
-    const page = await service.readPage(source, ['surname'], 'org1', null, 100);
+    const page = await service.readPage(source, ['id', 'surname'], 'org1', null, 100);
     expect(page.lastKey).toBe('k2');
   });
 
   it('returns a null last key for an empty page', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    const page = await service.readPage(source, ['surname'], 'org1', null, 100);
+    const page = await service.readPage(source, ['id', 'surname'], 'org1', null, 100);
     expect(page.lastKey).toBeNull();
   });
 
@@ -788,7 +788,7 @@ describe('SourceReaderService', () => {
       data: [{ id: 'k1', surname: 'a' }, { id: 'k2', surname: 'b' }],
     });
     const page = await service.readPage(
-      { kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['surname'], 'org1', 'k1', 100);
+      { kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id', 'surname'], 'org1', 'k1', 100);
     expect(page.rows).toEqual([{ id: 'k2', surname: 'b' }]);
     expect(page.lastKey).toBe('k2');
   });
@@ -798,7 +798,9 @@ describe('SourceReaderService', () => {
 - [ ] **Step 2: FAIL. Step 3: implement per the Interfaces block.**
 
 Notes that matter:
-- **The primary key must itself be on the column allow-list**, checked with the same `assertColumnAllowed(source.primaryKey, allowlist)`. One rule with no exceptions is what makes the allow-list auditable: everything the materializer reads is allow-listed, including the key. The wizard (Task 16) is responsible for adding the chosen primary key to the allow-list it derives.
+- **The primary key must itself be on the column allow-list**, checked with the same `assertColumnAllowed(source.primaryKey, allowlist)`. One rule with no exceptions is what makes the allow-list auditable: everything the materializer reads is allow-listed, including the key. The wizard (Task 16) is responsible for adding the chosen primary key to the allow-list it derives, so this costs the user nothing.
+- Consequently every happy-path test above passes the primary key inside its allow-list, and the refusal test passes a `primaryKey` that is genuinely absent from it. An earlier draft of this task had the happy paths omitting the key, which made the task unimplementable — no function can distinguish `assertColumnAllowed('id', ['surname'])` from `assertColumnAllowed('salary', ['surname'])`.
+- **De-duplicate the SELECT list.** Because the key is now normally present in the allow-list, build the projection as the key followed by the allow-listed columns *excluding* the key, so the emitted SQL says `SELECT "id", "surname"` rather than `SELECT "id", "id", "surname"`.
 - `afterKey` is passed as a bound parameter (`driver.query(sql, [afterKey])`), never interpolated.
 - Quote identifiers with the dialect-aware helper pattern from `data-quality/profiling.service.ts` (`quoteId(dbType, name)`), so MySQL backticks work.
 - The staged path filters the JSONB array by `String(row[pk]) > afterKey`, sorts by the same key, and slices to `limit`. Staged datasets are bounded by what already fits in a JSONB column, so no paging beyond that is needed.
