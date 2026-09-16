@@ -150,24 +150,37 @@ export class MaterializeService {
   ): Promise<void> {
     const roleByColumn = new Map(fieldMap.map((f) => [f.left, f.role]));
     const quotedColumns = ['"src_key"', ...fieldColumns.map((c) => `"${c}"`)].join(', ');
+    const rowWidth = 1 + fieldColumns.length;
 
-    const params: unknown[] = [];
-    const valueTuples: string[] = [];
-    let paramIndex = 1;
+    // PostgreSQL's wire protocol allows at most 65535 bound parameters in a
+    // single statement. MATCHING_BATCH_ROWS (default 50,000) times even a
+    // handful of mapped fields blows well past that limit, so one page's
+    // rows are chunked into sub-batches that stay comfortably under it.
+    // Each sub-batch is still a parameterized multi-row INSERT -- this is
+    // more than one statement per page only when the page is wide enough
+    // to need it, never a switch to COPY.
+    const maxRowsPerStatement = Math.max(1, Math.floor(60_000 / rowWidth));
 
-    for (const row of rows) {
-      const rowValues: unknown[] = [
-        String(row[primaryKey]),
-        ...fieldColumns.map((col) => this.normalization.normalizeByRole(roleByColumn.get(col)!, row[col])),
-      ];
-      params.push(...rowValues);
-      valueTuples.push(`(${rowValues.map(() => `$${paramIndex++}`).join(', ')})`);
+    for (let offset = 0; offset < rows.length; offset += maxRowsPerStatement) {
+      const chunk = rows.slice(offset, offset + maxRowsPerStatement);
+      const params: unknown[] = [];
+      const valueTuples: string[] = [];
+      let paramIndex = 1;
+
+      for (const row of chunk) {
+        const rowValues: unknown[] = [
+          String(row[primaryKey]),
+          ...fieldColumns.map((col) => this.normalization.normalizeByRole(roleByColumn.get(col)!, row[col])),
+        ];
+        params.push(...rowValues);
+        valueTuples.push(`(${rowValues.map(() => `$${paramIndex++}`).join(', ')})`);
+      }
+
+      await this.dataSource.query(
+        `INSERT INTO ${table} (${quotedColumns}) VALUES ${valueTuples.join(', ')}`,
+        params,
+      );
     }
-
-    await this.dataSource.query(
-      `INSERT INTO ${table} (${quotedColumns}) VALUES ${valueTuples.join(', ')}`,
-      params,
-    );
   }
 
   /**

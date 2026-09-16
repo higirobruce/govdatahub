@@ -123,4 +123,40 @@ describe('MaterializeService', () => {
     const sqls = dataSource.query.mock.calls.map((c) => String(c[0]));
     expect(sqls.some((s) => s.includes('USING gin') && s.includes('gin_trgm_ops'))).toBe(true);
   });
+
+  it('chunks one page\'s insert so no statement exceeds PostgreSQL\'s 65535 bound-parameter cap', async () => {
+    // 65535 is PostgreSQL's wire-protocol hard limit on bound parameters per
+    // statement -- not a tuning choice, so this is not a knob to raise.
+    // rowWidth is src_key plus one parameter per mapped field; picking a row
+    // count derived from that (rather than a hardcoded magic number) proves
+    // the chunking scales with however wide the field map happens to be.
+    const PG_MAX_BIND_PARAMS = 65535;
+    const rowWidth = 1 + project.fieldMap.length;
+    const rowCount = Math.floor(PG_MAX_BIND_PARAMS / rowWidth) + 50;
+
+    reader.readPage.mockReset();
+    reader.readPage
+      .mockResolvedValueOnce({
+        rows: Array.from({ length: rowCount }, (_, i) => ({
+          id: `k${i}`,
+          surname: `Person ${i}`,
+          dob: '1990-01-01',
+        })),
+        lastKey: `k${rowCount - 1}`,
+      })
+      .mockResolvedValueOnce({ rows: [], lastKey: null });
+
+    await service.materialize(project, 'left', 'run1');
+
+    const insertCalls = dataSource.query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO matching.'));
+    // A chunk size of one row per statement would also pass a bare
+    // "more than one statement" check while being pathologically slow, so
+    // the count check alone is not the point -- the per-statement
+    // parameter-count check below is what actually pins the invariant.
+    expect(insertCalls.length).toBeGreaterThan(1);
+    for (const call of insertCalls) {
+      const params = call[1] as unknown[];
+      expect(params.length).toBeLessThanOrEqual(PG_MAX_BIND_PARAMS);
+    }
+  });
 });
