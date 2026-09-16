@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { assertIdent, blockingKeyExpr, comparatorExprs, weightedScoreExpr } from './blocking-sql';
-import type { BlockingPass, FieldMapping } from '../../database/entities';
+import type { BlockingPass, FieldMapping, FieldRole } from '../../database/entities';
 
 const fieldMap: FieldMapping[] = [
   { left: 'surname', right: 'surname', role: 'person_name', weight: 0.5, comparator: 'default' },
@@ -67,5 +67,36 @@ describe('weightedScoreExpr', () => {
 
   it('refuses a field map whose weights sum to zero', () => {
     expect(() => weightedScoreExpr([{ ...fieldMap[0], weight: 0 }])).toThrow(BadRequestException);
+  });
+});
+
+describe('comparatorExprs scale (every score must be numeric in [0,1])', () => {
+  it('casts every boolean-derived comparator to numeric, for every role', () => {
+    const roles: FieldRole[] = ['person_name', 'org_name', 'text', 'address', 'phone', 'identifier'];
+    for (const role of roles) {
+      const exprs = comparatorExprs(role, 'l."x"', 'r."x"');
+      for (const e of exprs) {
+        if (e.name === 'trgm' || e.name === 'lev') continue; // bounded numerically, not boolean-shaped
+        expect(e.sql).toContain('::int');
+      }
+    }
+  });
+
+  it('bounds the date comparator to a one-year decay instead of a raw day count', () => {
+    const [daydiff] = comparatorExprs('date', 'l."dob"', 'r."dob"');
+    expect(daydiff.sql).toContain('greatest(0,');
+    expect(daydiff.sql).toContain('/ 365');
+  });
+});
+
+describe('weightedScoreExpr type-safety', () => {
+  it('never multiplies a weight by a bare parenthesised equality (the surname/dob/phone field map)', () => {
+    const sql = weightedScoreExpr(fieldMap);
+    // This exact shape — `<weight> * (l."col" = r."col")` with NOTHING cast
+    // onto the closing paren — is a PostgreSQL type error: operator does not
+    // exist: numeric * boolean. The negative lookahead is what makes this a
+    // real constraint: a naive substring check would also flag the correct,
+    // `::int::numeric`-cast form, since both contain `(l."col" =`.
+    expect(sql).not.toMatch(/\d+(\.\d+)?\s*\*\s*\(l\."[a-z_]+"\s*=\s*r\."[a-z_]+"\)(?!::)/);
   });
 });
