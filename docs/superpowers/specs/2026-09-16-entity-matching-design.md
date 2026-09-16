@@ -527,6 +527,26 @@ New environment variables, added to both `.env.example` files:
 | `MATCHING_BATCH_ROWS` | `50000` | Keyset page size |
 | `MATCHING_NORM_CALL_BUDGET` | `5000` | Model normalization calls per run |
 
+## 13a. Known limitation — three drivers cannot page
+
+`DatabaseDriver.query(sql, params?)` is the interface, but three of the nine
+implementations do not honour the second argument: `snowflake.driver.ts` and
+`bigquery.driver.ts` declare `query(sql: string)` with no `params` at all
+(which still satisfies the interface, because TypeScript permits a narrower
+parameter list), and `clickhouse.driver.ts` accepts `_params` and discards it.
+
+Keyset pagination binds `afterKey` as a parameter, so on those three
+connection types the parameter is silently dropped and the emitted SQL retains
+a literal `$1`. Matching therefore **refuses Snowflake, BigQuery and ClickHouse
+sources in phase 1**, failing closed at the point of use with a message naming
+the reason.
+
+This is a pre-existing driver gap, not a matching defect, and fixing it means
+threading each client's own binding API (BigQuery named parameters, Snowflake
+`binds`) and testing against three hosted services — its own piece of work,
+deliberately not bolted onto this feature. Phase 1 supports six of the nine
+connection types plus staged data.
+
 ## 14. Risks
 
 | Risk | Mitigation |
