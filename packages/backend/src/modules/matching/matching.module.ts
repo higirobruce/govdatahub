@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { MatchProject, MatchRun, MatchEntity, MatchDecision } from '../../database/entities';
+import { MatchProject, MatchRun, MatchEntity, MatchDecision, StagedData } from '../../database/entities';
 import { NormalizationService } from './normalization.service';
+import { SourceReaderService } from './sources/source-reader.service';
+import { ConnectionsModule } from '../connections/connections.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MatchProject, MatchRun, MatchEntity, MatchDecision])],
-  providers: [NormalizationService],
+  imports: [
+    TypeOrmModule.forFeature([MatchProject, MatchRun, MatchEntity, MatchDecision, StagedData]),
+    ConnectionsModule,
+  ],
+  providers: [NormalizationService, SourceReaderService],
 })
 export class MatchingModule {}
