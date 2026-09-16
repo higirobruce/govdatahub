@@ -24,6 +24,7 @@ Every task's requirements implicitly include this section.
 - **Local-only AI provider.** Creating or running a Match Project throws when the Organization's `aiProvider` is `OPENAI`, `ANTHROPIC` or `AZURE` — enforced in phase 1 even though phase 1 calls no model, so the rule is never retrofitted.
 - **Organization isolation.** Every query filters by `organizationId`. Every controller uses `JwtAuthGuard` + `@CurrentUser() user: User`.
 - **RBAC.** Mutating endpoints carry `@Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)`. Submitting a Decision requires the same. Read endpoints require auth only.
+- **Every task that creates a service registers it as a provider in `matching.module.ts` within that same task.** Nest fails at boot on a missing provider, and the first place that surfaces is Task 15, many tasks later.
 - Identifier interpolated into SQL must be validated against `/^[A-Za-z0-9_]+$/` before interpolation, or quoted with the existing `quoteId` helper style from `data-quality/profiling.service.ts`.
 - Golden Record population is **phase 3**. The `golden` column is created here and left as `{}`.
 - Commits: the message given in each task's commit step, a blank line, then `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`. Do not push.
@@ -94,6 +95,8 @@ export type MatchRunStatus =
   | 'pending' | 'materializing' | 'normalizing' | 'blocking'
   | 'scoring' | 'clustering' | 'completed' | 'failed';
 export type CandidateDecision = 'auto_match' | 'grey' | 'confirmed' | 'rejected';
+
+export interface MatchMember { sourceRef: string; sourceKey: string; }
 
 export interface MatchSourceRef {
   kind: 'connection' | 'staged';
@@ -337,6 +340,7 @@ export type { MatchMode, FieldRole, BlockingKind, MatchSourceRef, FieldMapping, 
 export { MatchRun } from './match-run.entity';
 export type { MatchRunStatus, MatchRunCounters } from './match-run.entity';
 export { MatchEntity } from './match-entity.entity';
+export type { MatchMember } from './match-entity.entity';
 export { MatchDecision } from './match-decision.entity';
 export type { CandidateDecision } from './match-decision.entity';
 ```
@@ -460,7 +464,7 @@ export class NormalizationService {
     if (raw === null || raw === undefined) return '';
     return String(raw)
       .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
+      .replace(/[\u0300-\u036f]/g, '')   // combining marks, escaped deliberately
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
       .replace(/\s+/g, ' ')
@@ -793,7 +797,7 @@ describe('SourceReaderService', () => {
 - [ ] **Step 2: FAIL. Step 3: implement per the Interfaces block.**
 
 Notes that matter:
-- The primary key itself goes through `assertColumnAllowed(source.primaryKey, [...allowlist, source.primaryKey])` only when it passes `IDENT` — a primary key with punctuation is refused outright.
+- **The primary key must itself be on the column allow-list**, checked with the same `assertColumnAllowed(source.primaryKey, allowlist)`. One rule with no exceptions is what makes the allow-list auditable: everything the materializer reads is allow-listed, including the key. The wizard (Task 16) is responsible for adding the chosen primary key to the allow-list it derives.
 - `afterKey` is passed as a bound parameter (`driver.query(sql, [afterKey])`), never interpolated.
 - Quote identifiers with the dialect-aware helper pattern from `data-quality/profiling.service.ts` (`quoteId(dbType, name)`), so MySQL backticks work.
 - The staged path filters the JSONB array by `String(row[pk]) > afterKey`, sorts by the same key, and slices to `limit`. Staged datasets are bounded by what already fits in a JSONB column, so no paging beyond that is needed.
@@ -912,7 +916,7 @@ class BlockingService {
 }
 ```
 
-`estimate` reads the key-frequency histogram from the workspace table, projects pairs as the sum of `n*(n-1)/2` per key for a dedupe self-join, and lists any key value covering more than 0.5% of rows as dropped. `exceedsCap` is true above `MATCHING_MAX_CANDIDATE_PAIRS`; `refused` is true above twice it.
+`estimate` runs **one** query per pass — the key-frequency histogram — and derives everything from it: the row total is `sum(n)`, the projected pairs are `sum(n*(n-1)/2)` over the kept keys for a dedupe self-join, and any key value covering more than 0.5% of the total is listed as dropped and excluded from the projection. Do not issue a separate `count(*)` query; the histogram already carries the total, and one round trip per pass is the point. `exceedsCap` is true above `MATCHING_MAX_CANDIDATE_PAIRS`; `refused` is true above twice it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -928,10 +932,12 @@ describe('BlockingService', () => {
   });
 
   it('drops a key value covering more than 0.5% of rows and excludes its pairs', async () => {
-    // 10,000 rows; the empty-surname key covers 200 of them (2%).
-    dataSource.query
-      .mockResolvedValueOnce([{ total: '10000' }])
-      .mockResolvedValueOnce([{ key: '|1988', n: '200' }, { key: 'MKMN|1988', n: '3' }]);
+    // 10,000 rows total, all of it from this histogram; the empty-surname key
+    // covers 200 of them (2%), which is above the 0.5% degenerate threshold.
+    const rest = Array.from({ length: 98 }, (_, i) => ({ key: `K${i}`, n: '100' }));
+    dataSource.query.mockResolvedValue([
+      { key: '|1988', n: '200' }, { key: 'MKMN|1988', n: '3' }, ...rest,
+    ]);
     const est = await service.estimate(project);
     expect(est.perPass[0].droppedKeys).toContain('|1988');
     expect(est.perPass[0].estimatedPairs).toBe(3);
@@ -1051,7 +1057,7 @@ Notes that matter:
 - One statement per pass, shaped as: candidate pairs from `candidatePairsSql` in a CTE, comparator expressions in a second CTE, then `INSERT INTO match_candidates ... SELECT ... WHERE score >= :rejectAt`.
 - `decision` is `CASE WHEN score >= :matchAt THEN 'auto_match' ELSE 'grey' END`.
 - Pairs present in `match_decisions` for this project are inserted with `decision` taken from the human verdict (`'confirmed'` or `'rejected'`) and are excluded from the threshold CASE. Use a `LEFT JOIN match_decisions`.
-- `autoReject` is derived: candidate pairs seen minus rows inserted. Never `SELECT` the rejects to count them — count them in the same pass with a `COUNT(*)` over the candidate CTE.
+- Exactly two statements per pass, in this order, because the tests mock two calls: (1) `SELECT count(*) AS total` over the candidate-pair CTE, (2) the `INSERT ... SELECT ... RETURNING`-counted insert. `autoReject` is statement 1's total minus statement 2's inserted count. Never `SELECT` the rejected rows themselves to count them.
 - `ON CONFLICT ... DO NOTHING` against `uq_match_candidates_pair` makes a re-run safe, since two passes can propose the same pair.
 
 - [ ] **Step 4: PASS, then the gates.**
@@ -1136,6 +1142,8 @@ Notes that matter:
 - Build the cluster set in Node from `auto_match` plus `confirmed` candidates only. That set is small — it is the survivors of scoring, not the candidate pairs.
 - The over-merge guard needs the score of every internal pair. Query `match_candidates` for all pairs whose both keys are in the cluster; any pair missing from the table scored below `rejectAt` and was discarded, so **a missing pair also flags the cluster**. Assert this in the first test — it is the subtle case.
 - Majority entity key: read existing `match_crosswalk` rows for the cluster's members, take the most frequent `entity_key`, break a tie by the lexicographically smallest key so the result is deterministic. Mint `uuidv4()` when there are none.
+- Scope that crosswalk read by `organization_id` and `project_id` **only** — do not filter by `source_ref`. A dedupe project has exactly one Match Source, so project scoping is sufficient, and this keeps Task 9 independent of `CrosswalkService.sourceRef()`, which Task 10 has not produced yet. Phase 3 revisits this when a right Match Source exists.
+- `members` entries are `MatchMember` — `{ sourceRef, sourceKey }`. Build `sourceRef` inline here as `'connection:<connectionId>:<schema>.<table>'` or `'staged:<stagedDataId>'`; Task 10 extracts the same rule into `sourceRef()` and both must agree.
 - A flagged cluster is saved to `match_entities` but contributes nothing to the Crosswalk — Task 10 filters on `flagged = false`.
 
 - [ ] **Step 4: PASS, then the gates.**
@@ -1658,6 +1666,10 @@ matching: {
   getProject: (id: string) => apiFetch<MatchProjectDto>(`/api/matching/projects/${id}`),
   createProject: (body: CreateMatchProjectBody) =>
     apiFetch<MatchProjectDto>('/api/matching/projects', { method: 'POST', body: JSON.stringify(body) }),
+  updateProject: (id: string, body: Partial<CreateMatchProjectBody>) =>
+    apiFetch<MatchProjectDto>(`/api/matching/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteProject: (id: string) =>
+    apiFetch<void>(`/api/matching/projects/${id}`, { method: 'DELETE' }),
   estimate: (id: string) => apiFetch<BlockingEstimate>(`/api/matching/projects/${id}/estimate`, { method: 'POST' }),
   startRun: (id: string) => apiFetch<MatchRunDto>(`/api/matching/projects/${id}/runs`, { method: 'POST' }),
   listRuns: (id: string) => apiFetch<MatchRunDto[]>(`/api/matching/projects/${id}/runs`),
@@ -1677,12 +1689,12 @@ Exported interfaces for every DTO above go at the end of `lib/api.ts`, beside `S
 
 - [ ] **Step 1: Add the namespace and the types.** Follow the existing namespaces for `apiFetch` usage; do not introduce a second fetch helper.
 
-- [ ] **Step 2: Build the project list page.** A table of projects with name, mode, last run status and a "New project" button. Empty state explains what a Match Project is in the vocabulary from `CONTEXT.md`.
+- [ ] **Step 2: Build the project list page.** A table of projects with name, mode, last run status, a "New project" button, and a per-row delete action calling `api.matching.deleteProject` behind an inline confirm (not `window.confirm` — a browser modal blocks the page). Empty state explains what a Match Project is in the vocabulary from `CONTEXT.md`. The PATCH and DELETE endpoints from Task 14 must both have a caller by the end of this task; an endpoint with no caller is dead code a reviewer will rightly flag.
 
 - [ ] **Step 3: Build the wizard**, four steps in one client component with local step state:
 
 1. **Match Source** — pick a Connection and table, or a Staged dataset. Pick the primary key.
-2. **Field map** — choose columns and assign a role and weight to each. **Entered by hand; phase 1 makes no model call here.** The column allow-list is derived from the chosen columns, so a user cannot select a field that is not allow-listed.
+2. **Field map** — choose columns and assign a role and weight to each. **Entered by hand; phase 1 makes no model call here.** The column allow-list is derived from the chosen columns **plus the primary key picked in step 1** — Task 5 requires the key to be allow-listed like any other column, so omitting it makes every run fail at materialization.
 3. **Blocking** — add passes, then "Estimate" calls `api.matching.estimate` and renders the projected pair count per pass and the total. Show the dropped degenerate keys. Disable "Create and run" when the response says `refused`.
 4. **Thresholds and authority** — two sliders, plus the required lawful basis and data owner fields. The step cannot be completed with either left blank.
 
@@ -1736,7 +1748,7 @@ Expected: build exit 0, lint zero errors. Note the pre-existing `react/no-unesca
 - Test: extend `src/modules/data-quality/quality-checks.service.spec.ts`
 
 **Interfaces:**
-- Consumes: `MatchRunService`, `MatchProject` repository.
+- Consumes: the `MatchProject`, `MatchRun` and `MatchEntity` repositories, read-only. **Not `MatchRunService`** — the check reads a completed run and must never be able to start one, so it has no reason to hold the service that can.
 - Produces: `CheckType` gains `'no_duplicates'`. Its `config` is `{ matchProjectId: string; maxDuplicateClusters: number }`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1784,7 +1796,7 @@ describe('no_duplicates check', () => {
 - Add a `case 'no_duplicates'` to the execution switch at `quality-checks.service.ts:322` and to the comparison switch at `:375`. The check counts `match_entities` rows with `size > 1` for the project's latest completed run, filtered by `organizationId`.
 - Do **not** add it to `ALLOWED_SUGGESTION_CHECK_TYPES` — it needs a Match Project id that no suggestion can invent.
 - The check reads an existing run; it never starts one. A quality check must not launch a two-hour job.
-- `DataQualityModule` imports `MatchingModule`; `MatchingModule` exports the repositories or a small read service for it. If that creates a circular graph, use the `ModuleRef` lazy-get pattern documented in `CLAUDE.md` rather than restructuring either module.
+- `DataQualityModule` imports `MatchingModule`; `MatchingModule` exports only the three repositories via `TypeOrmModule`, never `MatchRunService`. If that creates a circular graph, use the `ModuleRef` lazy-get pattern documented in `CLAUDE.md` rather than restructuring either module.
 
 - [ ] **Step 4: PASS, then the gates.**
 
