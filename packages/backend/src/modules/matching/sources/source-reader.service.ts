@@ -101,14 +101,27 @@ function assertPageableDialect(dbType: string): void {
 }
 
 /**
- * Ceiling on `limit`, matching the `MAX_RESULT_ROWS` convention used
- * elsewhere in this codebase (`queries.service.ts`,
- * `transformations-executor.service.ts`, `dataset-sharing.service.ts`,
- * all default to 10,000) — this reader isn't wired to `ConfigService`, so
- * it hardcodes the same number rather than reaching for a config value no
- * caller can yet supply.
+ * Ceiling on `limit`. NOT the `MAX_RESULT_ROWS` convention used elsewhere
+ * in this codebase (`queries.service.ts`, `transformations-executor.service.ts`,
+ * `dataset-sharing.service.ts`, all default 10,000) — that constant bounds
+ * what an ad-hoc user query hands back to a browser, where 10,000 rows is
+ * already more than anyone reads. This reader is a different kind of
+ * consumer: an internal batch loader whose pages stream into a workspace
+ * table and get discarded, never shown to a user. Bounding it by a
+ * user-facing result cap imports a constraint that doesn't apply here — a
+ * mistake made in an earlier round of this task, caught in review.
+ *
+ * MUST stay at or above `MATCHING_BATCH_ROWS` (default 50,000 — design
+ * spec §13 config table), because Task 6's materializer pages `readPage`
+ * at that batch size. Lowering this below 50,000 breaks the materializer
+ * on its very first page. 100,000 gives two-fold headroom over that
+ * documented default while still bounding memory meaningfully:
+ * `driver.query()` materialises a page in one in-memory array, and
+ * 100,000 rows of a handful of narrow normalized text columns is tens of
+ * megabytes, not gigabytes — the spec's own sizing (10M rows at 50,000 a
+ * page is 200 round trips) is what this reader was designed around.
  */
-const MAX_PAGE_LIMIT = 10_000;
+const MAX_PAGE_LIMIT = 100_000;
 
 /**
  * `limit` is interpolated directly into `LIMIT ${limit}` (there is no SQL

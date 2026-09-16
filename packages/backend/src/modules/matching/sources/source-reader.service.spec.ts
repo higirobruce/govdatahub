@@ -226,7 +226,7 @@ describe('SourceReaderService', () => {
   it('rejects a limit above the maximum page size', async () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
     await expect(
-      service.readPage(source, ['id', 'surname'], 'org1', null, 10_001),
+      service.readPage(source, ['id', 'surname'], 'org1', null, 100_001),
     ).rejects.toThrow(BadRequestException);
     expect(query).not.toHaveBeenCalled();
   });
@@ -235,10 +235,25 @@ describe('SourceReaderService', () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
     await expect(
-      service.readPage(source, ['id', 'surname'], 'org1', null, 10_000),
+      service.readPage(source, ['id', 'surname'], 'org1', null, 100_000),
     ).resolves.toEqual({ rows: [], lastKey: null });
     const sql = query.mock.calls[0][0] as string;
-    expect(sql).toContain('LIMIT 10000');
+    expect(sql).toContain('LIMIT 100000');
+  });
+
+  // Regression: the design spec fixes MATCHING_BATCH_ROWS (the batch size
+  // Task 6's materializer pages readPage at) to 50,000 in three places
+  // (the literal materializer read, the narrative, and the §13 config
+  // table). An earlier round of this task set MAX_PAGE_LIMIT to 10,000 by
+  // analogy to an unrelated constant and never checked it against this
+  // one — this test is what would have caught that, and what stops the
+  // two numbers drifting apart again.
+  it('accepts the documented MATCHING_BATCH_ROWS default of 50000, which the materializer will pass', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
+    await expect(
+      service.readPage(source, ['id', 'surname'], 'org1', null, 50_000),
+    ).resolves.toEqual({ rows: [], lastKey: null });
   });
 
   it('rejects a non-integer limit for a staged source too', async () => {
