@@ -28,6 +28,7 @@ Every task's requirements implicitly include this section.
 - Identifier interpolated into SQL must be validated against `/^[A-Za-z0-9_]+$/` before interpolation, or quoted with the existing `quoteId` helper style from `data-quality/profiling.service.ts`.
 - Golden Record population is **phase 3**. The `golden` column is created here and left as `{}`.
 - Commits: the message given in each task's commit step, a blank line, then `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`. Do not push.
+- **Never `git commit --amend`, and never rebase or reset.** A fix round always adds a NEW commit. Amending destroys the artifact a reviewer verdicted, and `HEAD` is not necessarily your own commit — the controller commits to this branch too, so an amend can silently absorb someone else's work into a commit message that does not describe it. If your last commit needs changing, add another one.
 - **Encryption at rest is deployment, not code.** Spec section 9 rule 6 requires it, and no task in this plan can satisfy it — it is a property of the PostgreSQL volume on the deploy host. It is listed here so it is not mistaken for something the code handles: raise it with the deploy owner before a Match Project runs against real citizen data. Do not close phase 1 as "governance complete" without it.
 
 ## File Structure
