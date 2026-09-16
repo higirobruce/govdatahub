@@ -31,6 +31,10 @@ import {
   QualityCheck,
   QualityCheckRun,
   AiInteraction,
+  MatchProject,
+  MatchRun,
+  MatchEntity,
+  MatchDecision,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -51,6 +55,7 @@ import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { DataQualityModule } from './modules/data-quality/data-quality.module';
 import { CatalogSearchModule } from './modules/catalog-search/catalog-search.module';
+import { MatchingModule } from './modules/matching/matching.module';
 
 @Module({
   imports: [
@@ -94,6 +99,10 @@ import { CatalogSearchModule } from './modules/catalog-search/catalog-search.mod
           QualityCheck,
           QualityCheckRun,
           AiInteraction,
+          MatchProject,
+          MatchRun,
+          MatchEntity,
+          MatchDecision,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -135,6 +144,7 @@ import { CatalogSearchModule } from './modules/catalog-search/catalog-search.mod
     CatalogModule,
     DataQualityModule,
     CatalogSearchModule,
+    MatchingModule,
   ],
   controllers: [AppController],
   providers: [
