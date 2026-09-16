@@ -28,15 +28,51 @@ function quoteId(dbType: string, name: string): string {
  * reader ever binds (`afterKey`). Postgres/Redshift use numbered `$1`
  * placeholders; MySQL/SQLite use positional `?`; SQL Server's driver binds
  * by name (`request.input('p0', ...)`) and expects `@p0` in the SQL text
- * itself. The Snowflake/BigQuery/ClickHouse driver implementations do not
- * currently thread `params` through to their underlying client at all
- * (see their `query()` signatures) — a pre-existing gap in those three
- * drivers, out of scope for this reader to fix.
+ * itself. Only the Postgres branch is exercised against a real query the
+ * unit tests assert on end to end; the MySQL/SQLite/SQL Server branches
+ * are pinned by unit assertions on the returned string only, not verified
+ * against a live engine of that dialect. `assertPageableDialect` below
+ * keeps this function from ever being reached for a dialect whose driver
+ * cannot bind parameters at all.
  */
 function paramPlaceholder(dbType: string): string {
   if (dbType === 'mysql' || dbType === 'sqlite') return '?';
   if (dbType === 'sqlserver') return '@p0';
   return '$1';
+}
+
+/** Connection types whose `DatabaseDriver.query()` cannot bind parameters — see `assertPageableDialect`. */
+const UNSUPPORTED_KEYSET_TYPES = new Set(['snowflake', 'bigquery', 'clickhouse']);
+
+/**
+ * Refuses a connection type whose driver cannot bind query parameters,
+ * before any SQL is built.
+ *
+ * `snowflake.driver.ts` and `bigquery.driver.ts` declare `query(sql:
+ * string)` with no `params` argument at all — TypeScript's structural
+ * typing still lets that satisfy `DatabaseDriver.query(sql, params?)`, so
+ * nothing catches this at compile time — and `clickhouse.driver.ts`
+ * accepts `params` but discards it (`_params?: any[]`). Keyset pagination
+ * depends on `afterKey` being bound, not interpolated (see
+ * `paramPlaceholder` above); on these three drivers the bound value would
+ * silently vanish, leaving the literal placeholder token in the SQL text,
+ * and the query would either fail with a confusing engine error or,
+ * worse, return the same page forever.
+ *
+ * This is a pre-existing gap in those three driver implementations, not a
+ * limitation of entity matching — fixing it means threading each client's
+ * own binding API (BigQuery named parameters, Snowflake `binds`) and
+ * testing against three hosted services, which is its own piece of work.
+ * Refusing here, fail-closed, is the correct choice until that work
+ * happens. Do not delete this guard to make a downstream failure go away
+ * — the driver, not this reader, is what's missing.
+ */
+function assertPageableDialect(dbType: string): void {
+  if (UNSUPPORTED_KEYSET_TYPES.has(dbType)) {
+    throw new BadRequestException(
+      `Connection type "${dbType}" does not support bound query parameters, which keyset pagination requires — the entity-matching reader cannot page this source.`,
+    );
+  }
 }
 
 /**
@@ -138,6 +174,7 @@ export class SourceReaderService {
     const connectionId = source.connectionId as string;
     const { connection } = await this.connectionsService.getConnectionConfig(connectionId, organizationId);
     const dbType = connection.type;
+    assertPageableDialect(dbType);
     const driver = await this.connectionsService.getDriver(connectionId, organizationId);
     return { dbType, driver, quote: (name: string) => quoteId(dbType, name) };
   }
