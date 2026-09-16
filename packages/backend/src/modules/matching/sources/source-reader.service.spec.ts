@@ -149,4 +149,39 @@ describe('SourceReaderService', () => {
       service.countRows({ ...source, primaryKey: 'salary' }, ['surname'], 'org1'),
     ).rejects.toThrow(BadRequestException);
   });
+
+  // --- Fail-closed guard for connection types whose driver cannot bind
+  // query parameters (Ruling R11). Keyset pagination requires afterKey to
+  // be bound, not interpolated; on these three drivers the bound value is
+  // silently dropped rather than erroring, so the reader must refuse them
+  // itself rather than risk a confusing engine error or wrong results.
+
+  it.each(['snowflake', 'bigquery', 'clickhouse'])(
+    'readPage refuses a %s connection because its driver cannot bind query parameters',
+    async (dbType) => {
+      connections.getConnectionConfig.mockResolvedValue({ connection: { type: dbType } });
+      await expect(
+        service.readPage(source, ['id', 'surname'], 'org1', null, 100),
+      ).rejects.toThrow(BadRequestException);
+    },
+  );
+
+  it('countRows refuses a snowflake connection because its driver cannot bind query parameters', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'snowflake' } });
+    await expect(
+      service.countRows(source, ['id', 'surname'], 'org1'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('still pages a postgres connection (the guard is not over-broad)', async () => {
+    // Explicit, not relying on the describe-level default: getConnectionConfig
+    // is a shared mock whose mockResolvedValue from an earlier test in this
+    // file otherwise bleeds forward (jest.clearAllMocks() clears call history,
+    // not a previously set resolved value).
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
+    await expect(
+      service.readPage(source, ['id', 'surname'], 'org1', null, 100),
+    ).resolves.toEqual({ rows: [], lastKey: null });
+  });
 });
