@@ -527,17 +527,27 @@ New environment variables, added to both `.env.example` files:
 | `MATCHING_BATCH_ROWS` | `50000` | Keyset page size |
 | `MATCHING_NORM_CALL_BUDGET` | `5000` | Model normalization calls per run |
 
-## 13a. Known limitation — three drivers cannot page
+## 13a. Known limitation — four drivers cannot page
 
-`DatabaseDriver.query(sql, params?)` is the interface, but three of the nine
-implementations do not honour the second argument: `snowflake.driver.ts` and
-`bigquery.driver.ts` declare `query(sql: string)` with no `params` at all
-(which still satisfies the interface, because TypeScript permits a narrower
-parameter list), and `clickhouse.driver.ts` accepts `_params` and discards it.
+`DatabaseDriver.query(sql, params?)` is the interface, but four of the nine
+implementations do not honour the second argument. `snowflake.driver.ts`,
+`bigquery.driver.ts` and `mongodb.driver.ts` declare `query(sql: string)` with
+no `params` at all — which still satisfies the interface, because TypeScript
+permits a narrower parameter list — and `clickhouse.driver.ts` accepts
+`_params` and discards it. Only postgres, mysql, redshift, sql-server and
+sqlite thread parameters through.
 
-Keyset pagination binds `afterKey` as a parameter, so on those three
-connection types the parameter is silently dropped and the emitted SQL retains
-a literal `$1`. Matching therefore **refuses Snowflake, BigQuery and ClickHouse
+MongoDB is the worst of the four and not merely unbindable: its `query()`
+calls `JSON.parse(sql)` and expects `{"collection":…,"filter":…}`. It does not
+speak SQL at all, so a generated `SELECT` reaches it as malformed JSON and
+raises a raw error about JSON syntax — nothing resembling a diagnosable
+refusal. (`ProfilingService` already refuses MongoDB explicitly for the same
+underlying reason, so this is an established pattern in the codebase rather
+than a new exception.)
+
+Keyset pagination binds `afterKey` as a parameter, so on those four connection
+types the parameter is silently dropped and the emitted SQL retains a literal
+`$1`. Matching therefore **refuses Snowflake, BigQuery, ClickHouse and MongoDB
 sources in phase 1**, failing closed at the point of use with a message naming
 the reason.
 
@@ -545,7 +555,8 @@ This is a pre-existing driver gap, not a matching defect, and fixing it means
 threading each client's own binding API (BigQuery named parameters, Snowflake
 `binds`) and testing against three hosted services — its own piece of work,
 deliberately not bolted onto this feature. Phase 1 supports six of the nine
-connection types plus staged data.
+connection types plus staged data — postgres, mysql, redshift, sql-server and
+sqlite.
 
 ## 14. Risks
 
