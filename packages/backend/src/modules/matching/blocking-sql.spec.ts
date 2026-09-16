@@ -70,22 +70,64 @@ describe('weightedScoreExpr', () => {
   });
 });
 
-describe('comparatorExprs scale (every score must be numeric in [0,1])', () => {
-  it('casts every boolean-derived comparator to numeric, for every role', () => {
-    const roles: FieldRole[] = ['person_name', 'org_name', 'text', 'address', 'phone', 'identifier'];
-    for (const role of roles) {
+// R3: every comparator must be guarded so a missing value on either side
+// scores 0, rather than erroring (blank-string cast to date), returning NULL
+// (poisoning the weighted sum), or claiming a perfect match on two shared
+// blanks. No comparator is exempt from this — not even trgm/lev, which were
+// already individually NULL-safe — because the whole point of the ruling is
+// that the doc comment's "every comparator" claim has no unstated exception
+// a future reader has to rediscover.
+describe('comparatorExprs presence guard (no exemptions)', () => {
+  const ALL_ROLES: FieldRole[] = ['person_name', 'org_name', 'text', 'address', 'date', 'phone', 'identifier'];
+
+  it('wraps every comparator, for every role, in a presence guard against null/blank input on either side', () => {
+    for (const role of ALL_ROLES) {
       const exprs = comparatorExprs(role, 'l."x"', 'r."x"');
       for (const e of exprs) {
-        if (e.name === 'trgm' || e.name === 'lev') continue; // bounded numerically, not boolean-shaped
-        expect(e.sql).toContain('::int');
+        expect(e.sql).toContain(
+          `case when l."x" is null or r."x" is null or l."x" = '' or r."x" = '' then 0 else `,
+        );
+        expect(e.sql.trimEnd()).toMatch(/ end$/);
       }
     }
   });
 
-  it('bounds the date comparator to a one-year decay instead of a raw day count', () => {
+  it('fully casts every boolean-derived comparator (tokenset, exact, lev1) to numeric, not just a piece of it', () => {
+    // A cast on the column operands (e.g. `l."x"::int = r."x"::int`) would
+    // satisfy a bare `toContain('::int')` check without fixing the
+    // numeric*boolean type error. The whole boolean clause must be the thing
+    // cast, which — given the guard's `else <core> end` shape — means the
+    // cast is the last thing before the closing `end`.
+    const booleanComparatorNames = new Set(['tokenset', 'exact', 'lev1']);
+    for (const role of ALL_ROLES) {
+      for (const e of comparatorExprs(role, 'l."x"', 'r."x"')) {
+        if (!booleanComparatorNames.has(e.name)) continue;
+        expect(e.sql).toContain('::int::numeric end');
+      }
+    }
+  });
+
+  it('exact-matches the guarded phone "exact" comparator end to end', () => {
+    const [exact] = comparatorExprs('phone', 'l."phone"', 'r."phone"');
+    expect(exact.sql).toBe(
+      `case when l."phone" is null or r."phone" is null or l."phone" = '' or r."phone" = '' then 0 else (l."phone" = r."phone")::int::numeric end`,
+    );
+  });
+
+  it('bounds the date comparator to a guarded one-year decay, using nullif before the date cast', () => {
     const [daydiff] = comparatorExprs('date', 'l."dob"', 'r."dob"');
-    expect(daydiff.sql).toContain('greatest(0,');
-    expect(daydiff.sql).toContain('/ 365');
+    expect(daydiff.sql).toBe(
+      `case when l."dob" is null or r."dob" is null or l."dob" = '' or r."dob" = '' then 0 else greatest(0, 1 - abs(nullif(l."dob", '')::date - nullif(r."dob", '')::date)::numeric / 365) end`,
+    );
+  });
+
+  it('truncates levenshtein operands to 255 bytes for the length-unbounded roles (text/address/phone)', () => {
+    for (const role of ['text', 'address', 'phone'] as FieldRole[]) {
+      const levExpr = comparatorExprs(role, 'l."x"', 'r."x"').find((e) => e.name === 'lev' || e.name === 'lev1');
+      expect(levExpr).toBeDefined();
+      expect(levExpr!.sql).toContain('left(l."x", 255)');
+      expect(levExpr!.sql).toContain('left(r."x", 255)');
+    }
   });
 });
 
@@ -96,7 +138,25 @@ describe('weightedScoreExpr type-safety', () => {
     // onto the closing paren — is a PostgreSQL type error: operator does not
     // exist: numeric * boolean. The negative lookahead is what makes this a
     // real constraint: a naive substring check would also flag the correct,
-    // `::int::numeric`-cast form, since both contain `(l."col" =`.
-    expect(sql).not.toMatch(/\d+(\.\d+)?\s*\*\s*\(l\."[a-z_]+"\s*=\s*r\."[a-z_]+"\)(?!::)/);
+    // `::int::numeric`-cast form, since both contain `(l."col" =`. The
+    // identifier class matches IDENT (not just lowercase-with-underscore) so
+    // a column like "Phone1" would still be caught.
+    expect(sql).not.toMatch(/\d+(\.\d+)?\s*\*\s*\(l\."[A-Za-z0-9_]+"\s*=\s*r\."[A-Za-z0-9_]+"\)(?!::)/);
+  });
+});
+
+describe('weightedScoreExpr weight validation', () => {
+  it('rejects a non-finite weight (NaN or Infinity)', () => {
+    expect(() => weightedScoreExpr([{ ...fieldMap[0], weight: NaN }])).toThrow(BadRequestException);
+    expect(() => weightedScoreExpr([{ ...fieldMap[0], weight: Infinity }])).toThrow(BadRequestException);
+  });
+
+  it('rejects a negative weight', () => {
+    expect(() => weightedScoreExpr([{ ...fieldMap[0], weight: -0.1 }])).toThrow(BadRequestException);
+  });
+
+  it('rejects a non-numeric weight arriving from JSONB storage as a string', () => {
+    const polluted = { ...fieldMap[0], weight: '1' as unknown as number };
+    expect(() => weightedScoreExpr([polluted])).toThrow(BadRequestException);
   });
 });
