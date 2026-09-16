@@ -150,14 +150,16 @@ describe('SourceReaderService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  // --- Fail-closed guard for connection types whose driver cannot bind
-  // query parameters (Ruling R11). Keyset pagination requires afterKey to
-  // be bound, not interpolated; on these three drivers the bound value is
-  // silently dropped rather than erroring, so the reader must refuse them
-  // itself rather than risk a confusing engine error or wrong results.
+  // --- Fail-closed guard for connection types that cannot page this
+  // reader (Ruling R11, corrected). Four dialects, not three: snowflake,
+  // bigquery and clickhouse because their driver cannot bind query
+  // parameters (the bound value is silently dropped rather than erroring),
+  // and mongodb because it is not a SQL engine at all — its driver
+  // JSON.parse()s the "sql" argument. Both were missed in the original
+  // pass; mongodb was found only in review.
 
-  it.each(['snowflake', 'bigquery', 'clickhouse'])(
-    'readPage refuses a %s connection because its driver cannot bind query parameters',
+  it.each(['snowflake', 'bigquery', 'clickhouse', 'mongodb'])(
+    'readPage refuses a %s connection because it cannot page this reader',
     async (dbType) => {
       connections.getConnectionConfig.mockResolvedValue({ connection: { type: dbType } });
       await expect(
@@ -173,6 +175,13 @@ describe('SourceReaderService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('countRows refuses a mongodb connection because it is not a SQL engine', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'mongodb' } });
+    await expect(
+      service.countRows(source, ['id', 'surname'], 'org1'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('still pages a postgres connection (the guard is not over-broad)', async () => {
     // Explicit, not relying on the describe-level default: getConnectionConfig
     // is a shared mock whose mockResolvedValue from an earlier test in this
@@ -183,5 +192,63 @@ describe('SourceReaderService', () => {
     await expect(
       service.readPage(source, ['id', 'surname'], 'org1', null, 100),
     ).resolves.toEqual({ rows: [], lastKey: null });
+  });
+
+  // --- limit validation (Important 2). `limit` is interpolated directly
+  // into the SQL string (there is no bind position for LIMIT's row count),
+  // so it must be rejected before it ever reaches SQL text, the same way
+  // assertColumnAllowed and assertPageableDialect reject before building SQL.
+
+  it('rejects a non-integer limit', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    await expect(
+      service.readPage(source, ['id', 'surname'], 'org1', null, 12.5),
+    ).rejects.toThrow(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('rejects a negative limit', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    await expect(
+      service.readPage(source, ['id', 'surname'], 'org1', null, -1),
+    ).rejects.toThrow(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('rejects a zero limit', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    await expect(
+      service.readPage(source, ['id', 'surname'], 'org1', null, 0),
+    ).rejects.toThrow(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('rejects a limit above the maximum page size', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    await expect(
+      service.readPage(source, ['id', 'surname'], 'org1', null, 10_001),
+    ).rejects.toThrow(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('accepts a limit exactly at the maximum page size', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
+    await expect(
+      service.readPage(source, ['id', 'surname'], 'org1', null, 10_000),
+    ).resolves.toEqual({ rows: [], lastKey: null });
+    const sql = query.mock.calls[0][0] as string;
+    expect(sql).toContain('LIMIT 10000');
+  });
+
+  it('rejects a non-integer limit for a staged source too', async () => {
+    stagedRepo.findOne.mockResolvedValue({
+      id: 's1', organizationId: 'org1',
+      schema: [{ name: 'id', type: 'text' }],
+      data: [{ id: 'k1' }],
+    });
+    await expect(
+      service.readPage({ kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id'], 'org1', null, 12.5),
+    ).rejects.toThrow(BadRequestException);
   });
 });
