@@ -11,6 +11,25 @@ describe('assertLocalProvider', () => {
   it.each([AiProvider.LOCAL, AiProvider.CUSTOM])('allows %s', (provider) => {
     expect(() => assertLocalProvider({ aiProvider: provider } as any)).not.toThrow();
   });
+
+  it('fails closed on unknown provider string (e.g. typo or future addition)', () => {
+    // The ai_provider column is an unconstrained varchar, so a typo, future enum
+    // addition, or hand-edited row could contain any string. A cast is appropriate
+    // here to model that runtime reality, not to defeat the type system.
+    expect(() => assertLocalProvider({ aiProvider: 'gemini' as AiProvider })).toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('fails closed on empty string provider', () => {
+    expect(() => assertLocalProvider({ aiProvider: '' as AiProvider })).toThrow(BadRequestException);
+  });
+
+  it('fails closed on undefined provider', () => {
+    expect(() => assertLocalProvider({ aiProvider: undefined as unknown as AiProvider })).toThrow(
+      BadRequestException,
+    );
+  });
 });
 
 describe('assertColumnAllowed', () => {

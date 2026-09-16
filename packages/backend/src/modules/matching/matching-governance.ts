@@ -4,14 +4,16 @@ import { IDENT } from './blocking-sql';
 
 /**
  * Asserts that the organization's AI provider is local-only.
- * Throws BadRequestException for remote providers (OpenAI, Anthropic, Azure)
- * since personal data must never leave the server.
+ * Uses an allow-list (LOCAL, CUSTOM only) rather than a block-list, because
+ * `organization_settings.ai_provider` is an unconstrained varchar(50) with no
+ * database enum or CHECK constraint. A block-list would fail open on typos,
+ * future additions to the enum, or hand-edited rows — violating the core
+ * requirement that personal data must never leave the server.
  */
 export function assertLocalProvider(settings: { aiProvider: AiProvider }): void {
   if (
-    settings.aiProvider === AiProvider.OPENAI ||
-    settings.aiProvider === AiProvider.ANTHROPIC ||
-    settings.aiProvider === AiProvider.AZURE
+    settings.aiProvider !== AiProvider.LOCAL &&
+    settings.aiProvider !== AiProvider.CUSTOM
   ) {
     throw new BadRequestException(
       'Matching projects require a local AI provider — personal data must not leave the server',
