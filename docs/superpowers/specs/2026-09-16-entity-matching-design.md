@@ -450,9 +450,14 @@ bear on it.
 
 1. The materializer reads only `columnAllowlist` columns. One rule, one place,
    covered by a test.
-2. A matching project **refuses** a remote AI provider. `AiProvider.LOCAL`, or
-   `CUSTOM` pointed at a private host, only. The code throws on `OPENAI`,
-   `ANTHROPIC` and `AZURE`. Personal data never leaves the server.
+2. A matching project **refuses** any provider that is not known-local.
+   `AiProvider.LOCAL`, or `CUSTOM` pointed at a private host, only. The check
+   is an **allow-list, not a block-list**: the code throws unless the provider
+   is exactly `LOCAL` or `CUSTOM`. This matters because `ai_provider` is an
+   unconstrained `varchar` with no database enum or CHECK, so a typo, a
+   hand-edited row, or a provider added to the enum later without revisiting
+   this guard would otherwise **fail open** and be treated as local. Personal
+   data never leaves the server.
 3. `lawfulBasis` and `dataOwner` are required, non-empty fields on every
    project.
 4. `@Roles` guards every mutating endpoint, and review is its own role. The
