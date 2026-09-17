@@ -7,6 +7,7 @@ import { MaterializeService } from './materialize.service';
 import { BlockingService } from './blocking.service';
 import { ScoringService } from './scoring.service';
 import { ClusteringService } from './clustering.service';
+import { CrosswalkService } from './crosswalk.service';
 import { ConnectionsModule } from '../connections/connections.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { ConnectionsModule } from '../connections/connections.module';
     BlockingService,
     ScoringService,
     ClusteringService,
+    CrosswalkService,
   ],
 })
 export class MatchingModule {}
