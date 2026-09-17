@@ -913,13 +913,69 @@ Notes that matter:
 - Produces:
 
 ```typescript
-export interface PassEstimate { pass: string; distinctKeys: number; estimatedPairs: number; droppedKeys: string[]; }
-export interface BlockingEstimate { perPass: PassEstimate[]; totalEstimatedPairs: number; exceedsCap: boolean; refused: boolean; }
+export interface PassEstimate {
+  pass: string;
+  distinctKeys: number;      // kept keys only; dropped keys are reported separately
+  estimatedPairs: number;
+  droppedKeys: string[];
+  exact: boolean;            // false for trigram passes — see Ruling R20
+}
+export interface BlockingEstimate {
+  perPass: PassEstimate[];
+  totalEstimatedPairs: number;
+  hasInexactPass: boolean;   // true when any pass reports exact: false
+  exceedsCap: boolean;
+  refused: boolean;
+}
 
 class BlockingService {
   estimate(project: MatchProject): Promise<BlockingEstimate>;
   candidatePairsSql(project: MatchProject, pass: BlockingPass, droppedKeys: string[]): string;
+  passSessionSettings(pass: BlockingPass): string[];   // Ruling R21
 }
+
+**Ruling R20 — a trigram pass's projection is a declared lower bound, never an estimate.**
+`sum(n*(n-1)/2)` over a key histogram counts pairs whose keys are *exactly equal*. A
+trigram pass proposes every pair with `similarity >= threshold`, a strict superset. On a
+near-unique key — a surname, a phone number, precisely what trigram passes are for — the
+histogram is almost all singletons, so the projection reads near zero while the real work
+is quadratic. Reporting that as an estimate means the gate reads clear on the one query
+that cannot finish, which is the failure this stage exists to prevent.
+So `exact` is `false` for every trigram pass, `hasInexactPass` is true when any pass is
+inexact, and no consumer may present `estimatedPairs` for an inexact pass as a bound.
+Task 16's wizard must render it as "at least N pairs — a trigram pass cannot be estimated
+exactly", never as a bare number, and Task 13 must surface the flag on the run.
+Properly estimating a similarity join needs sampling and extrapolation; that is phase-4
+work, and declaring the limit honestly is what phase 1 owes.
+
+**Ruling R21 — the trigram join must be sargable, and its session requirement machine-readable.**
+`similarity(l.col, r.col) >= 0.4` is a function call in a join predicate. Only the `%`,
+`<%` and `<->` operators map to `gin_trgm_ops`, so the GIN index the materializer builds
+cannot be used and the planner falls back to a full self cross-product — a *correct*
+result that never returns at ten million rows, and one no assertion on SQL text can catch.
+Emit both: `l.col % r.col AND similarity(l.col, r.col) >= <threshold>`. The `%` supplies
+an index-scannable predicate; `similarity()` enforces the exact per-pass threshold as a
+recheck, so the result set is identical. `%` is governed by the session GUC
+`pg_trgm.similarity_threshold`, which must be set at or below the pass threshold or the
+index predicate silently filters out pairs the recheck would have kept.
+That requirement must be expressed in code, not prose: `passSessionSettings(pass)` returns
+the statements a caller must execute in the same transaction — `SET LOCAL
+pg_trgm.similarity_threshold = <threshold>` for a trigram pass, an empty array otherwise.
+A comment telling a future task to remember something is not a mechanism.
+
+**Ruling R22 — the histogram aggregates server-side and returns only what matters.**
+`SELECT key, count(*) GROUP BY key` returns one row per distinct key. On a high-cardinality
+blocking key — last-nine phone digits is one of this feature's own examples — a ten-million
+row table yields ten million rows buffered by the driver and then a second ten-million-object
+array in JavaScript: on the order of gigabytes of live heap. The estimator dies on exactly
+the input size it was written for, which is the same shape of defect as the 65535
+bound-parameter overflow: correct on three rows, fatal at scale.
+Keys with `n = 1` contribute nothing to the projection and can never be degenerate. They
+matter only to the totals, which PostgreSQL can compute itself. So the single query becomes
+a CTE that returns the row total, the kept-key pair sum, the kept-key count and only the
+above-threshold keys — bounding the result set at roughly 200 rows, since a key must exceed
+`max(50, 0.5% of total)` to be returned. This preserves Ruling P8 exactly: still one query
+per pass, still everything derived from it.
 ```
 
 `estimate` runs **one** query per pass — the key-frequency histogram — and derives everything from it: the row total is `sum(n)`, the projected pairs are `sum(n*(n-1)/2)` over the kept keys for a dedupe self-join, and any key value whose frequency exceeds `max(50, 0.5% of the total)` is listed as dropped and excluded from the projection.
