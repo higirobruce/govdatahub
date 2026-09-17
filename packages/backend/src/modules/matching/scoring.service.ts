@@ -133,7 +133,7 @@ export class ScoringService {
       // never goes to the log.
       this.logger.log(
         `Pass "${pass.name}" (run ${run.id}): ${total} candidate pairs, ` +
-          `${inserted} stored (${autoMatch} auto_match, ${grey} grey), ${autoReject} auto-rejected`,
+          `${inserted} stored (${autoMatch} auto_match, ${grey} grey), ${autoReject} not stored`,
       );
 
       return { inserted, autoMatch, grey, autoReject };
