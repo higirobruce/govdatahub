@@ -41,3 +41,4 @@ export { MatchEntity } from './match-entity.entity';
 export type { MatchMember } from './match-entity.entity';
 export { MatchDecision } from './match-decision.entity';
 export type { CandidateDecision, MatchVerdict } from './match-decision.entity';
+export { MatchGoldPair } from './match-gold-pair.entity';

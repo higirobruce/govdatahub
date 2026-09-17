@@ -35,6 +35,7 @@ import {
   MatchRun,
   MatchEntity,
   MatchDecision,
+  MatchGoldPair,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -103,6 +104,7 @@ import { MatchingModule } from './modules/matching/matching.module';
           MatchRun,
           MatchEntity,
           MatchDecision,
+          MatchGoldPair,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
