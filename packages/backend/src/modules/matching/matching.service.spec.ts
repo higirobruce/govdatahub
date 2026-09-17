@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, Not } from 'typeorm';
 import { MatchDecision, MatchEntity, MatchGoldPair, MatchProject, MatchRun } from '../../database/entities';
 import { BlockingService } from './blocking.service';
 import { EvalService } from './eval.service';
@@ -31,6 +31,7 @@ describe('MatchingService', () => {
   const project = {
     id: 'p1',
     organizationId: 'org1',
+    status: 'active',
     thresholds: { matchAt: 0.9, rejectAt: 0.55 },
   } as unknown as MatchProject;
 
@@ -78,7 +79,50 @@ describe('MatchingService', () => {
   it('filters listProjects by organizationId', async () => {
     projectRepo.find.mockResolvedValueOnce([]);
     await service.listProjects('org1');
-    expect(projectRepo.find).toHaveBeenCalledWith({ where: { organizationId: 'org1' }, order: { createdAt: 'DESC' } });
+    expect(projectRepo.find).toHaveBeenCalledWith({
+      where: { organizationId: 'org1', status: Not('inactive') },
+      order: { createdAt: 'DESC' },
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // Ruling R31: deleting a project is a soft delete
+  //
+  // No FK constrains project_id on any child table (runs, entities,
+  // decisions, crosswalk, gold pairs), so a hard delete does not fail --
+  // it silently orphans every one of them, including match_crosswalk rows
+  // that stay live and joinable by other features. It also destroys the
+  // project's lawfulBasis/dataOwner, which is the recorded authority for
+  // every decision and cluster the retention sweep otherwise keeps
+  // forever. DELETE still returns 204; the row survives with
+  // status: 'inactive'.
+  // ---------------------------------------------------------------------
+
+  it('soft-deletes a project: sets status to inactive and saves, never removes the row (Ruling R31)', async () => {
+    const activeProject = { ...project, status: 'active' } as unknown as MatchProject;
+    projectRepo.findOne.mockResolvedValueOnce(activeProject);
+
+    await service.deleteProject('p1', 'org1');
+
+    expect(projectRepo.remove).not.toHaveBeenCalled();
+    expect(projectRepo.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', status: 'inactive' }));
+  });
+
+  it('excludes inactive (soft-deleted) projects from listProjects by default (Ruling R31)', async () => {
+    projectRepo.find.mockResolvedValueOnce([]);
+    await service.listProjects('org1');
+    const [args] = projectRepo.find.mock.calls[0];
+    expect(args.where.status).toEqual(Not('inactive'));
+  });
+
+  it('still returns a soft-deleted project on a direct fetch by id -- the lawful basis and data owner must stay reachable for an audit (Ruling R31)', async () => {
+    const inactiveProject = { ...project, status: 'inactive' } as unknown as MatchProject;
+    projectRepo.findOne.mockResolvedValueOnce(inactiveProject);
+
+    const result = await service.findProject('p1', 'org1');
+
+    expect(result.status).toBe('inactive');
+    expect(projectRepo.findOne).toHaveBeenCalledWith({ where: { id: 'p1', organizationId: 'org1' } });
   });
 
   // ---------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, Not, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { MatchDecision, MatchEntity, MatchGoldPair, MatchProject, MatchRun } from '../../database/entities';
 import type { CandidateDecision } from '../../database/entities';
@@ -80,8 +80,18 @@ export class MatchingService {
     return this.projectRepo.save(project);
   }
 
+  /**
+   * Excludes soft-deleted (`status: 'inactive'`) projects -- see
+   * `deleteProject` and Ruling R31. A direct fetch by id
+   * (`findProject`) is deliberately not filtered the same way: an
+   * auditor reconstructing why a decision was made must still be able to
+   * reach the project's `lawfulBasis`/`dataOwner` by id.
+   */
   async listProjects(organizationId: string): Promise<MatchProject[]> {
-    return this.projectRepo.find({ where: { organizationId }, order: { createdAt: 'DESC' } });
+    return this.projectRepo.find({
+      where: { organizationId, status: Not('inactive') },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async findProject(id: string, organizationId: string): Promise<MatchProject> {
@@ -105,9 +115,21 @@ export class MatchingService {
     return this.projectRepo.save(project);
   }
 
+  /**
+   * Ruling R31: a soft delete. No foreign key constrains `project_id` on
+   * any child table (runs, entities, decisions, crosswalk, gold pairs),
+   * so a hard delete here would not fail -- it would silently orphan
+   * every one of them, including `match_crosswalk` rows that other
+   * features join against and that would stay live and joinable while
+   * pointing at a project that no longer exists. It would also destroy
+   * the project's `lawfulBasis`/`dataOwner` -- the recorded authority for
+   * decisions and clusters the retention sweep otherwise keeps forever.
+   * The HTTP contract is unchanged: this still returns 204.
+   */
   async deleteProject(id: string, organizationId: string): Promise<void> {
     const project = await this.loadProject(id, organizationId);
-    await this.projectRepo.remove(project);
+    project.status = 'inactive';
+    await this.projectRepo.save(project);
   }
 
   async estimate(id: string, organizationId: string): Promise<BlockingEstimate> {
