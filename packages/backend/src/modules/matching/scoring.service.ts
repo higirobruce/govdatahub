@@ -6,9 +6,27 @@ import { BlockingService } from './blocking.service';
 import { MaterializeService } from './materialize.service';
 
 export interface ScoreResult {
+  /** Rows this pass newly inserted into `match_candidates`. */
   inserted: number;
+  /** Of `inserted`, those labelled `auto_match` by the threshold. */
   autoMatch: number;
+  /** Of `inserted`, those labelled `grey` by the threshold. `inserted` can exceed `autoMatch + grey`: a pair carrying a human verdict is stored as `confirmed`/`rejected` and counts in neither. */
   grey: number;
+  /**
+   * Ruling R24: **candidate pairs seen minus rows newly inserted** --
+   * `total - inserted`, nothing more.
+   *
+   * Read the name as shorthand, not as a definition. Because the insert is
+   * `ON CONFLICT DO NOTHING`, a pair an *earlier pass already stored* is
+   * counted by this pass's total but skipped by its insert, so it lands in
+   * this number alongside the genuinely auto-rejected pairs. Separating the
+   * two would need a third statement per pass, which Ruling P9 forbids for
+   * a reason that still holds: the rejected pairs number in the hundreds of
+   * millions and must never be selected.
+   *
+   * Anything surfacing this on a run summary must label it "pairs not
+   * stored", not "rejected".
+   */
   autoReject: number;
 }
 
@@ -39,10 +57,14 @@ interface Statement {
  *  2. the same CTE, scored, inserted, and counted by what the insert
  *     actually wrote.
  *
- * `autoReject` is (1) minus (2). The rejected pairs are never selected,
- * never returned and never stored: at the cap of 250,000,000 candidate
- * pairs and roughly 200 bytes a row, materializing them would be a 40 GB
- * table whose only use is a number this subtraction already has.
+ * `autoReject` is (1) minus (2) -- see `ScoreResult.autoReject` for what
+ * that difference actually counts (Ruling R24). The rejected pairs are
+ * never selected, never returned and never stored: at the cap of
+ * 250,000,000 candidate pairs and roughly 200 bytes a row, materializing
+ * them would be a 40 GB table whose only use is a number this subtraction
+ * already has. The one class of pair stored below `rejectAt` is one a
+ * person has already ruled on (Ruling R23), bounded by what people can
+ * physically review.
  *
  * Both statements and the pass's session settings run inside one explicit
  * transaction, because `SET LOCAL` is transaction-scoped and is otherwise
@@ -64,7 +86,8 @@ export class ScoringService {
 
   /**
    * Scores every candidate pair `pass` proposes and inserts those at or
-   * above `project.thresholds.rejectAt`.
+   * above `project.thresholds.rejectAt`, plus any pair carrying a human
+   * verdict in `match_decisions` regardless of its score (Ruling R23).
    *
    * `droppedKeys` is the pass's degenerate-key exclusion list from
    * `BlockingService.estimate`; it is threaded straight through to
@@ -157,7 +180,12 @@ export class ScoringService {
    *    set this one scores.
    *  - `ins` -- the insert, with `RETURNING` feeding the outer aggregate.
    *    Rows skipped by `ON CONFLICT DO NOTHING` are not returned, so
-   *    `inserted` is what was really written.
+   *    `inserted` is what was really written. Its row filter is
+   *    `score >= rejectAt OR human_decision IS NOT NULL` (Ruling R23): a
+   *    steward adjudicates exactly the pairs the score was unsure about, so
+   *    a confirmed pair is disproportionately likely to score *below*
+   *    `rejectAt`, and filtering on score alone would discard the human
+   *    verdict before the decision join could honour it.
    *
    * Every parameter carries an explicit cast: a bare `$n` in the select
    * list of an `INSERT ... SELECT` is not resolved from the target
@@ -218,7 +246,13 @@ export class ScoringService {
       `              WHEN score >= $${pMatchAt}::double precision THEN 'auto_match'\n` +
       `              ELSE 'grey' END\n` +
       `  FROM scored\n` +
-      `  WHERE score >= $${pRejectAt}::double precision\n` +
+      // Ruling R23: `OR human_decision IS NOT NULL` is one more predicate
+      // over the LEFT JOIN this statement already has, not a second
+      // statement. It does not weaken "never store a rejected pair": that
+      // rule is about the hundreds of millions of auto-rejects, and
+      // human-decided pairs are bounded by what people can physically
+      // review.
+      `  WHERE score >= $${pRejectAt}::double precision OR human_decision IS NOT NULL\n` +
       `  ON CONFLICT ("run_id", "left_key", "right_key") DO NOTHING\n` +
       `  RETURNING "decision"\n` +
       `)\n` +
