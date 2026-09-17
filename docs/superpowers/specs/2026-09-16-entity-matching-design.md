@@ -188,6 +188,23 @@ table; storing only the survivors keeps it in the low millions.
 `confidence`, `updated_at`. Unique on
 `(organization_id, project_id, source_ref, source_key)`.
 
+**Ruling R27 — `confidence` is nullable and phase 1 writes NULL.**
+The column was listed in this table without ever defining its semantics or its
+producer. Phase 1 has no calibrated number to put in it: the weight model is
+explicitly *weights the user tunes against a gold set*, not a probability, and
+clustering carries forward only a cluster-level `flagged` boolean, not a
+per-member score.
+Writing a constant `1.0` was the obvious alternative and is the wrong one. It
+asserts certainty the system has not computed — a cluster whose weakest internal
+pair scored 0.56 against a 0.55 reject threshold would publish as fully
+confident, indistinguishable from one whose every pair scored 0.99. That is the
+same failure as fabricating a verdict: the system stating something it never
+derived. A consumer filtering `confidence > 0.9` would then pass every row.
+`NULL` means "not computed". The same filter returns nothing instead of
+everything, which fails closed — the correct direction for a register of people.
+Phase 4's Fellegi–Sunter weights are what produce a calibrated value; this column
+waits for them.
+
 **`match_norm_cache`** — normalized values. Primary key
 `(organization_id, role, raw_value)`, plus `normalized jsonb`, `model`,
 `updated_at`. This is what keeps model-based normalization affordable.
