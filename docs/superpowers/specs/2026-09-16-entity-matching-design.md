@@ -491,6 +491,31 @@ Phase 1 therefore has no hard delete. A genuine purge of a project and everythin
 produced under it is a deliberate, separately audited operation — not something a `DELETE`
 verb should do by accident.
 
+**Ruling R32 — an inactive project refuses mutation; reads stay open.**
+R31 defined what a soft delete *stores* and never defined what it *prevents*. As written,
+a deleted project is fully operable: `POST projects/:id/runs` still starts a run, so a
+"deleted" project can materialize fresh citizen data into a workspace table, and `PATCH`,
+`POST decisions`, `POST gold-pairs` and `POST estimate` all keep working. The only
+observable effect of `DELETE` was that the project left a list.
+So every mutating route refuses `status = 'inactive'` with a 409 naming the reason, and
+every read route continues to serve it — an auditor reconstructing a decision must still
+reach the lawful basis it was made under.
+
+**Ruling R33 — a project's recorded authority is immutable once it has run.**
+`PATCH` currently overwrites `lawfulBasis`, `dataOwner` and `columnAllowlist` in place
+with no history. R31's whole rationale is that the row carrying the recorded authority
+must not be destroyed while the acts performed under it are kept forever — and a PATCH
+destroys it exactly as completely as the hard delete R31 forbade. Widening
+`columnAllowlist` after runs exist is worse than losing history: it retroactively changes
+the legal boundary of what the feature was permitted to copy, with nothing recording that
+the boundary moved.
+Therefore: before a project's first run these three fields are freely editable, because
+the project is still configuration. From its first run onward they are **immutable**, and
+`PATCH` rejects a change to any of them with a 409 directing the operator to create a new
+project. Everything else on the project stays editable.
+A full field-level history table is the better long-term answer and is phase-4 work; this
+is the cheap rule that closes the hole now.
+
 ## 9. Governance
 
 These are requirements. The data is citizen and business personal data, and
