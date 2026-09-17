@@ -90,7 +90,7 @@ describe('MatchingCleanupService', () => {
     expect(sqls.some((s) => s.includes('DELETE FROM "match_candidates"'))).toBe(true);
   });
 
-  it('keeps decisions, entities, the crosswalk and the gold set', async () => {
+  it('keeps decisions, entities, the crosswalk, the gold set, and norm cache', async () => {
     projectRepo.find = jest.fn().mockResolvedValue([]);
     runRepo.find = jest.fn().mockResolvedValue([]);
     dataSource.query = jest.fn().mockResolvedValue([]);
@@ -102,6 +102,7 @@ describe('MatchingCleanupService', () => {
     expect(sqls).not.toContain('match_crosswalk');
     expect(sqls).not.toContain('match_gold_pairs');
     expect(sqls).not.toContain('match_entities');
+    expect(sqls).not.toContain('match_norm_cache');
   });
 
   it('leaves a project inside its retention window alone', async () => {
@@ -127,5 +128,41 @@ describe('MatchingCleanupService', () => {
 
     const out = await service.cleanupExpiredWorkspaces();
     expect(out.projectsSwept).toBe(1);
+  });
+
+  it('skips projects with no runs entirely', async () => {
+    projectRepo.find = jest.fn().mockResolvedValue([{ id: 'p1', retentionDays: 30, organizationId: 'org1' }]);
+    runRepo.find = jest.fn().mockResolvedValue([]); // No runs for this project
+    dataSource.query = jest.fn().mockResolvedValue([]);
+
+    await service.cleanupExpiredWorkspaces();
+
+    // No SQL should be executed because project has no runs
+    expect(dataSource.query).not.toHaveBeenCalled();
+  });
+
+  it('resolves safely when initial project fetch fails', async () => {
+    projectRepo.find = jest.fn().mockRejectedValue(new Error('Database connection failed'));
+    dataSource.query = jest.fn().mockResolvedValue([]);
+
+    const out = await service.cleanupExpiredWorkspaces();
+
+    // Should resolve with projectsSwept: 0, not throw
+    expect(out.projectsSwept).toBe(0);
+  });
+
+  it('leaves a project alone when it has both old and recent runs', async () => {
+    projectRepo.find = jest.fn().mockResolvedValue([{ id: 'p1', retentionDays: 30, organizationId: 'org1' }]);
+    // Mix of old run (2020) and fresh run (today)
+    runRepo.find = jest.fn().mockResolvedValue([
+      { id: 'r1', startedAt: new Date('2020-01-01') },
+      { id: 'r2', startedAt: new Date() }, // Recent run protects the project
+    ]);
+    dataSource.query = jest.fn().mockResolvedValue([]);
+
+    await service.cleanupExpiredWorkspaces();
+
+    // No cleanup should happen because one run is recent
+    expect(dataSource.query).not.toHaveBeenCalled();
   });
 });
