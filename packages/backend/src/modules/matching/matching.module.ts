@@ -9,6 +9,7 @@ import { ScoringService } from './scoring.service';
 import { ClusteringService } from './clustering.service';
 import { CrosswalkService } from './crosswalk.service';
 import { EvalService } from './eval.service';
+import { MatchingCleanupService } from './matching-cleanup.service';
 import { ConnectionsModule } from '../connections/connections.module';
 
 @Module({
@@ -25,6 +26,7 @@ import { ConnectionsModule } from '../connections/connections.module';
     ClusteringService,
     CrosswalkService,
     EvalService,
+    MatchingCleanupService,
   ],
 })
 export class MatchingModule {}
