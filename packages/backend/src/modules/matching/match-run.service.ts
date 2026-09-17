@@ -254,8 +254,22 @@ export class MatchRunService {
     pass: BlockingPass,
     perPass: PassEstimate[],
   ): Promise<void> {
-    const droppedKeys = perPass.find((p) => p.pass === pass.name)?.droppedKeys ?? [];
-    const result = await this.scoring.scorePass(project, run, pass, droppedKeys);
+    // Not defaulted to `[]` when the pass has no estimate entry: an empty
+    // exclusion list is a *valid-looking* list that silently readmits the
+    // degenerate keys the estimate excluded, turning the pass's self-join
+    // quadratic (the canonical case is an empty surname). The estimate is
+    // computed from these same passes a few lines earlier, so a missing
+    // entry means the two disagree -- which must stop the run, not
+    // quietly widen it.
+    const estimated = perPass.find((p) => p.pass === pass.name);
+    if (!estimated) {
+      throw new BadRequestException(
+        `Blocking pass "${pass.name}" has no entry in the blocking estimate, so its degenerate-key ` +
+          `exclusion list is unknown; refusing to score it.`,
+      );
+    }
+
+    const result = await this.scoring.scorePass(project, run, pass, estimated.droppedKeys);
 
     // Ruling R24: `autoReject` is "pairs seen minus rows newly inserted",
     // which also catches a pair an earlier pass already stored. It is

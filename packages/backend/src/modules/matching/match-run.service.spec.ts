@@ -252,7 +252,10 @@ describe('MatchRunService', () => {
     blocking.estimate.mockImplementation(async () => {
       order.push('estimate');
       return {
-        perPass: [{ pass: 'name_dob', distinctKeys: 1, estimatedPairs: 1, droppedKeys: [], exact: true }],
+        perPass: [
+          { pass: 'name_dob', distinctKeys: 1, estimatedPairs: 1, droppedKeys: [], exact: true },
+          { pass: 'near_name', distinctKeys: 1, estimatedPairs: 0, droppedKeys: [], exact: true },
+        ],
         totalEstimatedPairs: 1,
         hasInexactPass: false,
         exceedsCap: false,
@@ -317,7 +320,10 @@ describe('MatchRunService', () => {
 
   it('records hasInexactPass false for an exact-only project', async () => {
     blocking.estimate.mockResolvedValue({
-      perPass: [{ pass: 'name_dob', distinctKeys: 3, estimatedPairs: 4, droppedKeys: [], exact: true }],
+      perPass: [
+        { pass: 'name_dob', distinctKeys: 3, estimatedPairs: 4, droppedKeys: [], exact: true },
+        { pass: 'near_name', distinctKeys: 3, estimatedPairs: 0, droppedKeys: [], exact: true },
+      ],
       totalEstimatedPairs: 4,
       hasInexactPass: false,
       exceedsCap: false,
@@ -329,13 +335,17 @@ describe('MatchRunService', () => {
 
   it('records the dropped keys the estimate found', async () => {
     blocking.estimate.mockResolvedValue({
-      perPass: [{ pass: 'name_dob', distinctKeys: 2, estimatedPairs: 3, droppedKeys: ['|1988'], exact: true }],
+      perPass: [
+        { pass: 'name_dob', distinctKeys: 2, estimatedPairs: 3, droppedKeys: ['|1988'], exact: true },
+        { pass: 'near_name', distinctKeys: 2, estimatedPairs: 1, droppedKeys: [], exact: false },
+      ],
       totalEstimatedPairs: 3,
       hasInexactPass: false,
       exceedsCap: false,
       refused: false,
     });
     await service.execute('r1', 'org1');
+    // Only the pass that actually dropped something is recorded.
     expect(lastSaved().droppedKeys).toEqual([{ pass: 'name_dob', keys: ['|1988'] }]);
   });
 
@@ -359,6 +369,21 @@ describe('MatchRunService', () => {
     expect(scoring.scorePass.mock.calls[0][3]).toEqual(['|1988']);
     expect(scoring.scorePass.mock.calls[1][2]).toEqual(project.blockingPasses[1]);
     expect(scoring.scorePass.mock.calls[1][3]).toEqual([]);
+  });
+
+  it('refuses a pass the estimate has no entry for, rather than scoring it unfiltered', async () => {
+    // An empty exclusion list looks valid and silently readmits the
+    // degenerate keys, making the pass's self-join quadratic.
+    blocking.estimate.mockResolvedValue({
+      perPass: [{ pass: 'name_dob', distinctKeys: 2, estimatedPairs: 3, droppedKeys: ['|1988'], exact: true }],
+      totalEstimatedPairs: 3,
+      hasInexactPass: false,
+      exceedsCap: false,
+      refused: false,
+    });
+    await expect(service.execute('r1', 'org1')).rejects.toThrow(/near_name/);
+    expect(scoring.scorePass).toHaveBeenCalledTimes(1);
+    expect(lastSaved().status).toBe('failed');
   });
 
   it('never wraps a scoring pass in an outer transaction (Ruling R21)', async () => {
