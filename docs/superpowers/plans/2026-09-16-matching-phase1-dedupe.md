@@ -98,22 +98,6 @@ export type MatchRunStatus =
 export type CandidateDecision = 'auto_match' | 'grey' | 'confirmed' | 'rejected';
 export type MatchVerdict = 'match' | 'no_match';
 
-**Ruling R25 — a person's verdict and a candidate's state are two different vocabularies.**
-`MatchDecision.decision` is a `MatchVerdict` — what a human said about a pair: `'match'`
-or `'no_match'`. `match_candidates.decision` is a `CandidateDecision` — the pair's state
-in a run: `'auto_match'`, `'grey'`, `'confirmed'`, `'rejected'`. They are not
-interchangeable and must not share a type.
-Scoring maps one to the other: a `'match'` verdict makes the candidate `'confirmed'`, a
-`'no_match'` verdict makes it `'rejected'`.
-This was a real defect spanning four tasks. `MatchDecision.decision` had been typed
-`CandidateDecision`, so the human-verdict table advertised values no reviewer can
-produce, while Task 14's own controller test submits `decision: 'match'` and Task 17
-binds `m` and `n` to match and no-match. Scoring then filtered
-`decision IN ('confirmed','rejected')` against that table. Each piece compiled and passed
-its own tests; together, the moment Task 14 wrote a real verdict the scoring join would
-have matched nothing, every human decision would have become invisible, and the review
-queue would have re-asked every question forever — silently, with no error anywhere.
-
 export interface MatchMember { sourceRef: string; sourceKey: string; }
 
 export interface MatchSourceRef {
@@ -139,6 +123,23 @@ export interface MatchRunCounters {
   clusters: number; flaggedClusters: number;
 }
 ```
+
+**Ruling R25 — a person's verdict and a candidate's state are two different vocabularies.**
+`MatchDecision.decision` is a `MatchVerdict` — what a human said about a pair: `'match'`
+or `'no_match'`. `match_candidates.decision` is a `CandidateDecision` — the pair's state
+in a run: `'auto_match'`, `'grey'`, `'confirmed'`, `'rejected'`. They are not
+interchangeable and must not share a type.
+Scoring maps one to the other: a `'match'` verdict makes the candidate `'confirmed'`, a
+`'no_match'` verdict makes it `'rejected'`.
+This was a real defect spanning four tasks. `MatchDecision.decision` had been typed
+`CandidateDecision`, so the human-verdict table advertised values no reviewer can
+produce, while Task 14's own controller test submits `decision: 'match'` and Task 17
+binds `m` and `n` to match and no-match. Scoring then filtered
+`decision IN ('confirmed','rejected')` against that table. Each piece compiled and passed
+its own tests; together, the moment Task 14 wrote a real verdict the scoring join would
+have matched nothing, every human decision would have become invisible, and the review
+queue would have re-asked every question forever — silently, with no error anywhere.
+
 
 - [ ] **Step 1: Write the migration**
 
@@ -1244,6 +1245,25 @@ describe('ClusteringService', () => {
 Notes that matter:
 - Build the cluster set in Node from `auto_match` plus `confirmed` candidates only. That set is small — it is the survivors of scoring, not the candidate pairs.
 - The over-merge guard needs the score of every internal pair. Query `match_candidates` for all pairs whose both keys are in the cluster; any pair missing from the table scored below `rejectAt` and was discarded, so **a missing pair also flags the cluster**. Assert this in the first test — it is the subtle case.
+
+**Ruling R26 — a human decision overrides the over-merge guard's score test.**
+The guard above rests on an invariant that Ruling R23 has since broken: *present in
+`match_candidates` implies score at or above `rejectAt`*. That was true when only
+threshold-passing pairs were stored. R23 now stores a pair a steward has ruled on
+**regardless of its score**, precisely because stewards adjudicate the pairs the score is
+unsure about.
+So a pair a person explicitly confirmed can sit in the table at 0.4 against a 0.55
+threshold. Applying the bare score test would flag the cluster as over-merged *because* a
+human confirmed the merge, and a flagged cluster is withheld from the Crosswalk — so the
+confirmed match would never reach the entity register. That is R23's own failure mode
+wearing the opposite sign.
+The guard must therefore read `decision`, not only `score`:
+- `decision = 'confirmed'` clears the threshold test outright, whatever the score.
+- `decision = 'rejected'` is a **hard split**: the cluster is flagged no matter how high
+  the score, because a person has said these are different entities.
+- Everything else falls back to the score test, including the missing-pair case above.
+Test all four paths. Two of them invert the plain reading of the score, so a future editor
+who "simplifies" the guard back to a score comparison must fail a test.
 - Majority entity key: read existing `match_crosswalk` rows for the cluster's members, take the most frequent `entity_key`, break a tie by the lexicographically smallest key so the result is deterministic. Mint `uuidv4()` when there are none.
 - Scope that crosswalk read by `organization_id` and `project_id` **only** — do not filter by `source_ref`. A dedupe project has exactly one Match Source, so project scoping is sufficient, and this keeps Task 9 independent of `CrosswalkService.sourceRef()`, which Task 10 has not produced yet. Phase 3 revisits this when a right Match Source exists.
 - `members` entries are `MatchMember` — `{ sourceRef, sourceKey }`. Build `sourceRef` inline here as `'connection:<connectionId>:<schema>.<table>'` or `'staged:<stagedDataId>'`; Task 10 extracts the same rule into `sourceRef()` and both must agree.
