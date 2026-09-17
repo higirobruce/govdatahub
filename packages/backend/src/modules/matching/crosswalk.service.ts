@@ -19,7 +19,9 @@ interface CrosswalkRowInput {
  * parameters -- a protocol constraint, not a tuning knob (the same limit
  * `MaterializeService.insertPage` chunks the workspace load against).
  * Each crosswalk row binds six values: `organization_id`, `project_id`,
- * `source_ref`, `source_key`, `entity_key`, `confidence`.
+ * `source_ref`, `source_key`, `entity_key`, `confidence` -- a `NULL`
+ * `confidence` (Ruling R27) still occupies a bound-parameter slot, so
+ * this count does not change when the value it carries does.
  */
 const PG_MAX_BOUND_PARAMS = 65535;
 const PARAMS_PER_ROW = 6;
@@ -137,19 +139,21 @@ export class CrosswalkService {
    * side -- anything else and PostgreSQL's arbiter-inference fails at
    * runtime rather than at review time.
    *
-   * `confidence` has no per-member score to publish in phase 1 --
-   * clustering only records a cluster-level `flagged` boolean, not a
-   * per-pair score carried forward to this stage -- so every published
-   * row is written with `confidence = 1`. This is a known phase-1 gap,
-   * not a considered scoring decision; a later phase that wants a real
-   * confidence value will need to plumb one through from scoring or
-   * clustering into `MatchEntity` first.
+   * `confidence` is written as `NULL` (Ruling R27): phase 1 has no
+   * calibrated value to put there -- the weight model's coefficients are
+   * tuned against a gold set, not a probability, and clustering carries
+   * forward only a cluster-level `flagged` boolean, not a per-member
+   * score. A constant such as `1` was rejected: it would assert certainty
+   * the system never computed, making a marginal cluster indistinguishable
+   * from a genuinely confident one to any consumer filtering on this
+   * column, where `NULL` lets that filter fail closed instead. Phase 4's
+   * Fellegi-Sunter work is what populates this column for real.
    *
-   * Every bound value carries an explicit cast, matching the convention
-   * in `materialize.service.ts` and `scoring.service.ts`: a bare `$n` in
-   * a multi-row `INSERT ... VALUES` is usually inferable from the target
-   * column, but casting removes any doubt and keeps this statement
-   * consistent with its siblings.
+   * Every bound value -- `NULL` included -- carries an explicit cast,
+   * matching the convention in `materialize.service.ts` and
+   * `scoring.service.ts`: a bare `$n` in a multi-row `INSERT ... VALUES`
+   * is usually inferable from the target column, but casting removes any
+   * doubt and keeps this statement consistent with its siblings.
    */
   private async upsertChunk(
     organizationId: string,
@@ -162,7 +166,7 @@ export class CrosswalkService {
     let p = 1;
 
     for (const row of chunk) {
-      params.push(organizationId, projectId, sourceRef, row.sourceKey, row.entityKey, 1);
+      params.push(organizationId, projectId, sourceRef, row.sourceKey, row.entityKey, null);
       valueTuples.push(
         `($${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::double precision, now())`,
       );
