@@ -113,6 +113,46 @@ describe('ScoringService', () => {
   };
   const insertSql = (): string => insertCall()[0];
 
+  /**
+   * Evaluates the insert's row filter for one synthetic pair.
+   *
+   * Deliberately a narrow reader of the exact predicate grammar this
+   * service emits -- `score >= $n::double precision`, optionally OR-ed with
+   * `human_decision IS NOT NULL` -- and not a SQL parser. It exists so the
+   * Ruling R23 tests can assert what the filter *does* to a pair rather
+   * than what it looks like, and it throws on any term it does not
+   * recognise so a rewritten predicate fails loudly instead of quietly
+   * passing.
+   */
+  const wouldInsert = (
+    sql: string,
+    params: unknown[],
+    pair: { score: number; humanDecision: string | null },
+  ): boolean => {
+    const predicate = sql.match(/\n  WHERE ([^\n]+)\n  ON CONFLICT/);
+    if (!predicate) throw new Error(`No recognisable row filter in:\n${sql}`);
+    return predicate[1].split(/\s+OR\s+/).some((term) => {
+      const threshold = term.match(/^score >= \$(\d+)::double precision$/);
+      if (threshold) return pair.score >= Number(params[Number(threshold[1]) - 1]);
+      if (term === 'human_decision IS NOT NULL') return pair.humanDecision !== null;
+      throw new Error(`Unrecognised term in the row filter: "${term}"`);
+    });
+  };
+
+  /** Same idea for the `decision` CASE: what label would this pair be stored with? */
+  const decisionFor = (
+    sql: string,
+    params: unknown[],
+    pair: { score: number; humanDecision: string | null },
+  ): string => {
+    const arms = sql.match(
+      /CASE WHEN human_decision IS NOT NULL THEN human_decision\s+WHEN score >= \$(\d+)::double precision THEN 'auto_match'\s+ELSE 'grey' END/,
+    );
+    if (!arms) throw new Error(`No recognisable decision CASE in:\n${sql}`);
+    if (pair.humanDecision !== null) return pair.humanDecision;
+    return pair.score >= Number(params[Number(arms[1]) - 1]) ? 'auto_match' : 'grey';
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     txDepth = 0;
@@ -183,6 +223,42 @@ describe('ScoringService', () => {
     expect(String(query.mock.calls[0][0])).toContain('count(*) AS total');
     expect(String(query.mock.calls[0][0])).not.toContain('INSERT');
     expect(String(query.mock.calls[1][0])).toContain('INSERT INTO "match_candidates"');
+  });
+
+  it('stores a confirmed pair whose computed score falls below rejectAt (Ruling R23)', async () => {
+    // A steward only ever adjudicates the pairs the score was unsure about
+    // -- a pair scoring 0.95 never reaches the review queue -- so confirmed
+    // pairs skew low-scoring by construction. Filtering on score alone
+    // discards the human verdict exactly where it carries the most
+    // information, and the next run re-asks a question someone already
+    // answered. rejectAt is 0.55 here.
+    await service.scorePass(project, run, equiPass, []);
+    const [sql, params] = insertCall();
+    const pair = { score: 0.4, humanDecision: 'confirmed' };
+    expect(wouldInsert(sql, params, pair)).toBe(true);
+    expect(decisionFor(sql, params, pair)).toBe('confirmed');
+  });
+
+  it('stores a rejected pair whose computed score falls below rejectAt (Ruling R23)', async () => {
+    // A recorded non-match is just as permanent as a recorded match;
+    // re-proposing it every run is the same defect wearing the opposite sign.
+    await service.scorePass(project, run, equiPass, []);
+    const [sql, params] = insertCall();
+    const pair = { score: 0.2, humanDecision: 'rejected' };
+    expect(wouldInsert(sql, params, pair)).toBe(true);
+    expect(decisionFor(sql, params, pair)).toBe('rejected');
+  });
+
+  it('still discards an undecided pair below rejectAt, and keeps one at the boundary', async () => {
+    // Ruling R23 widens the filter for human-decided pairs only. The
+    // hundreds of millions of auto-rejects it exists to not store are
+    // unaffected, and `>=` stays inclusive at the threshold itself.
+    await service.scorePass(project, run, equiPass, []);
+    const [sql, params] = insertCall();
+    expect(wouldInsert(sql, params, { score: 0.54, humanDecision: null })).toBe(false);
+    expect(wouldInsert(sql, params, { score: 0.55, humanDecision: null })).toBe(true);
+    expect(decisionFor(sql, params, { score: 0.55, humanDecision: null })).toBe('grey');
+    expect(decisionFor(sql, params, { score: 0.9, humanDecision: null })).toBe('auto_match');
   });
 
   it('derives autoReject from what was stored, not from the label counts', async () => {

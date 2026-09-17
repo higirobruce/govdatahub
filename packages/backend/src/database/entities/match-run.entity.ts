@@ -7,7 +7,17 @@ export type MatchRunStatus =
 
 export interface MatchRunCounters {
   leftRows: number; rightRows: number; candidatePairs: number;
-  autoMatch: number; grey: number; autoReject: number;
+  autoMatch: number; grey: number;
+  /**
+   * Ruling R24: candidate pairs seen minus rows newly inserted, summed
+   * over the run's passes -- not a count of pairs below `rejectAt`.
+   * Because the scoring insert is `ON CONFLICT DO NOTHING`, a pair an
+   * earlier pass already stored is counted by a later pass's total but
+   * skipped by its insert, and lands here too. Label it "pairs not
+   * stored" wherever it is surfaced; see `ScoreResult.autoReject` in
+   * `modules/matching/scoring.service.ts`.
+   */
+  autoReject: number;
   clusters: number; flaggedClusters: number;
 }
 
