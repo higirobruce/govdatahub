@@ -10,12 +10,23 @@ export interface ClusterResult {
   flagged: number;
 }
 
-/** One row of `match_candidates`, as read for cluster-building or the over-merge guard. */
+/** One row of `match_candidates`, as read for building the union-find edge list. */
 interface CandidateRow {
   left_key: string;
   right_key: string;
   score: number;
   decision: CandidateDecision;
+}
+
+/**
+ * The over-merge guard's single aggregate row over a cluster's internal
+ * pairs -- see `isOverMerged`. All three fields arrive as strings (`count(*)`
+ * over the wire), hence `unknown` here and `toCount` at the read site.
+ */
+interface GuardCountRow {
+  total: unknown;
+  n_rejected: unknown;
+  n_low: unknown;
 }
 
 /** One row of `match_crosswalk`, as read for the majority entity-key lookup. */
@@ -166,44 +177,71 @@ export class ClusteringService {
   /**
    * The over-merge guard, as amended by Ruling R26.
    *
-   * Reads every stored pair between two members of `members`, not all
-   * `n*(n-1)/2` combinations: the row count actually returned is compared
-   * against that closed-form expected count, so a missing pair is
-   * detected without ever materializing the combinations that would
-   * reveal *which* one is missing. That keeps this comparison linear in
-   * what Postgres returns rather than quadratic in cluster size. The
-   * quadratic cost that remains -- inspecting every pair that *is*
-   * present -- is inherent to "check every internal pair," not an
-   * artifact of how this is written, and the loop below still
-   * short-circuits on the first disqualifying row rather than scanning
-   * to the end.
+   * A single server-side aggregate, not one row per internal pair. An
+   * earlier version of this guard fetched every stored pair between two
+   * members of `members` and looped over them in JavaScript -- correct,
+   * but `O(n^2)` in returned data: a common-surname block (an ordinary
+   * shape in a citizen registry, not an adversarial one) can legitimately
+   * produce a near-complete pairwise candidate set, and a 10,000-member
+   * cluster has up to ~50,000,000 internal pairs to transfer, JSON-parse
+   * and materialize as arrays before a single comparison ran. That is the
+   * same shape as Ruling R22's per-key histogram: aggregate server-side,
+   * return only the three numbers the verdict actually depends on.
    *
-   * `decision` governs the guard, not `score` alone (Ruling R26):
-   *  - `confirmed` clears the threshold test outright, whatever the score.
-   *  - `rejected` is a hard split -- flags the cluster no matter how high
-   *    the score, because a person has said these are different entities.
-   *  - anything else falls back to the plain score test.
-   *  - a pair absent from the table scored below `rejectAt` and was
-   *    discarded, so absence flags the cluster too.
+   * `total` answers the missing-pair question (a shortfall against the
+   * closed-form `n*(n-1)/2` expected count means at least one pair was
+   * never stored, and absence flags the cluster). `n_rejected` and
+   * `n_low` answer the R26 decision-aware score test:
+   *  - `confirmed` rows count toward `total` (they are present) but are
+   *    excluded from both `n_rejected` and `n_low` -- they clear the
+   *    threshold test outright, whatever the score.
+   *  - `rejected` rows always count toward `n_rejected`, regardless of
+   *    score -- a hard split, because a person has said these are
+   *    different entities.
+   *  - every other decision falls back to the plain score test via
+   *    `n_low` (`decision <> 'confirmed' AND score < rejectAt`; a
+   *    `rejected` row can also satisfy this, which is harmless since
+   *    `n_rejected` already flags it).
+   * Flagging on `n_rejected > 0 OR n_low > 0` is exactly equivalent to
+   * "any internal pair fails its individual test" -- it does not change
+   * the verdict versus inspecting every row, only where the inspection
+   * happens. The guard is `O(1)` in returned data regardless of cluster
+   * size.
    */
   private async isOverMerged(runId: string, members: string[], rejectAt: number): Promise<boolean> {
     if (members.length < 2) return false;
 
     const expectedPairs = (members.length * (members.length - 1)) / 2;
-    const rows: CandidateRow[] = await this.dataSource.query(
-      `SELECT left_key, right_key, score, decision FROM match_candidates ` +
+    const rows: GuardCountRow[] = await this.dataSource.query(
+      `SELECT count(*) AS total,\n` +
+        `       count(*) FILTER (WHERE decision = 'rejected') AS n_rejected,\n` +
+        `       count(*) FILTER (WHERE decision <> 'confirmed' AND score < $3::double precision) AS n_low\n` +
+        `FROM match_candidates\n` +
         `WHERE run_id = $1 AND left_key = ANY($2::text[]) AND right_key = ANY($2::text[])`,
-      [runId, members],
+      [runId, members, rejectAt],
     );
 
-    if (rows.length < expectedPairs) return true;
+    const row = rows[0];
+    const total = this.toCount(row?.total, 'internal-pair total');
+    const nRejected = this.toCount(row?.n_rejected, 'rejected-pair count');
+    const nLow = this.toCount(row?.n_low, 'low-score-pair count');
 
-    for (const row of rows) {
-      if (row.decision === 'confirmed') continue;
-      if (row.decision === 'rejected') return true;
-      if (row.score < rejectAt) return true;
+    return total < expectedPairs || nRejected > 0 || nLow > 0;
+  }
+
+  /**
+   * PostgreSQL returns `count(*)` as a string over the wire. Parsed and
+   * validated before any comparison: a malformed count throws rather
+   * than silently coercing to `NaN`, which would make every `<`/`>`
+   * comparison against it false and the guard would clear a cluster it
+   * could not actually evaluate.
+   */
+  private toCount(value: unknown, what: string): number {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      throw new Error(`Clustering guard returned a non-numeric ${what}: ${JSON.stringify(value)}`);
     }
-    return false;
+    return parsed;
   }
 
   /**
