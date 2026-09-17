@@ -36,28 +36,55 @@ describe('unionFind', () => {
   });
 });
 
+/** Matches `project.thresholds.rejectAt` below -- kept as one named constant so every fixture agrees. */
+const REJECT_AT = 0.55;
+
 /**
- * `ClusteringService` reads two shapes of raw SQL off `DataSource.query`:
+ * The over-merge guard reads a single aggregate row, not one row per
+ * internal pair (see `clustering.service.ts`'s `isOverMerged`): `total`,
+ * `n_rejected` (count of `decision = 'rejected'`), and `n_low` (count of
+ * `decision <> 'confirmed' AND score < rejectAt`). PostgreSQL returns all
+ * three as strings over the wire, so this helper mirrors that shape
+ * exactly -- tests describe scenarios as a list of "pairs actually
+ * stored" (easy to read against the brief's fixtures) and this computes
+ * what the real SQL would hand back for that list, string-typed counts
+ * included.
+ */
+function guardAggregate(storedPairs: Array<{ score: number; decision: string }>): {
+  total: string;
+  n_rejected: string;
+  n_low: string;
+} {
+  const total = storedPairs.length;
+  const nRejected = storedPairs.filter((p) => p.decision === 'rejected').length;
+  const nLow = storedPairs.filter((p) => p.decision !== 'confirmed' && p.score < REJECT_AT).length;
+  return { total: String(total), n_rejected: String(nRejected), n_low: String(nLow) };
+}
+
+/**
+ * `ClusteringService` reads three shapes of raw SQL off `DataSource.query`:
  *  1. the survivor set (`decision IN ('auto_match', 'confirmed')`) used to
  *     build the union-find edge list;
- *  2. the over-merge guard's per-cluster internal-pair read
- *     (`left_key = ANY($2) AND right_key = ANY($2)`, no decision filter);
+ *  2. the over-merge guard's per-cluster aggregate
+ *     (`left_key = ANY($2) AND right_key = ANY($2)`, no decision filter,
+ *     `count(*)` columns only -- see `guardAggregate` above);
  *  3. the majority-entity-key read off `match_crosswalk`.
- * The mock below routes on SQL text/params so each test only needs to set
- * the rows relevant to it, mirroring the routing style already used in
+ * The mock below routes on SQL text so each test only needs to set the
+ * rows relevant to it, mirroring the routing style already used in
  * `scoring.service.spec.ts`.
  */
 describe('ClusteringService', () => {
   let service: ClusteringService;
 
   let survivorRows: Array<{ left_key: string; right_key: string; score: number; decision: string }> = [];
-  let internalPairRows: Array<{ left_key: string; right_key: string; score: number; decision: string }> = [];
+  /** Pairs actually stored for the cluster under test; converted to the wire aggregate by `guardAggregate`. */
+  let internalPairs: Array<{ score: number; decision: string }> = [];
   let crosswalkRows: Array<{ source_key: string; entity_key: string }> = [];
 
   const query = jest.fn(async (sql: string, params?: unknown[]) => {
     if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
     if (sql.includes('match_crosswalk')) return crosswalkRows;
-    if (sql.includes('FROM match_candidates')) return internalPairRows;
+    if (sql.includes('FROM match_candidates')) return [guardAggregate(internalPairs)];
     throw new Error(`Unexpected query in test: ${sql} ${JSON.stringify(params)}`);
   });
 
@@ -83,7 +110,7 @@ describe('ClusteringService', () => {
     rightSource: null,
     fieldMap: [{ left: 'surname', right: 'surname', role: 'person_name', weight: 1, comparator: 'trgm' }],
     blockingPasses: [{ name: 'name', kind: 'equi', keyExpr: 'surname' }],
-    thresholds: { matchAt: 0.9, rejectAt: 0.55 },
+    thresholds: { matchAt: 0.9, rejectAt: REJECT_AT },
     columnAllowlist: ['id', 'surname'],
     lawfulBasis: 'consent',
     dataOwner: 'owner@example.com',
@@ -110,12 +137,12 @@ describe('ClusteringService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     survivorRows = [];
-    internalPairRows = [];
+    internalPairs = [];
     crosswalkRows = [];
     query.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
       if (sql.includes('match_crosswalk')) return crosswalkRows;
-      if (sql.includes('FROM match_candidates')) return internalPairRows;
+      if (sql.includes('FROM match_candidates')) return [guardAggregate(internalPairs)];
       throw new Error(`Unexpected query in test: ${sql} ${JSON.stringify(params)}`);
     });
 
@@ -132,14 +159,15 @@ describe('ClusteringService', () => {
   describe('the over-merge guard (Ruling R26)', () => {
     it('flags a cluster when an internal pair is missing from match_candidates -- absence is evidence, not a gap', async () => {
       // a~b at 0.95 and b~c at 0.95 put a, b, c in one cluster, but a~c
-      // scored below rejectAt (0.55) and so was never stored at all.
+      // scored below rejectAt (0.55) and so was never stored at all: only
+      // 2 of the 3 expected pairs are present, so `total` (2) < expected (3).
       survivorRows = [
         { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
         { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
       ];
-      internalPairRows = [
-        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
-        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
         // a~c: absent on purpose.
       ];
 
@@ -155,10 +183,10 @@ describe('ClusteringService', () => {
         { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
         { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
       ];
-      internalPairRows = [
-        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
-        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
-        { left_key: 'a', right_key: 'c', score: 0.8, decision: 'grey' },
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.8, decision: 'grey' },
       ];
 
       const result = await service.cluster(project, run);
@@ -172,12 +200,13 @@ describe('ClusteringService', () => {
         { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
         { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
       ];
-      internalPairRows = [
-        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
-        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
         // a~c: a steward confirmed this pair despite a score under rejectAt.
-        // The bare score test (0.4 < 0.55) would wrongly flag this cluster.
-        { left_key: 'a', right_key: 'c', score: 0.4, decision: 'confirmed' },
+        // The bare score test (0.4 < 0.55) would wrongly flag this cluster;
+        // `n_low` excludes `confirmed` rows by construction, so it stays 0.
+        { score: 0.4, decision: 'confirmed' },
       ];
 
       const result = await service.cluster(project, run);
@@ -189,12 +218,13 @@ describe('ClusteringService', () => {
         { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
         { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
       ];
-      internalPairRows = [
-        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
-        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
         // a~c: a steward said "different people" even though the score is
-        // high. The bare score test (0.99 >= 0.55) would wrongly clear this.
-        { left_key: 'a', right_key: 'c', score: 0.99, decision: 'rejected' },
+        // high. The bare score test (0.99 >= 0.55) would wrongly clear this;
+        // `n_rejected` counts it regardless of score.
+        { score: 0.99, decision: 'rejected' },
       ];
 
       const result = await service.cluster(project, run);
@@ -206,14 +236,32 @@ describe('ClusteringService', () => {
         { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
         { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
       ];
-      internalPairRows = [
-        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
-        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
-        { left_key: 'a', right_key: 'c', score: 0.4, decision: 'grey' },
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.4, decision: 'grey' },
       ];
 
       const result = await service.cluster(project, run);
       expect(result.flagged).toBe(1);
+    });
+
+    it('parses the guard aggregate counts as numbers and rejects a non-numeric count rather than silently miscomparing', async () => {
+      // A malformed `total` must fail loudly. If the implementation ever
+      // regressed to comparing the raw string (or skipped Number() and let
+      // it coerce to NaN), every `<`/`>` test against it is silently
+      // `false` -- the guard would clear a cluster it never actually
+      // evaluated. That is a strictly worse failure than an explicit throw.
+      survivorRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
+      query.mockImplementation(async (sql: string) => {
+        if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
+        if (sql.includes('FROM match_candidates')) {
+          return [{ total: 'not-a-number', n_rejected: '0', n_low: '0' }];
+        }
+        throw new Error(`Unexpected query in test: ${sql}`);
+      });
+
+      await expect(service.cluster(project, run)).rejects.toThrow(/non-numeric/i);
     });
   });
 
@@ -223,10 +271,10 @@ describe('ClusteringService', () => {
         { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
         { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
       ];
-      internalPairRows = [
-        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
-        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
-        { left_key: 'a', right_key: 'c', score: 0.8, decision: 'grey' },
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.8, decision: 'grey' },
       ];
     });
 
@@ -259,7 +307,7 @@ describe('ClusteringService', () => {
   describe('members and the golden record', () => {
     it('leaves the golden record empty because survivorship is phase 3', async () => {
       survivorRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
-      internalPairRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
+      internalPairs = [{ score: 0.95, decision: 'auto_match' }];
 
       await service.cluster(project, run);
       expect((entityRepo.save.mock.calls[0][0] as { golden: unknown }).golden).toEqual({});
@@ -267,7 +315,7 @@ describe('ClusteringService', () => {
 
     it('builds member sourceRef as connection:<id>:<schema>.<table> for a connection source', async () => {
       survivorRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
-      internalPairRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
+      internalPairs = [{ score: 0.95, decision: 'auto_match' }];
 
       await service.cluster(project, run);
       const saved = entityRepo.save.mock.calls[0][0] as { members: Array<{ sourceRef: string; sourceKey: string }> };
@@ -283,7 +331,7 @@ describe('ClusteringService', () => {
         leftSource: { kind: 'staged', stagedDataId: 'sd1', primaryKey: 'id' },
       } as unknown as MatchProject;
       survivorRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
-      internalPairRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
+      internalPairs = [{ score: 0.95, decision: 'auto_match' }];
 
       await service.cluster(stagedProject, run);
       const saved = entityRepo.save.mock.calls[0][0] as { members: Array<{ sourceRef: string }> };
@@ -305,12 +353,9 @@ describe('ClusteringService', () => {
           const members = (params as unknown[])[1] as string[];
           if (members.includes('x')) {
             // {x,y,z}: x~y and y~z present and clean; x~z missing entirely.
-            return [
-              { left_key: 'x', right_key: 'y', score: 0.95, decision: 'auto_match' },
-              { left_key: 'y', right_key: 'z', score: 0.95, decision: 'auto_match' },
-            ];
+            return [guardAggregate([{ score: 0.95, decision: 'auto_match' }, { score: 0.95, decision: 'auto_match' }])];
           }
-          return [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
+          return [guardAggregate([{ score: 0.95, decision: 'auto_match' }])];
         }
         throw new Error(`Unexpected query: ${sql}`);
       });
