@@ -226,9 +226,13 @@ SQL. The gold set is small, read wholesale by the evaluator, and written one
 row at a time by a controller endpoint — precisely the access pattern an
 entity serves. The entity maps the existing DDL; no migration changes.
 
-**`match_gold_pairs`** — the evaluation set. `organization_id`, `project_id`,
-`left_source_ref`, `left_key`, `right_source_ref`, `right_key`,
-`is_match boolean`, `labelled_by`, `labelled_at`.
+**`match_gold_pairs`** — the evaluation set. `id`, `organization_id`,
+`project_id`, `left_key`, `right_key`, `is_match boolean`, `labelled_by`,
+`labelled_at`, unique on `(organization_id, project_id, left_key, right_key)`.
+There are **no** source-ref columns: an earlier draft of this paragraph listed
+`left_source_ref` and `right_source_ref`, the migration never created them, and
+Task 14 builds its `addGoldPair` DTO from this list — a stale column here is
+exactly how a four-task type conflict happened elsewhere in this plan.
 
 ### 5.3 Workspace tables
 
