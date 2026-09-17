@@ -154,6 +154,18 @@ export class MatchRunService {
     // failure there is nothing to record the failure on.
     const run = await this.loadRun(runId, organizationId);
 
+    // Also outside the try, and deliberately: a re-execution of a terminal
+    // run must not be *recorded* on that run. `execute` is public and the
+    // integration test calls it directly, so a second call would otherwise
+    // re-run the whole pipeline and overwrite a `completed` row -- and
+    // marking the refusal as a failure would do the same damage the
+    // refusal exists to prevent.
+    if (run.status === 'completed' || run.status === 'failed') {
+      throw new ConflictException(
+        `Match run ${run.id} has already finished with status "${run.status}"; start a new run instead.`,
+      );
+    }
+
     // `startedAt` is the run's own creation timestamp, so `duration_ms`
     // includes any time the run spent queued -- which is what an operator
     // watching a run wants to know.
@@ -167,6 +179,12 @@ export class MatchRunService {
     run.counters = { ...emptyCounters(), ...(run.counters ?? {}) };
 
     try {
+      // Re-checked here, not only in `start`: `execute` is public, the
+      // integration test calls it directly, and a governance gate that
+      // only one of two entry points enforces is a gate that can be walked
+      // around by construction. It costs one indexed read per run.
+      assertLocalProvider(await this.settings.getOrganizationSettings(organizationId));
+
       // Inside the try: a project deleted between `start` and here must
       // leave the run `failed`, not `pending` forever.
       const project = await this.loadProject(run.projectId, organizationId);
@@ -180,9 +198,14 @@ export class MatchRunService {
         await this.releaseProjectLock(lock, project.id);
       }
 
+      // `finish` never throws, so a failure to record the completion
+      // cannot divert a successful run into the catch below and persist it
+      // as `failed`.
       await this.finish(run, startedAt, 'completed', null);
     } catch (error) {
       await this.finish(run, startedAt, 'failed', error as Error);
+      // Unconditional, and `error` specifically: whatever went wrong while
+      // recording the failure, the caller must still see the cause.
       throw error;
     }
   }
@@ -311,6 +334,15 @@ export class MatchRunService {
    * failed run's duration is the most useful number it has (a run that
    * failed after 90 minutes and one that failed in 2 seconds need very
    * different investigation).
+   *
+   * **Never throws.** This runs at both exits of `execute`, and a
+   * rejection from it would be the worst possible error to propagate: on
+   * the failure path it would *replace* the stage error this method was
+   * called to record, so the run's real cause would exist nowhere; on the
+   * success path it would divert a run that fully succeeded into the
+   * caller's `catch` and persist it as `failed`. A write that cannot
+   * happen is logged instead -- the log is then the only record that the
+   * run ended, which is exactly why it is logged at `error`.
    */
   private async finish(
     run: MatchRun,
@@ -323,7 +355,17 @@ export class MatchRunService {
     run.finishedAt = finishedAt;
     run.durationMs = finishedAt.getTime() - startedAt.getTime();
     run.errorMessage = error ? error.message : null;
-    await this.persist(run);
+
+    try {
+      await this.persist(run);
+    } catch (persistError) {
+      this.logger.error(
+        `Match run ${run.id} ended as "${status}" but its terminal state could not be recorded: ` +
+          `${(persistError as Error).message}` +
+          (error ? ` (the run's own failure was: ${error.message})` : ''),
+        (persistError as Error).stack,
+      );
+    }
   }
 
   /**
@@ -372,20 +414,24 @@ export class MatchRunService {
    */
   private async acquireProjectLock(projectId: string): Promise<QueryRunner> {
     const runner = this.dataSource.createQueryRunner();
-    await runner.connect();
 
     let locked = false;
     try {
+      // `connect` is inside the try so that it, too, exits through the
+      // release below rather than being the one path out of this method
+      // that skips it.
+      await runner.connect();
       const rows = await runner.query('SELECT pg_try_advisory_lock($1, $2) AS locked', [
         MATCH_RUN_LOCK_CLASS_ID,
         this.projectLockKey(projectId),
       ]);
       locked = rows?.[0]?.locked === true;
     } finally {
-      // Either the query failed or the lock was refused: in both cases
-      // nothing is held, so the connection goes straight back.
+      // Either connecting failed, the query failed, or the lock was
+      // refused: in all three cases nothing is held, so the connection
+      // goes straight back -- and releasing must not mask the reason.
       if (!locked) {
-        await runner.release();
+        await this.releaseRunner(runner, projectId);
       }
     }
 
@@ -401,10 +447,12 @@ export class MatchRunService {
 
   /**
    * Releases the lock and then the connection, in that order, and never
-   * throws: an unlock that fails must not mask the outcome of the run
-   * itself (which is already recorded on the run row). The connection is
-   * released in a `finally` regardless, because a runner left unreleased
-   * is a connection permanently missing from the pool.
+   * throws -- neither statement, not just the unlock: this runs in a
+   * `finally` wrapped around the whole pipeline, so anything it threw
+   * would replace the run's own outcome (see `releaseRunner`). The
+   * connection is released regardless of what the unlock did, because a
+   * runner left unreleased is a connection permanently missing from the
+   * pool.
    */
   private async releaseProjectLock(runner: QueryRunner, projectId: string): Promise<void> {
     try {
@@ -420,7 +468,30 @@ export class MatchRunService {
         `Failed to release the advisory lock for match project ${projectId}: ${(error as Error).message}`,
       );
     } finally {
+      await this.releaseRunner(runner, projectId);
+    }
+  }
+
+  /**
+   * Hands a query runner back to the pool without ever throwing.
+   *
+   * `QueryRunner.release()` genuinely can reject -- TypeORM throws
+   * `QueryRunnerAlreadyReleasedError`, and a driver handing back a broken
+   * connection can throw as well. Unguarded, that rejection escapes a
+   * `finally` and replaces whatever was in flight: on the success path it
+   * would turn a completed run into a `failed` one whose error message is
+   * about a connection, and on the failure path it would overwrite the
+   * stage error the run exists to record. Neither is acceptable for a
+   * statement whose only job is returning a connection.
+   */
+  private async releaseRunner(runner: QueryRunner, projectId: string): Promise<void> {
+    try {
       await runner.release();
+    } catch (error) {
+      this.logger.warn(
+        `Failed to release the connection holding match project ${projectId}'s lock: ` +
+          `${(error as Error).message}`,
+      );
     }
   }
 

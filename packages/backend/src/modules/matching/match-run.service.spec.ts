@@ -118,7 +118,9 @@ describe('MatchRunService', () => {
 
     settings.getOrganizationSettings.mockResolvedValue({ aiProvider: AiProvider.LOCAL });
     projectRepo.findOne.mockResolvedValue(baseProject());
-    runRepo.findOne.mockResolvedValue(baseRun());
+    // A fresh run per call: `execute` re-reads the row, and a test that
+    // runs it twice must not be handed the first call's mutated object.
+    runRepo.findOne.mockImplementation(async () => baseRun());
     runRepo.save.mockImplementation(async (entity: MatchRun) => entity);
 
     materialize.materialize.mockResolvedValue({ rows: 10_000, lastKey: 'zzz' });
@@ -498,7 +500,19 @@ describe('MatchRunService', () => {
     expect(String(lock[0])).not.toContain('p1');
     const params = lock[1] as number[];
     expect(params).toHaveLength(2);
-    expect(params.every((p) => Number.isSafeInteger(p))).toBe(true);
+    // `pg_try_advisory_lock($1, $2)` resolves to the (int4, int4)
+    // overload, so a key outside int4 is rejected by PostgreSQL --
+    // `Number.isSafeInteger` would happily pass 2**40.
+    const INT4_MIN = -2_147_483_648;
+    const INT4_MAX = 2_147_483_647;
+    for (const param of params) {
+      expect(Number.isInteger(param)).toBe(true);
+      expect(param).toBeGreaterThanOrEqual(INT4_MIN);
+      expect(param).toBeLessThanOrEqual(INT4_MAX);
+    }
+    // The classid namespaces matching's locks away from any other
+    // feature's advisory lock that happens to use the same second key.
+    expect(params[0]).toBe(0x4d41);
 
     // A different project hashes to a different key, so two projects never
     // block each other.
@@ -510,6 +524,90 @@ describe('MatchRunService', () => {
     await service.execute('r1', 'org1');
     const otherLock = runnerQuery.mock.calls.find((c) => String(c[0]).includes('pg_try_advisory_lock'))!;
     expect(otherLock[1]).not.toEqual(lock[1]);
+  });
+
+  it('refuses to re-execute a run that has already finished', async () => {
+    // `execute` is public and the integration test calls it directly; a
+    // second call must not re-run the pipeline over a terminal row.
+    runRepo.findOne.mockResolvedValue({ ...baseRun(), status: 'completed' } as MatchRun);
+    await expect(service.execute('r1', 'org1')).rejects.toThrow(ConflictException);
+    await expect(service.execute('r1', 'org1')).rejects.toThrow(/already finished/i);
+    expect(materialize.materialize).not.toHaveBeenCalled();
+    // Above all: the completed row is not rewritten, not even as failed.
+    expect(runRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('re-checks the local-provider gate on execute, not only on start', async () => {
+    settings.getOrganizationSettings.mockResolvedValue({ aiProvider: AiProvider.OPENAI });
+    await expect(service.execute('r1', 'org1')).rejects.toThrow(BadRequestException);
+    expect(materialize.materialize).not.toHaveBeenCalled();
+    expect(lastSaved().status).toBe('failed');
+  });
+
+  it('completes the run even when releasing the connection throws', async () => {
+    // `QueryRunner.release()` can reject (QueryRunnerAlreadyReleasedError,
+    // or a driver handing back a broken connection). Unguarded it escapes
+    // the finally and persists a successful run as failed.
+    runnerRelease.mockRejectedValue(new Error('QueryRunnerAlreadyReleasedError'));
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    await expect(service.execute('r1', 'org1')).resolves.toBeUndefined();
+    expect(lastSaved().status).toBe('completed');
+    expect(lastSaved().errorMessage).toBeNull();
+  });
+
+  it('keeps the stage error when releasing the connection throws on the failure path', async () => {
+    materialize.materialize.mockRejectedValue(new Error('source unreachable'));
+    runnerRelease.mockRejectedValue(new Error('QueryRunnerAlreadyReleasedError'));
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    // The release error must not overwrite the cause the run exists to record.
+    await expect(service.execute('r1', 'org1')).rejects.toThrow('source unreachable');
+    expect(lastSaved().errorMessage).toContain('source unreachable');
+  });
+
+  it('keeps the stage error when recording the failure itself fails', async () => {
+    materialize.materialize.mockRejectedValue(new Error('source unreachable'));
+    runRepo.save.mockImplementation(async (entity: MatchRun) => {
+      if (entity.status === 'failed') throw new Error('metadata database is down');
+      return entity;
+    });
+    const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    await expect(service.execute('r1', 'org1')).rejects.toThrow('source unreachable');
+    expect(String(errorLog.mock.calls[0][0])).toContain('source unreachable');
+  });
+
+  it('does not report a completed run as failed when recording the completion fails', async () => {
+    runRepo.save.mockImplementation(async (entity: MatchRun) => {
+      if (entity.status === 'completed') throw new Error('metadata database is down');
+      return entity;
+    });
+    const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    await expect(service.execute('r1', 'org1')).resolves.toBeUndefined();
+    // The failed write is the only record that the run ended, hence error level.
+    expect(String(errorLog.mock.calls[0][0])).toContain('metadata database is down');
+    // Nothing was persisted as failed.
+    expect(statusHistory()).not.toContain('failed');
+  });
+
+  it('releases the connection and fails the run when the lock query itself throws', async () => {
+    runnerQuery.mockRejectedValue(new Error('connection reset'));
+    await expect(service.execute('r1', 'org1')).rejects.toThrow('connection reset');
+    expect(runnerRelease).toHaveBeenCalledTimes(1);
+    expect(materialize.materialize).not.toHaveBeenCalled();
+    expect(lastSaved().status).toBe('failed');
+  });
+
+  it('fails the run when connecting for the lock throws', async () => {
+    runnerConnect.mockRejectedValue(new Error('pool exhausted'));
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    await expect(service.execute('r1', 'org1')).rejects.toThrow('pool exhausted');
+    expect(runnerQuery).not.toHaveBeenCalled();
+    // `connect` inside the try means even this path exits through the release.
+    expect(runnerRelease).toHaveBeenCalledTimes(1);
+    expect(lastSaved().status).toBe('failed');
   });
 
   it('still releases the connection when the unlock statement itself fails', async () => {
