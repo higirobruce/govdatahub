@@ -114,43 +114,77 @@ describe('ScoringService', () => {
   const insertSql = (): string => insertCall()[0];
 
   /**
-   * Evaluates the insert's row filter for one synthetic pair.
+   * Ruling R25: `match_decisions.decision` holds a person's *verdict*
+   * (`'match'` / `'no_match'`); `match_candidates.decision` holds a pair's
+   * *state in a run* (`'auto_match'` / `'grey'` / `'confirmed'` /
+   * `'rejected'`). The generated SQL translates one into the other. These
+   * three readers model that whole path -- verdict in, stored state out --
+   * so the R23 and R25 tests assert what the statement *does* to a pair
+   * rather than what it looks like.
    *
-   * Deliberately a narrow reader of the exact predicate grammar this
-   * service emits -- `score >= $n::double precision`, optionally OR-ed with
-   * `human_decision IS NOT NULL` -- and not a SQL parser. It exists so the
-   * Ruling R23 tests can assert what the filter *does* to a pair rather
-   * than what it looks like, and it throws on any term it does not
-   * recognise so a rewritten predicate fails loudly instead of quietly
-   * passing.
+   * They are narrow readers of the exact grammar this service emits, not
+   * SQL parsers, and they throw on anything they do not recognise so a
+   * rewritten statement fails loudly instead of passing vacuously.
    */
-  const wouldInsert = (
-    sql: string,
-    params: unknown[],
-    pair: { score: number; humanDecision: string | null },
-  ): boolean => {
-    const predicate = sql.match(/\n  WHERE ([^\n]+)\n  ON CONFLICT/);
-    if (!predicate) throw new Error(`No recognisable row filter in:\n${sql}`);
-    return predicate[1].split(/\s+OR\s+/).some((term) => {
-      const threshold = term.match(/^score >= \$(\d+)::double precision$/);
-      if (threshold) return pair.score >= Number(params[Number(threshold[1]) - 1]);
-      if (term === 'human_decision IS NOT NULL') return pair.humanDecision !== null;
-      throw new Error(`Unrecognised term in the row filter: "${term}"`);
-    });
+
+  /** The verdict values the `decisions` CTE admits at all. */
+  const verdictsAdmitted = (sql: string): string[] => {
+    const filter = sql.match(/AND "decision" IN \(([^)]+)\)/);
+    if (!filter) throw new Error(`No verdict filter on match_decisions in:\n${sql}`);
+    return [...filter[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
   };
 
-  /** Same idea for the `decision` CASE: what label would this pair be stored with? */
-  const decisionFor = (
+  /** The CTE's verdict -> candidate-state mapping, as data. `{}` if absent. */
+  const verdictMapping = (sql: string): Record<string, string> => {
+    const block = sql.match(
+      /CASE \(array_agg\("decision" ORDER BY "created_at" DESC, "id" DESC\)\)\[1\]([\s\S]*?)END AS decision/,
+    );
+    if (!block) return {};
+    return Object.fromEntries(
+      [...block[1].matchAll(/WHEN '([a-z_]+)' THEN '([a-z_]+)'/g)].map((m) => [m[1], m[2]]),
+    );
+  };
+
+  /**
+   * What the statement does to one candidate pair: is it stored, and under
+   * which `match_candidates.decision`?
+   */
+  const simulate = (
     sql: string,
     params: unknown[],
-    pair: { score: number; humanDecision: string | null },
-  ): string => {
+    pair: { score: number; verdict: string | null },
+  ): { stored: boolean; decision: string | null } => {
+    // 1. the decisions CTE: admit the verdict, then translate it.
+    let humanDecision: string | null = null;
+    if (pair.verdict !== null && verdictsAdmitted(sql).includes(pair.verdict)) {
+      const mapped = verdictMapping(sql)[pair.verdict];
+      if (!mapped) {
+        throw new Error(`Verdict "${pair.verdict}" is admitted but never mapped to a candidate state`);
+      }
+      humanDecision = mapped;
+    }
+
+    // 2. the insert's row filter.
+    const predicate = sql.match(/\n  WHERE ([^\n]+)\n  ON CONFLICT/);
+    if (!predicate) throw new Error(`No recognisable row filter in:\n${sql}`);
+    const stored = predicate[1].split(/\s+OR\s+/).some((term) => {
+      const threshold = term.match(/^score >= \$(\d+)::double precision$/);
+      if (threshold) return pair.score >= Number(params[Number(threshold[1]) - 1]);
+      if (term === 'human_decision IS NOT NULL') return humanDecision !== null;
+      throw new Error(`Unrecognised term in the row filter: "${term}"`);
+    });
+    if (!stored) return { stored: false, decision: null };
+
+    // 3. the decision CASE.
     const arms = sql.match(
       /CASE WHEN human_decision IS NOT NULL THEN human_decision\s+WHEN score >= \$(\d+)::double precision THEN 'auto_match'\s+ELSE 'grey' END/,
     );
     if (!arms) throw new Error(`No recognisable decision CASE in:\n${sql}`);
-    if (pair.humanDecision !== null) return pair.humanDecision;
-    return pair.score >= Number(params[Number(arms[1]) - 1]) ? 'auto_match' : 'grey';
+    if (humanDecision !== null) return { stored: true, decision: humanDecision };
+    return {
+      stored: true,
+      decision: pair.score >= Number(params[Number(arms[1]) - 1]) ? 'auto_match' : 'grey',
+    };
   };
 
   beforeEach(async () => {
@@ -225,28 +259,57 @@ describe('ScoringService', () => {
     expect(String(query.mock.calls[1][0])).toContain('INSERT INTO "match_candidates"');
   });
 
-  it('stores a confirmed pair whose computed score falls below rejectAt (Ruling R23)', async () => {
+  it('stores a pair a person ruled a match, whose computed score falls below rejectAt (R23/R25)', async () => {
     // A steward only ever adjudicates the pairs the score was unsure about
-    // -- a pair scoring 0.95 never reaches the review queue -- so confirmed
+    // -- a pair scoring 0.95 never reaches the review queue -- so decided
     // pairs skew low-scoring by construction. Filtering on score alone
     // discards the human verdict exactly where it carries the most
     // information, and the next run re-asks a question someone already
     // answered. rejectAt is 0.55 here.
     await service.scorePass(project, run, equiPass, []);
     const [sql, params] = insertCall();
-    const pair = { score: 0.4, humanDecision: 'confirmed' };
-    expect(wouldInsert(sql, params, pair)).toBe(true);
-    expect(decisionFor(sql, params, pair)).toBe('confirmed');
+    expect(simulate(sql, params, { score: 0.4, verdict: 'match' })).toEqual({
+      stored: true,
+      decision: 'confirmed',
+    });
   });
 
-  it('stores a rejected pair whose computed score falls below rejectAt (Ruling R23)', async () => {
+  it('stores a pair a person ruled no_match, whose computed score falls below rejectAt (R23/R25)', async () => {
     // A recorded non-match is just as permanent as a recorded match;
     // re-proposing it every run is the same defect wearing the opposite sign.
     await service.scorePass(project, run, equiPass, []);
     const [sql, params] = insertCall();
-    const pair = { score: 0.2, humanDecision: 'rejected' };
-    expect(wouldInsert(sql, params, pair)).toBe(true);
-    expect(decisionFor(sql, params, pair)).toBe('rejected');
+    expect(simulate(sql, params, { score: 0.2, verdict: 'no_match' })).toEqual({
+      stored: true,
+      decision: 'rejected',
+    });
+  });
+
+  it('maps a verdict to a candidate state and cannot silently swap the two (Ruling R25)', async () => {
+    // `match_decisions.decision` is what a person said;
+    // `match_candidates.decision` is a pair's state in a run. They are
+    // different vocabularies, and the join reads the first one. Filtering
+    // for candidate states here -- as this service did before R25 -- matches
+    // nothing a reviewer can ever produce, so every human decision becomes
+    // invisible and the queue re-asks every question forever, with no error
+    // anywhere.
+    await service.scorePass(project, run, equiPass, []);
+    const [sql, params] = insertCall();
+    expect(verdictsAdmitted(sql).sort()).toEqual(['match', 'no_match']);
+    expect(verdictMapping(sql)).toEqual({ match: 'confirmed', no_match: 'rejected' });
+    // Swapping the two arms must fail, so pin each direction end to end.
+    expect(simulate(sql, params, { score: 0.99, verdict: 'match' }).decision).toBe('confirmed');
+    expect(simulate(sql, params, { score: 0.99, verdict: 'no_match' }).decision).toBe('rejected');
+    // A candidate state is not a verdict: a stray 'confirmed' or
+    // 'auto_match' in the verdict column must not be honoured as one. Such
+    // a pair falls through to the thresholds instead of being taken as a
+    // human ruling -- the safe failure (it is re-reviewed) rather than the
+    // unsafe one (a fabricated verdict merges two citizens).
+    expect(simulate(sql, params, { score: 0.4, verdict: 'confirmed' })).toEqual({
+      stored: false,
+      decision: null,
+    });
+    expect(simulate(sql, params, { score: 0.99, verdict: 'auto_match' }).decision).toBe('auto_match');
   });
 
   it('still discards an undecided pair below rejectAt, and keeps one at the boundary', async () => {
@@ -255,10 +318,12 @@ describe('ScoringService', () => {
     // unaffected, and `>=` stays inclusive at the threshold itself.
     await service.scorePass(project, run, equiPass, []);
     const [sql, params] = insertCall();
-    expect(wouldInsert(sql, params, { score: 0.54, humanDecision: null })).toBe(false);
-    expect(wouldInsert(sql, params, { score: 0.55, humanDecision: null })).toBe(true);
-    expect(decisionFor(sql, params, { score: 0.55, humanDecision: null })).toBe('grey');
-    expect(decisionFor(sql, params, { score: 0.9, humanDecision: null })).toBe('auto_match');
+    expect(simulate(sql, params, { score: 0.54, verdict: null }).stored).toBe(false);
+    expect(simulate(sql, params, { score: 0.55, verdict: null })).toEqual({ stored: true, decision: 'grey' });
+    expect(simulate(sql, params, { score: 0.9, verdict: null })).toEqual({
+      stored: true,
+      decision: 'auto_match',
+    });
   });
 
   it('derives autoReject from what was stored, not from the label counts', async () => {
@@ -277,6 +342,9 @@ describe('ScoringService', () => {
     await service.scorePass(project, run, equiPass, []);
     const [sql, params] = insertCall();
     expect(sql).toContain('match_decisions');
+    // The join reads verdicts (Ruling R25) and stores candidate states.
+    expect(sql).toContain(`'match'`);
+    expect(sql).toContain(`'no_match'`);
     expect(sql).toContain(`'confirmed'`);
     expect(sql).toContain(`'rejected'`);
     // The human verdict wins over the thresholds, and is not merely one
