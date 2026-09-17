@@ -218,6 +218,14 @@ record. Dimension is 384 because the CPU-profile embedding model is a small
 multilingual encoder, not the 1024-dimension `bge-m3` used by
 `catalog_embeddings`; the two tables are deliberately independent.
 
+**Ruling R28 — `match_gold_pairs` DOES get a TypeORM entity**, unlike its
+neighbours in this list. Grouping it with the bulk tables was a
+mis-classification: `match_candidates` and `match_crosswalk` are written
+millions of rows at a time by set-based statements, which is why they are raw
+SQL. The gold set is small, read wholesale by the evaluator, and written one
+row at a time by a controller endpoint — precisely the access pattern an
+entity serves. The entity maps the existing DDL; no migration changes.
+
 **`match_gold_pairs`** — the evaluation set. `organization_id`, `project_id`,
 `left_source_ref`, `left_key`, `right_source_ref`, `right_key`,
 `is_match boolean`, `labelled_by`, `labelled_at`.
