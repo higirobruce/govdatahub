@@ -165,7 +165,10 @@ export class ScoringService {
    *    `left_key`/`right_key` only, already guarded by
    *    `l."src_key" < r."src_key"`.
    *  - `decisions` -- one row per *order-normalized* key pair for this
-   *    org and project. `least`/`greatest` on both sides of the join is
+   *    org and project, with the person's verdict translated into the
+   *    candidate state it becomes (Ruling R25: `'match'` -> `'confirmed'`,
+   *    `'no_match'` -> `'rejected'`; the two vocabularies are distinct and
+   *    only the verdict one is ever stored on `match_decisions`). `least`/`greatest` on both sides of the join is
    *    what lets a verdict a person recorded as `(b, a)` be found for a
    *    candidate pair proposed as `(a, b)`; the `GROUP BY` is what stops a
    *    pair that has more than one decision row (both orders, or two
@@ -221,11 +224,23 @@ export class ScoringService {
       `WITH pairs AS (\n${pairsSql}\n), decisions AS (\n` +
       `  SELECT least("left_key", "right_key") AS k1,\n` +
       `         greatest("left_key", "right_key") AS k2,\n` +
-      `         (array_agg("decision" ORDER BY "created_at" DESC, "id" DESC))[1] AS decision\n` +
+      // Ruling R25: `match_decisions.decision` is a person's verdict
+      // (`MatchVerdict`), `match_candidates.decision` is a pair's state in
+      // a run (`CandidateDecision`). Translate once, here, at the boundary
+      // where the verdict is read, so everything downstream works in
+      // candidate states. The CASE is exhaustive over the WHERE below, and
+      // deliberately has no ELSE: were an unexpected value ever to reach
+      // it, the pair reads as undecided and is scored normally -- the safe
+      // failure (it gets reviewed again) rather than the unsafe one (a
+      // fabricated verdict silently merges or splits two citizens).
+      `         CASE (array_agg("decision" ORDER BY "created_at" DESC, "id" DESC))[1]\n` +
+      `           WHEN 'match' THEN 'confirmed'\n` +
+      `           WHEN 'no_match' THEN 'rejected'\n` +
+      `         END AS decision\n` +
       `  FROM "match_decisions"\n` +
       `  WHERE "organization_id" = $${pOrg}::text\n` +
       `    AND "project_id" = $${pProject}::text\n` +
-      `    AND "decision" IN ('confirmed', 'rejected')\n` +
+      `    AND "decision" IN ('match', 'no_match')\n` +
       `  GROUP BY least("left_key", "right_key"), greatest("left_key", "right_key")\n` +
       `), scored AS (\n` +
       `  SELECT p.left_key AS left_key,\n` +
