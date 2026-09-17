@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Not, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,6 +11,7 @@ import {
   AddGoldPairDto,
   CreateMatchProjectDto,
   GetCandidatesQueryDto,
+  GetClustersQueryDto,
   SubmitDecisionDto,
   UpdateMatchProjectDto,
 } from './dto';
@@ -35,6 +36,8 @@ export interface RunEvaluation {
 
 const DEFAULT_CANDIDATES_LIMIT = 50;
 const MAX_CANDIDATES_LIMIT = 500;
+const DEFAULT_CLUSTERS_LIMIT = 50;
+const MAX_CLUSTERS_LIMIT = 500;
 
 /**
  * `MatchingController`'s only collaborator. This is where organization
@@ -98,8 +101,39 @@ export class MatchingService {
     return this.loadProject(id, organizationId);
   }
 
+  /**
+   * Ruling R32: refuses an inactive (soft-deleted) project outright, via
+   * `loadActiveProject`.
+   *
+   * Ruling R33: `lawfulBasis`, `dataOwner` and `columnAllowlist` are the
+   * recorded authority for data already copied under this project.
+   * Before the project's first run they are ordinary configuration and
+   * freely editable; from the first run onward a *change* to any of them
+   * is refused with a 409 -- widening `columnAllowlist` after data has
+   * moved would retroactively change the legal boundary the copy was
+   * permitted under, with nothing recording that the boundary moved.
+   * Resubmitting the value already stored (including `columnAllowlist` in
+   * a different order) is not a change and is allowed even after a run.
+   */
   async updateProject(id: string, dto: UpdateMatchProjectDto, organizationId: string): Promise<MatchProject> {
-    const project = await this.loadProject(id, organizationId);
+    const project = await this.loadActiveProject(id, organizationId);
+
+    const changesLawfulBasis = dto.lawfulBasis !== undefined && dto.lawfulBasis !== project.lawfulBasis;
+    const changesDataOwner = dto.dataOwner !== undefined && dto.dataOwner !== project.dataOwner;
+    const changesColumnAllowlist =
+      dto.columnAllowlist !== undefined && !this.sameColumnSet(dto.columnAllowlist, project.columnAllowlist);
+
+    if (changesLawfulBasis || changesDataOwner || changesColumnAllowlist) {
+      const runCount = await this.runRepo.count({ where: { projectId: id, organizationId } });
+      if (runCount > 0) {
+        throw new ConflictException(
+          `Match project ${id} has at least one run: lawfulBasis, dataOwner and columnAllowlist are the ` +
+            `recorded authority for data already copied under this project, and are immutable from its ` +
+            `first run onward (Ruling R33) -- create a new project instead of changing them.`,
+        );
+      }
+    }
+
     if (dto.name !== undefined) project.name = dto.name;
     if (dto.description !== undefined) project.description = dto.description;
     if (dto.mode !== undefined) project.mode = dto.mode;
@@ -132,8 +166,9 @@ export class MatchingService {
     await this.projectRepo.save(project);
   }
 
+  /** Ruling R32: an inactive project refuses estimation, not just runs. */
   async estimate(id: string, organizationId: string): Promise<BlockingEstimate> {
-    const project = await this.loadProject(id, organizationId);
+    const project = await this.loadActiveProject(id, organizationId);
     return this.blocking.estimate(project);
   }
 
@@ -150,6 +185,13 @@ export class MatchingService {
    * early one.
    */
   async startRun(id: string, organizationId: string): Promise<MatchRun> {
+    // Ruling R32: `MatchRunService.start` checks `mode`, never `status` --
+    // without this, a "deleted" project could still materialize fresh
+    // citizen data into a workspace table. Guarded here, at the HTTP
+    // surface's own service, rather than inside `MatchRunService`, which
+    // belongs to a different task and whose lock/lifecycle design this
+    // change must not touch.
+    await this.loadActiveProject(id, organizationId);
     return this.matchRun.start(id, organizationId);
   }
 
@@ -182,10 +224,15 @@ export class MatchingService {
     }
     params.push(limit, offset);
 
+    // Ties on `score` are common (many pairs land on the same weighted
+    // sum), and ORDER BY + LIMIT/OFFSET over an untied column is not a
+    // stable pagination order: a steward paging the review queue could
+    // see the same pair twice and never see another one at all. The
+    // tiebreaker columns are fixed identifiers, never user input.
     return this.dataSource.query(
       `SELECT "left_key", "right_key", "score", "decision", "blocking_pass" FROM "match_candidates" ` +
         `WHERE "organization_id" = $1 AND "run_id" = $2${decisionClause} ` +
-        `ORDER BY "score" DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        `ORDER BY "score" DESC, "left_key", "right_key" LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
   }
@@ -205,7 +252,8 @@ export class MatchingService {
     organizationId: string,
     userId: string,
   ): Promise<MatchDecision> {
-    await this.loadProject(projectId, organizationId);
+    // Ruling R32: an inactive project refuses new decisions.
+    await this.loadActiveProject(projectId, organizationId);
     const decision = this.decisionRepo.create({
       id: uuidv4(),
       organizationId,
@@ -224,11 +272,24 @@ export class MatchingService {
 
   // ─── Clusters ────────────────────────────────────────────────────────
 
-  async listClusters(runId: string, organizationId: string): Promise<MatchEntity[]> {
+  /**
+   * One row per cluster over a national registry is plausibly millions;
+   * capped and paginated the same way `listCandidates` is, rather than
+   * serialising every cluster for a run in one response.
+   */
+  async listClusters(
+    runId: string,
+    organizationId: string,
+    query: GetClustersQueryDto,
+  ): Promise<MatchEntity[]> {
     await this.loadRun(runId, organizationId);
+    const take = Math.min(query.limit ?? DEFAULT_CLUSTERS_LIMIT, MAX_CLUSTERS_LIMIT);
+    const skip = query.offset ?? 0;
     return this.entityRepo.find({
       where: { runId, organizationId },
       order: { flagged: 'DESC', size: 'DESC' },
+      take,
+      skip,
     });
   }
 
@@ -253,7 +314,8 @@ export class MatchingService {
     organizationId: string,
     userId: string,
   ): Promise<MatchGoldPair> {
-    await this.loadProject(projectId, organizationId);
+    // Ruling R32: an inactive project refuses new gold-pair labels.
+    await this.loadActiveProject(projectId, organizationId);
     const pair = this.goldRepo.create({
       id: uuidv4(),
       organizationId,
@@ -274,6 +336,43 @@ export class MatchingService {
       throw new NotFoundException(`Match project ${id} not found`);
     }
     return project;
+  }
+
+  /**
+   * Ruling R32: every *mutating* method calls this instead of
+   * `loadProject`. A soft-deleted (`status: 'inactive'`) project must
+   * refuse further mutation -- otherwise deletion is cosmetic: the run
+   * orchestrator checks `mode`, never `status`, so without this guard a
+   * "deleted" project could still materialize fresh citizen data into a
+   * workspace table. Every *read* method keeps calling `loadProject`
+   * directly and is deliberately not routed through here: an auditor
+   * reconstructing why a decision was made must still be able to reach
+   * an inactive project's `lawfulBasis`/`dataOwner`.
+   */
+  private async loadActiveProject(id: string, organizationId: string): Promise<MatchProject> {
+    const project = await this.loadProject(id, organizationId);
+    if (project.status === 'inactive') {
+      throw new ConflictException(
+        `Match project ${id} has been deleted (status: inactive) -- create a new project instead of ` +
+          `mutating a deleted one.`,
+      );
+    }
+    return project;
+  }
+
+  /**
+   * Order-insensitive set equality for `columnAllowlist`. Reordering the
+   * same set of columns is not a change to the legal boundary of what
+   * gets copied (Ruling R33), so it must not trip the post-run
+   * immutability guard the way an actual widening or narrowing does.
+   */
+  private sameColumnSet(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) {
+      return false;
+    }
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((value, index) => value === sortedB[index]);
   }
 
   private async loadRun(runId: string, organizationId: string): Promise<MatchRun> {

@@ -13,6 +13,7 @@ import {
   AddGoldPairDto,
   CreateMatchProjectDto,
   GetCandidatesQueryDto,
+  GetClustersQueryDto,
   SubmitDecisionDto,
   UpdateMatchProjectDto,
 } from './dto';
@@ -108,19 +109,39 @@ describe('MatchingController', () => {
     expect(service.createProject).toHaveBeenCalledWith(dto, 'org1');
   });
 
+  /**
+   * NOT `Object.assign(new CreateMatchProjectDto(), {...})` as the brief's
+   * Step 1 code originally had it. `Object.assign` leaves `leftSource`,
+   * `fieldMap`, `blockingPasses` and `thresholds` as plain object
+   * literals rather than instances of their nested DTO classes, and
+   * `@ValidateNested()` cannot recognize a plain object as "an instance of
+   * the nested class" without `class-transformer` having run --
+   * `validate()` alone reports a generic "unknown value" failure on each
+   * of those four nested properties regardless of what the deliberately
+   * broken field is. That makes `expect(errors.length).toBeGreaterThan(0)`
+   * true unconditionally: it would pass against a `lawfulBasis` (or
+   * `columnAllowlist`) with zero decorators at all, purely from that
+   * baseline noise. `plainToInstance` is what the global `ValidationPipe`
+   * (`transform: true`) actually runs on every request, and asserting the
+   * specific constraint key -- not just "some error exists" -- is what
+   * proves the rule under test is the one that fired.
+   */
   it('rejects a create whose lawful basis is empty', async () => {
-    const errors = await validate(Object.assign(new CreateMatchProjectDto(), { ...dto, lawfulBasis: '' }));
-    expect(errors.length).toBeGreaterThan(0);
+    const errors = await validate(plainToInstance(CreateMatchProjectDto, { ...dto, lawfulBasis: '' }));
+    const lawfulBasisError = errors.find((error) => error.property === 'lawfulBasis');
+    expect(lawfulBasisError?.constraints).toHaveProperty('isNotEmpty');
   });
 
   it('rejects a create whose data owner is missing', async () => {
-    const errors = await validate(Object.assign(new CreateMatchProjectDto(), { ...dto, dataOwner: undefined }));
-    expect(errors.length).toBeGreaterThan(0);
+    const errors = await validate(plainToInstance(CreateMatchProjectDto, { ...dto, dataOwner: undefined }));
+    const dataOwnerError = errors.find((error) => error.property === 'dataOwner');
+    expect(dataOwnerError?.constraints).toHaveProperty('isNotEmpty');
   });
 
   it('rejects a create whose column allow-list is empty', async () => {
-    const errors = await validate(Object.assign(new CreateMatchProjectDto(), { ...dto, columnAllowlist: [] }));
-    expect(errors.length).toBeGreaterThan(0);
+    const errors = await validate(plainToInstance(CreateMatchProjectDto, { ...dto, columnAllowlist: [] }));
+    const columnAllowlistError = errors.find((error) => error.property === 'columnAllowlist');
+    expect(columnAllowlistError?.constraints).toHaveProperty('arrayNotEmpty');
   });
 
   it('rejects thresholds where rejectAt is above matchAt', async () => {
@@ -176,8 +197,8 @@ describe('MatchingController', () => {
       await controller.getRun('r1', user);
       expect(service.findRun).toHaveBeenCalledWith('r1', 'org1');
 
-      await controller.getClusters('r1', user);
-      expect(service.listClusters).toHaveBeenCalledWith('r1', 'org1');
+      await controller.getClusters('r1', {} as any, user);
+      expect(service.listClusters).toHaveBeenCalledWith('r1', 'org1', {});
 
       await controller.getEvaluate('r1', user);
       expect(service.evaluate).toHaveBeenCalledWith('r1', 'org1');
@@ -526,6 +547,28 @@ describe('MatchingController', () => {
 
     it('rejects a negative offset', async () => {
       const errors = await validate(plainToInstance(GetCandidatesQueryDto, { offset: '-1' }));
+      expect(errors.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // GetClustersQueryDto: pagination for the (potentially millions-of-rows)
+  // cluster list -- Minor finding 4, "GET runs/:runId/clusters is unbounded"
+  // ---------------------------------------------------------------------
+
+  describe('GetClustersQueryDto validation', () => {
+    it('accepts an empty query (every field optional)', async () => {
+      const errors = await validate(plainToInstance(GetClustersQueryDto, {}));
+      expect(errors).toHaveLength(0);
+    });
+
+    it('rejects a limit above the cap', async () => {
+      const errors = await validate(plainToInstance(GetClustersQueryDto, { limit: '5000' }));
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('rejects a negative offset', async () => {
+      const errors = await validate(plainToInstance(GetClustersQueryDto, { offset: '-1' }));
       expect(errors.length).toBeGreaterThan(0);
     });
   });
