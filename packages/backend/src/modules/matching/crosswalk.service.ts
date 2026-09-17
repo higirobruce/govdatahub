@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { MatchEntity } from '../../database/entities';
 import type { MatchProject, MatchRun, MatchSourceRef } from '../../database/entities';
 
@@ -10,6 +10,7 @@ export interface CrosswalkPublishResult {
 
 /** One row this service is about to upsert into `match_crosswalk`. */
 interface CrosswalkRowInput {
+  sourceRef: string;
   sourceKey: string;
   entityKey: string;
 }
@@ -48,16 +49,23 @@ export class CrosswalkService {
    * `'connection:<connectionId>:<schema>.<table>'` or
    * `'staged:<stagedDataId>'`.
    *
-   * Must produce byte-identical output to `ClusteringService`'s private
-   * `buildSourceRef` for the same source: Task 9 stamps this exact string
-   * into every `MatchEntity.members[].sourceRef` at cluster time, and this
-   * is the only key the Crosswalk can use to join back to the clusters it
-   * came from. If the two ever disagree, no test here or in
-   * `clustering.service.spec.ts` can catch it -- both suites mock
-   * `dataSource.query`/the repository and never run the two
-   * implementations side by side. See `clustering.service.ts:297` for the
-   * sibling implementation; the task report for this service records a
-   * direct line-by-line comparison of the two.
+   * `publish` below does *not* call this to build a row's `source_ref` --
+   * it reads the value `ClusteringService` already stamped onto each
+   * `MatchMember`, per member, so a re-derivation can never drift from
+   * what was actually persisted. This method stays the canonical
+   * formatter for any caller that only has a bare `MatchSourceRef` and
+   * needs the same string (it is also what the brief specifies as this
+   * service's public surface).
+   *
+   * `ClusteringService` still carries a private copy of this exact rule
+   * (`buildSourceRef`, `clustering.service.ts:297`) because it was
+   * written before this service existed. The two bodies are
+   * byte-identical today; that agreement was verified by direct
+   * comparison, not inferred from passing tests (see the Task 10
+   * report). Consolidating the two into one shared implementation is
+   * deferred rather than done here -- reaching back into Task 9's
+   * completed, reviewed code is out of scope for this task -- but
+   * whichever of the two is next touched should fold the other into it.
    */
   sourceRef(source: MatchSourceRef): string {
     if (source.kind === 'connection') {
@@ -82,15 +90,30 @@ export class CrosswalkService {
    * again in memory immediately after, so this method's own behaviour
    * does not depend on the read actually having applied that filter.
    *
-   * `sourceRef` is computed once from `project.leftSource` via
-   * `this.sourceRef(...)`, never read off a member's own stored
-   * `sourceRef` -- both must agree by construction (see `sourceRef`'s
-   * doc comment), but computing it fresh here means this method's
-   * correctness never depends on what a prior run happened to persist.
+   * Each row's `source_ref` is `member.sourceRef` -- the exact string
+   * `ClusteringService` stamped onto that member at cluster time -- read
+   * per member, not computed once from `project.leftSource` and not
+   * copied from `members[0]`. In phase 1 (one Match Source per dedupe
+   * project) every member of a cluster carries the same value, so the
+   * two approaches are indistinguishable today; phase 3 adds a second
+   * source, and reading each member's own value is what keeps this
+   * correct once that lands instead of silently wrong.
    *
    * Entity keys are never regenerated or reordered here: each row binds
    * `cluster.entityKey` exactly as `ClusteringService.resolveEntityKey`
    * decided it, which is what keeps the key stable across re-runs.
+   *
+   * The whole write is one transaction: `match_crosswalk` is a permanent
+   * table other features join against live, unlike the per-run
+   * workspace table `MaterializeService.insertPage` chunks without one
+   * (that table is dropped and rebuilt every run, so a mid-loop failure
+   * there is harmless). A cluster large enough to need a second chunk
+   * that then fails would otherwise leave the first chunk durably
+   * committed and the published Crosswalk sitting partially updated
+   * until the next successful run -- not data-destructive, since every
+   * statement is an upsert and a retry converges, but a real
+   * inconsistency window in the thing this feature exists to produce.
+   * Wrapping the loop means a mid-loop failure leaves nothing written.
    */
   async publish(project: MatchProject, run: MatchRun): Promise<CrosswalkPublishResult> {
     const clusters = await this.entityRepo.find({
@@ -102,12 +125,11 @@ export class CrosswalkService {
       },
     });
 
-    const ref = this.sourceRef(project.leftSource);
     const rows: CrosswalkRowInput[] = [];
     for (const cluster of clusters) {
       if (cluster.flagged) continue; // defence in depth -- see doc comment above.
       for (const member of cluster.members) {
-        rows.push({ sourceKey: member.sourceKey, entityKey: cluster.entityKey });
+        rows.push({ sourceRef: member.sourceRef, sourceKey: member.sourceKey, entityKey: cluster.entityKey });
       }
     }
 
@@ -115,11 +137,13 @@ export class CrosswalkService {
 
     const maxRowsPerStatement = Math.max(1, Math.floor(PG_MAX_BOUND_PARAMS / PARAMS_PER_ROW));
     let written = 0;
-    for (let offset = 0; offset < rows.length; offset += maxRowsPerStatement) {
-      const chunk = rows.slice(offset, offset + maxRowsPerStatement);
-      await this.upsertChunk(project.organizationId, project.id, ref, chunk);
-      written += chunk.length;
-    }
+    await this.dataSource.transaction(async (manager: EntityManager) => {
+      for (let offset = 0; offset < rows.length; offset += maxRowsPerStatement) {
+        const chunk = rows.slice(offset, offset + maxRowsPerStatement);
+        await this.upsertChunk(manager, project.organizationId, project.id, chunk);
+        written += chunk.length;
+      }
+    });
 
     // Counts and the run/project ids only -- a source key is personal
     // data and never goes to the log.
@@ -131,7 +155,10 @@ export class CrosswalkService {
   }
 
   /**
-   * One parameterized, multi-row `INSERT ... ON CONFLICT DO UPDATE`.
+   * One parameterized, multi-row `INSERT ... ON CONFLICT DO UPDATE`,
+   * issued on the transaction's manager (see `publish`'s doc comment for
+   * why the whole loop is one transaction) rather than on `this.dataSource`
+   * directly.
    *
    * The `ON CONFLICT` target lists exactly the four columns of
    * `pk_match_crosswalk` (see the `1711000000010-AddEntityMatching`
@@ -156,9 +183,9 @@ export class CrosswalkService {
    * doubt and keeps this statement consistent with its siblings.
    */
   private async upsertChunk(
+    manager: EntityManager,
     organizationId: string,
     projectId: string,
-    sourceRef: string,
     chunk: CrosswalkRowInput[],
   ): Promise<void> {
     const params: unknown[] = [];
@@ -166,13 +193,13 @@ export class CrosswalkService {
     let p = 1;
 
     for (const row of chunk) {
-      params.push(organizationId, projectId, sourceRef, row.sourceKey, row.entityKey, null);
+      params.push(organizationId, projectId, row.sourceRef, row.sourceKey, row.entityKey, null);
       valueTuples.push(
         `($${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::double precision, now())`,
       );
     }
 
-    await this.dataSource.query(
+    await manager.query(
       `INSERT INTO "match_crosswalk" ` +
         `("organization_id", "project_id", "source_ref", "source_key", "entity_key", "confidence", "updated_at") ` +
         `VALUES ${valueTuples.join(', ')} ` +
