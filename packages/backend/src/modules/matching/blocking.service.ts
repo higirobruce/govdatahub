@@ -11,6 +11,23 @@ import { MaterializeService } from './materialize.service';
  */
 const DEGENERATE_KEY_SHARE = 0.005;
 
+/**
+ * Ruling R19: the percentage alone is wrong for small and mid-sized
+ * tables. On a 1,000-row table, 0.5% is five rows -- a surname shared by
+ * six people is ordinary data, not degenerate, and dropping it silently
+ * loses real matches (the failure is invisible: the pairs simply never
+ * get proposed). The floor is justified by what a small key can actually
+ * do to the join: a key at exactly this floor contributes
+ * `50*49/2 = 1,225` pairs, which is nothing against the
+ * `MATCHING_MAX_CANDIDATE_PAIRS` cap (default 250,000,000) -- excluding
+ * it buys no protection and only costs recall. Do not tune this number
+ * down "to be safer"; above roughly 10,000 rows the percentage term
+ * dominates `max()` again on its own, which is the regime Ruling P8 was
+ * written for (0.5% of ten million is 50,000 rows sharing one key --
+ * unambiguously degenerate).
+ */
+const DEGENERATE_KEY_FLOOR = 50;
+
 /** Default cap on total projected candidate pairs across all passes; see `MATCHING_MAX_CANDIDATE_PAIRS`. */
 const DEFAULT_MAX_CANDIDATE_PAIRS = 250_000_000;
 
@@ -57,8 +74,10 @@ export class BlockingService {
    * and derives everything from it (Ruling P8): the row total is
    * `sum(n)`, the projected pairs are `sum(n*(n-1)/2)` over the keys kept
    * after dropping any that individually cover more than
-   * `DEGENERATE_KEY_SHARE` of that total. No separate `count(*)` is ever
-   * issued; a second round trip per pass is exactly what this ruling
+   * `max(DEGENERATE_KEY_FLOOR, DEGENERATE_KEY_SHARE * total)` (Ruling
+   * R19 -- the bare percentage alone is wrong for small and mid-sized
+   * tables; see `DEGENERATE_KEY_FLOOR`). No separate `count(*)` is ever
+   * issued; a second round trip per pass is exactly what Ruling P8
    * exists to avoid.
    */
   async estimate(project: MatchProject): Promise<BlockingEstimate> {
@@ -92,7 +111,9 @@ export class BlockingService {
     // of adding.
     const counts = rows.map((r) => ({ key: r.key, n: Number(r.n) }));
     const total = counts.reduce((sum, r) => sum + r.n, 0);
-    const degenerateAt = total * DEGENERATE_KEY_SHARE;
+    // Ruling R19: a key must clear both the absolute floor and the
+    // percentage share to count as degenerate -- see DEGENERATE_KEY_FLOOR.
+    const degenerateAt = Math.max(DEGENERATE_KEY_FLOOR, total * DEGENERATE_KEY_SHARE);
 
     const droppedKeys: string[] = [];
     let estimatedPairs = 0;

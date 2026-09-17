@@ -62,14 +62,9 @@ describe('BlockingService', () => {
   });
 
   it('projects self-join pairs as n*(n-1)/2 summed per key', async () => {
-    // Padded with a large background key so neither of the two keys under
-    // test (n=3, n=2) crosses the 0.5% degenerate-key share of the total
-    // (1000): this test is isolating the n*(n-1)/2 summation, not the
-    // degenerate-key cutoff, which test below.
     dataSource.query.mockResolvedValue([
       { key: 'MKMN|1988', n: '3' }, // 3 pairs
       { key: 'NKRB|1990', n: '2' }, // 1 pair
-      { key: 'FILLER', n: '995' },
     ]);
     const est = await service.estimate(project);
     expect(dataSource.query).toHaveBeenCalledTimes(1); // one query per pass (Ruling P8)
@@ -78,9 +73,13 @@ describe('BlockingService', () => {
 
   it('drops a key value covering more than 0.5% of rows and excludes its pairs', async () => {
     // 10,003 rows total, all of it from this histogram; the empty-surname
-    // key covers 200 of them (~2%), above the 0.5% degenerate threshold --
+    // key covers 200 of them (~2%), above the degenerate threshold --
     // and so, in fact, does every one of the 98 filler keys at 100 rows
-    // each (~1%). Only MKMN|1988 (3 rows, ~0.03%) stays under the cutoff.
+    // each (~1%): both clear the absolute floor (Ruling R19, 50 rows) AND
+    // the 0.5% share (~50 rows here), so they stay dropped under the
+    // floored rule exactly as they were under the bare percentage. Only
+    // MKMN|1988 (3 rows, ~0.03%, under both the floor and the share)
+    // stays under the cutoff.
     const rest = Array.from({ length: 98 }, (_, i) => ({ key: `K${i}`, n: '100' }));
     dataSource.query.mockResolvedValue([
       { key: '|1988', n: '200' },
@@ -92,15 +91,25 @@ describe('BlockingService', () => {
     expect(est.perPass[0].estimatedPairs).toBe(3);
   });
 
+  it('keeps a legitimately common key in a small table (Ruling R19 absolute floor)', async () => {
+    // 400-row table; a surname shared by 20 people is ordinary data, not
+    // degenerate. Under the bare 0.5% share (2 rows) it would have been
+    // dropped, silently losing 190 real pairs. Ruling R19's floor (50 rows)
+    // keeps any key at or under 50 rows regardless of share, so it survives
+    // here. This fails against the pre-R19 implementation (commit
+    // 7897e91), which drops 'COMMON' and yields 0 pairs instead of 190.
+    dataSource.query.mockResolvedValue([
+      { key: 'COMMON', n: '20' },
+      { key: 'FILLER', n: '380' },
+    ]);
+    const est = await service.estimate(project);
+    expect(est.perPass[0].droppedKeys).not.toContain('COMMON');
+    expect(est.perPass[0].estimatedPairs).toBe(190);
+  });
+
   it('flags exceedsCap above the configured cap and refused above twice it', async () => {
     process.env.MATCHING_MAX_CANDIDATE_PAIRS = '100';
-    // Padded so the key under test (n=30, 435 pairs) stays under the 0.5%
-    // degenerate-key share of the total, isolating the cap/refused check
-    // from degenerate-key exclusion.
-    dataSource.query.mockResolvedValue([
-      { key: 'k', n: '30' }, // 435 pairs
-      { key: 'FILLER', n: '10000' },
-    ]);
+    dataSource.query.mockResolvedValue([{ key: 'k', n: '30' }]); // 435 pairs
     const est = await service.estimate(project);
     expect(est.totalEstimatedPairs).toBe(435);
     expect(est.exceedsCap).toBe(true);
