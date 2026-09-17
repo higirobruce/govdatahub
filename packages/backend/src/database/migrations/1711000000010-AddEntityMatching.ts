@@ -116,7 +116,7 @@ export class AddEntityMatching1711000000010 implements MigrationInterface {
         "source_ref" text NOT NULL,
         "source_key" text NOT NULL,
         "entity_key" text NOT NULL,
-        "confidence" double precision NOT NULL,
+        "confidence" double precision NULL,
         "updated_at" timestamptz NOT NULL DEFAULT now(),
         CONSTRAINT "pk_match_crosswalk" PRIMARY KEY
           ("organization_id", "project_id", "source_ref", "source_key")
