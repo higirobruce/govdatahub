@@ -10,12 +10,15 @@ import { ClusteringService } from './clustering.service';
 import { CrosswalkService } from './crosswalk.service';
 import { EvalService } from './eval.service';
 import { MatchingCleanupService } from './matching-cleanup.service';
+import { MatchRunService } from './match-run.service';
 import { ConnectionsModule } from '../connections/connections.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([MatchProject, MatchRun, MatchEntity, MatchDecision, MatchGoldPair, StagedData]),
     ConnectionsModule,
+    SettingsModule,
   ],
   providers: [
     NormalizationService,
@@ -27,6 +30,8 @@ import { ConnectionsModule } from '../connections/connections.module';
     CrosswalkService,
     EvalService,
     MatchingCleanupService,
+    MatchRunService,
   ],
+  exports: [MatchRunService],
 })
 export class MatchingModule {}

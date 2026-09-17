@@ -36,7 +36,7 @@ export { AiInteraction } from './ai-interaction.entity';
 export { MatchProject } from './match-project.entity';
 export type { MatchMode, FieldRole, BlockingKind, MatchSourceRef, FieldMapping, BlockingPass, MatchThresholds } from './match-project.entity';
 export { MatchRun } from './match-run.entity';
-export type { MatchRunStatus, MatchRunCounters } from './match-run.entity';
+export type { MatchRunStatus, MatchRunCounters, RunDroppedKeys } from './match-run.entity';
 export { MatchEntity } from './match-entity.entity';
 export type { MatchMember } from './match-entity.entity';
 export { MatchDecision } from './match-decision.entity';

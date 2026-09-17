@@ -31,7 +31,33 @@ export interface MatchRunCounters {
    */
   autoReject: number;
   clusters: number; flaggedClusters: number;
+  /**
+   * Total candidate pairs the blocking estimate projected before the run
+   * started. Not a count of anything the run did -- it is recorded so a
+   * finished run can be compared against what was projected for it.
+   */
+  estimatedPairs: number;
+  /**
+   * Ruling R20: true when any of the run's blocking passes was inexact (a
+   * `trigram` pass). `estimatedPairs` is then a LOWER BOUND, not an
+   * estimate: the projection counts exactly-equal keys, while a trigram
+   * pass proposes every pair above a similarity threshold -- a strict
+   * superset. Anything surfacing `estimatedPairs` with this flag set must
+   * render it as "at least N pairs" and never as a bare number or a
+   * bound. See `BlockingEstimate.hasInexactPass` in
+   * `modules/matching/blocking.service.ts`.
+   */
+  hasInexactPass: boolean;
 }
+
+/**
+ * One blocking pass's degenerate (dropped) key values, as recorded on the
+ * run. A key dropped here is a key whose matches were never proposed, so
+ * the record is the only trace of recall the run deliberately gave up --
+ * kept per pass, because the same value can be degenerate in one pass and
+ * ordinary in another.
+ */
+export interface RunDroppedKeys { pass: string; keys: string[]; }
 
 @Entity('match_runs')
 @Index(['organizationId'])
@@ -45,7 +71,7 @@ export class MatchRun {
   @Column('text') status: MatchRunStatus;
   @Column('jsonb', { default: () => "'{}'" }) counters: MatchRunCounters;
   @Column('jsonb', { default: () => "'{}'" }) watermarks: Record<string, unknown>;
-  @Column('jsonb', { name: 'dropped_keys', default: () => "'[]'" }) droppedKeys: string[];
+  @Column('jsonb', { name: 'dropped_keys', default: () => "'[]'" }) droppedKeys: RunDroppedKeys[];
   @CreateDateColumn({ name: 'started_at' }) startedAt: Date;
   @Column('timestamptz', { name: 'finished_at', nullable: true }) finishedAt: Date | null;
   @Column('int', { name: 'duration_ms', nullable: true }) durationMs: number | null;
