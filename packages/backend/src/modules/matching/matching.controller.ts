@@ -8,6 +8,7 @@ import {
   AddGoldPairDto,
   CreateMatchProjectDto,
   GetCandidatesQueryDto,
+  GetClustersQueryDto,
   SubmitDecisionDto,
   UpdateMatchProjectDto,
 } from './dto';
@@ -107,8 +108,12 @@ export class MatchingController {
   }
 
   @Get('runs/:runId/clusters')
-  getClusters(@Param('runId') runId: string, @CurrentUser() user: User) {
-    return this.service.listClusters(runId, user.organizationId);
+  getClusters(
+    @Param('runId') runId: string,
+    @Query() query: GetClustersQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.service.listClusters(runId, user.organizationId, query);
   }
 
   @Get('runs/:runId/evaluate')
