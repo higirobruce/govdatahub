@@ -33,7 +33,7 @@ describe('SourceReaderService', () => {
 
   it('selects only the primary key and allow-listed columns', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    await service.readPage(source, ['id', 'surname', 'dob'], 'org1', null, 100);
+    await service.readPage(source, ['id', 'surname', 'dob'], ['id', 'surname', 'dob'], 'org1', null, 100);
     const sql = query.mock.calls[0][0] as string;
     expect(sql).toContain('"id"');
     expect(sql).toContain('"surname"');
@@ -43,7 +43,7 @@ describe('SourceReaderService', () => {
 
   it('pages by keyset rather than offset', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    await service.readPage(source, ['id', 'surname'], 'org1', 'abc', 100);
+    await service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', 'abc', 100);
     const sql = query.mock.calls[0][0] as string;
     expect(sql).toMatch(/WHERE "id" > /);
     expect(sql).toContain('ORDER BY "id"');
@@ -55,19 +55,19 @@ describe('SourceReaderService', () => {
     query.mockResolvedValue({
       rows: [{ id: 'k1', surname: 'a' }, { id: 'k2', surname: 'b' }], rowCount: 2, fields: [],
     });
-    const page = await service.readPage(source, ['id', 'surname'], 'org1', null, 100);
+    const page = await service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 100);
     expect(page.lastKey).toBe('k2');
   });
 
   it('returns a null last key for an empty page', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    const page = await service.readPage(source, ['id', 'surname'], 'org1', null, 100);
+    const page = await service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 100);
     expect(page.lastKey).toBeNull();
   });
 
   it('refuses to read a column that is not on the allow-list', async () => {
     await expect(
-      service.readPage({ ...source, primaryKey: 'salary' }, ['surname'], 'org1', null, 100),
+      service.readPage({ ...source, primaryKey: 'salary' }, ['surname'], ['surname'], 'org1', null, 100),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -78,7 +78,7 @@ describe('SourceReaderService', () => {
       data: [{ id: 'k1', surname: 'a' }, { id: 'k2', surname: 'b' }],
     });
     const page = await service.readPage(
-      { kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id', 'surname'], 'org1', 'k1', 100);
+      { kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id', 'surname'], ['id', 'surname'], 'org1', 'k1', 100);
     expect(page.rows).toEqual([{ id: 'k2', surname: 'b' }]);
     expect(page.lastKey).toBe('k2');
   });
@@ -90,7 +90,7 @@ describe('SourceReaderService', () => {
 
   it('binds afterKey as a query parameter rather than interpolating it into the SQL text', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    await service.readPage(source, ['id', 'surname'], 'org1', 'secret-key-value', 100);
+    await service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', 'secret-key-value', 100);
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
     expect(sql).not.toContain('secret-key-value');
     expect(params).toEqual(['secret-key-value']);
@@ -98,7 +98,7 @@ describe('SourceReaderService', () => {
 
   it('omits the WHERE clause entirely on the first page (afterKey null)', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    await service.readPage(source, ['id', 'surname'], 'org1', null, 100);
+    await service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 100);
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
     expect(sql).not.toMatch(/WHERE/i);
     expect(params).toEqual([]);
@@ -106,7 +106,7 @@ describe('SourceReaderService', () => {
 
   it('never selects the primary key twice when it is already in the allow-list', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    await service.readPage(source, ['id', 'surname'], 'org1', null, 100);
+    await service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 100);
     const sql = query.mock.calls[0][0] as string;
     const selectClause = sql.slice(sql.indexOf('SELECT'), sql.indexOf('FROM'));
     expect(selectClause.match(/"id"/g)).toHaveLength(1);
@@ -115,7 +115,7 @@ describe('SourceReaderService', () => {
   it('scopes the staged lookup by organizationId', async () => {
     stagedRepo.findOne.mockResolvedValue(null);
     await expect(
-      service.readPage({ kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id'], 'org1', null, 100),
+      service.readPage({ kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id'], ['id'], 'org1', null, 100),
     ).rejects.toThrow();
     expect(stagedRepo.findOne).toHaveBeenCalledWith({
       where: { id: 's1', organizationId: 'org1' },
@@ -124,7 +124,7 @@ describe('SourceReaderService', () => {
 
   it('counts rows for a connection source via COUNT(*), scoped to its table', async () => {
     query.mockResolvedValue({ rows: [{ _count: '42' }], rowCount: 1, fields: [] });
-    const count = await service.countRows(source, ['id', 'surname'], 'org1');
+    const count = await service.countRows(source, ['id', 'surname'], ['id', 'surname'], 'org1');
     expect(count).toBe(42);
     const sql = query.mock.calls[0][0] as string;
     expect(sql).toContain('COUNT(*)');
@@ -137,7 +137,7 @@ describe('SourceReaderService', () => {
       schema: [{ name: 'id', type: 'text' }],
       data: [{ id: 'k1' }, { id: 'k2' }, { id: 'k3' }],
     });
-    const count = await service.countRows({ kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id'], 'org1');
+    const count = await service.countRows({ kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id'], ['id'], 'org1');
     expect(count).toBe(3);
     expect(stagedRepo.findOne).toHaveBeenCalledWith({
       where: { id: 's1', organizationId: 'org1' },
@@ -146,7 +146,7 @@ describe('SourceReaderService', () => {
 
   it('refuses countRows when the primary key is not on the allow-list', async () => {
     await expect(
-      service.countRows({ ...source, primaryKey: 'salary' }, ['surname'], 'org1'),
+      service.countRows({ ...source, primaryKey: 'salary' }, ['surname'], ['surname'], 'org1'),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -163,7 +163,7 @@ describe('SourceReaderService', () => {
     async (dbType) => {
       connections.getConnectionConfig.mockResolvedValue({ connection: { type: dbType } });
       await expect(
-        service.readPage(source, ['id', 'surname'], 'org1', null, 100),
+        service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 100),
       ).rejects.toThrow(BadRequestException);
     },
   );
@@ -171,14 +171,14 @@ describe('SourceReaderService', () => {
   it('countRows refuses a snowflake connection because its driver cannot bind query parameters', async () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'snowflake' } });
     await expect(
-      service.countRows(source, ['id', 'surname'], 'org1'),
+      service.countRows(source, ['id', 'surname'], ['id', 'surname'], 'org1'),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('countRows refuses a mongodb connection because it is not a SQL engine', async () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'mongodb' } });
     await expect(
-      service.countRows(source, ['id', 'surname'], 'org1'),
+      service.countRows(source, ['id', 'surname'], ['id', 'surname'], 'org1'),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -190,7 +190,7 @@ describe('SourceReaderService', () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
     await expect(
-      service.readPage(source, ['id', 'surname'], 'org1', null, 100),
+      service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 100),
     ).resolves.toEqual({ rows: [], lastKey: null });
   });
 
@@ -202,7 +202,7 @@ describe('SourceReaderService', () => {
   it('rejects a non-integer limit', async () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
     await expect(
-      service.readPage(source, ['id', 'surname'], 'org1', null, 12.5),
+      service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 12.5),
     ).rejects.toThrow(BadRequestException);
     expect(query).not.toHaveBeenCalled();
   });
@@ -210,7 +210,7 @@ describe('SourceReaderService', () => {
   it('rejects a negative limit', async () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
     await expect(
-      service.readPage(source, ['id', 'surname'], 'org1', null, -1),
+      service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, -1),
     ).rejects.toThrow(BadRequestException);
     expect(query).not.toHaveBeenCalled();
   });
@@ -218,7 +218,7 @@ describe('SourceReaderService', () => {
   it('rejects a zero limit', async () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
     await expect(
-      service.readPage(source, ['id', 'surname'], 'org1', null, 0),
+      service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 0),
     ).rejects.toThrow(BadRequestException);
     expect(query).not.toHaveBeenCalled();
   });
@@ -226,7 +226,7 @@ describe('SourceReaderService', () => {
   it('rejects a limit above the maximum page size', async () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
     await expect(
-      service.readPage(source, ['id', 'surname'], 'org1', null, 100_001),
+      service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 100_001),
     ).rejects.toThrow(BadRequestException);
     expect(query).not.toHaveBeenCalled();
   });
@@ -235,7 +235,7 @@ describe('SourceReaderService', () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
     await expect(
-      service.readPage(source, ['id', 'surname'], 'org1', null, 100_000),
+      service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 100_000),
     ).resolves.toEqual({ rows: [], lastKey: null });
     const sql = query.mock.calls[0][0] as string;
     expect(sql).toContain('LIMIT 100000');
@@ -252,7 +252,7 @@ describe('SourceReaderService', () => {
     connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
     await expect(
-      service.readPage(source, ['id', 'surname'], 'org1', null, 50_000),
+      service.readPage(source, ['id', 'surname'], ['id', 'surname'], 'org1', null, 50_000),
     ).resolves.toEqual({ rows: [], lastKey: null });
   });
 
@@ -263,7 +263,42 @@ describe('SourceReaderService', () => {
       data: [{ id: 'k1' }],
     });
     await expect(
-      service.readPage({ kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id'], 'org1', null, 12.5),
+      service.readPage({ kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id'], ['id'], 'org1', null, 12.5),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  // --- allow-list vs projection (Ruling R17). These are two arguments
+  // because they have two different provenances: the allow-list is the
+  // project's legal boundary, the projection is what this read wants.
+  // An earlier round passed the projection in as the allow-list, which
+  // made the reader's re-validation `assertColumnAllowed(x, [x])` — a
+  // check that cannot fail. These three tests are what make it fail.
+
+  it('refuses a projection column that is not on the allow-list', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    await expect(
+      service.readPage(source, ['id', 'surname'], ['id', 'salary'], 'org1', null, 100),
+    ).rejects.toThrow(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('refuses a projection column that is not on the allow-list for countRows too', async () => {
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    await expect(
+      service.countRows(source, ['id', 'surname'], ['id', 'salary'], 'org1'),
+    ).rejects.toThrow(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('selects the projection, not every allow-listed column', async () => {
+    // "dob" is allow-listed but not projected: the reader is permitted to
+    // read it and still must not, because minimising what physically
+    // leaves the source is the point of the projection.
+    connections.getConnectionConfig.mockResolvedValue({ connection: { type: 'postgres' } });
+    query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
+    await service.readPage(source, ['id', 'surname', 'dob'], ['id', 'surname'], 'org1', null, 100);
+    const sql = query.mock.calls[0][0] as string;
+    expect(sql).toContain('"surname"');
+    expect(sql).not.toContain('"dob"');
   });
 });

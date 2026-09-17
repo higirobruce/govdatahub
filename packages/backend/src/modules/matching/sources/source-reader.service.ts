@@ -165,6 +165,20 @@ function assertValidLimit(limit: number): void {
  * no special cases is what makes the allow-list auditable: everything the
  * reader reads is allow-listed. A later setup wizard is responsible for
  * adding the chosen primary key to the allow-list it derives.
+ *
+ * `allowlist` and `projection` are deliberately two arguments, not one.
+ * The allow-list is the project's legal boundary — the set of columns
+ * this feature is permitted to touch at all. The projection is what the
+ * caller actually wants on this read, and is normally narrower (the
+ * materializer projects only the columns its field map maps, so an
+ * allow-listed column nobody mapped is never copied into DataGate).
+ * Because the two arrays come from different places, re-validating every
+ * projection entry against the allow-list here is a check that can
+ * genuinely fail; collapsing them into one argument — as an earlier
+ * round of this task did, by passing the projection in as the allow-list
+ * — makes `assertColumnAllowed(x, [x])` a tautology and silently removes
+ * the second layer from the one component whose whole job is that
+ * boundary.
  */
 @Injectable()
 export class SourceReaderService {
@@ -177,9 +191,11 @@ export class SourceReaderService {
   async countRows(
     source: MatchSourceRef,
     allowlist: string[],
+    projection: string[],
     organizationId: string,
   ): Promise<number> {
     assertColumnAllowed(source.primaryKey, allowlist);
+    this.projectionColumns(source.primaryKey, allowlist, projection);
 
     if (source.kind === 'staged') {
       const staged = await this.loadStaged(source, organizationId);
@@ -200,8 +216,8 @@ export class SourceReaderService {
   /**
    * Returns at most `limit` rows ordered by the source's primary key.
    * `lastKey` is the primary key of the final row, or `null` for an empty
-   * page. Each row carries only the primary key and the allow-listed
-   * columns.
+   * page. Each row carries only the primary key and the `projection`
+   * columns, every one of which must appear in `allowlist`.
    *
    * The connection path is genuinely incremental — each call fetches only
    * `limit` rows via keyset pagination. The staged path is not: a
@@ -215,13 +231,14 @@ export class SourceReaderService {
   async readPage(
     source: MatchSourceRef,
     allowlist: string[],
+    projection: string[],
     organizationId: string,
     afterKey: string | null,
     limit: number,
   ): Promise<SourcePage> {
     assertColumnAllowed(source.primaryKey, allowlist);
     assertValidLimit(limit);
-    const columns = this.projectionColumns(source.primaryKey, allowlist);
+    const columns = this.projectionColumns(source.primaryKey, allowlist, projection);
 
     if (source.kind === 'staged') {
       return this.readStagedPage(source, columns, organizationId, afterKey, limit);
@@ -230,15 +247,18 @@ export class SourceReaderService {
   }
 
   /**
-   * Builds the projection as [primaryKey, ...allowlist minus primaryKey],
+   * Builds the SELECT list as [primaryKey, ...projection minus primaryKey],
    * so the emitted SQL says `SELECT "id", "surname"` rather than
-   * `SELECT "id", "id", "surname"` when (as normal) the allow-list already
-   * contains the key. Every non-key column is re-validated against the
-   * allow-list too, even though it is already sourced from it, because
-   * this is the single choke point the SELECT list is built from.
+   * `SELECT "id", "id", "surname"` when (as normal) the projection already
+   * contains the key. Every non-key column is validated against the
+   * *allow-list* — not against the projection it came from — because this
+   * is the single choke point the SELECT list is built from, and because
+   * the projection is the caller's request while the allow-list is the
+   * project's legal boundary. See the class doc comment for why these
+   * must stay two separate arguments.
    */
-  private projectionColumns(primaryKey: string, allowlist: string[]): string[] {
-    const rest = allowlist.filter((c) => c !== primaryKey);
+  private projectionColumns(primaryKey: string, allowlist: string[], projection: string[]): string[] {
+    const rest = projection.filter((c) => c !== primaryKey);
     for (const col of rest) assertColumnAllowed(col, allowlist);
     return [primaryKey, ...rest];
   }
