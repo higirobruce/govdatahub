@@ -922,7 +922,9 @@ class BlockingService {
 }
 ```
 
-`estimate` runs **one** query per pass — the key-frequency histogram — and derives everything from it: the row total is `sum(n)`, the projected pairs are `sum(n*(n-1)/2)` over the kept keys for a dedupe self-join, and any key value covering more than 0.5% of the total is listed as dropped and excluded from the projection. Do not issue a separate `count(*)` query; the histogram already carries the total, and one round trip per pass is the point. `exceedsCap` is true above `MATCHING_MAX_CANDIDATE_PAIRS`; `refused` is true above twice it.
+`estimate` runs **one** query per pass — the key-frequency histogram — and derives everything from it: the row total is `sum(n)`, the projected pairs are `sum(n*(n-1)/2)` over the kept keys for a dedupe self-join, and any key value whose frequency exceeds `max(50, 0.5% of the total)` is listed as dropped and excluded from the projection.
+
+The absolute floor is not decoration. On a 1,000-row table 0.5% is five rows, so the bare percentage would discard a surname shared by six people as "degenerate" — ordinary data, and dropping it silently loses real matches. A key at 50 rows contributes 1,225 pairs, which cannot meaningfully affect a projection measured against a 250-million-pair cap, so excluding it buys nothing and costs recall. Above roughly 10,000 rows the percentage governs again, which is the regime the rule was written for: 0.5% of ten million is 50,000 rows sharing one key, unambiguously degenerate. Without the floor this task's own tests 1 and 3 (totals of 5 and 30) drop every key and yield 0 pairs rather than the expected 4 and 435. Do not issue a separate `count(*)` query; the histogram already carries the total, and one round trip per pass is the point. `exceedsCap` is true above `MATCHING_MAX_CANDIDATE_PAIRS`; `refused` is true above twice it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -937,7 +939,7 @@ describe('BlockingService', () => {
     expect(est.perPass[0].estimatedPairs).toBe(4);
   });
 
-  it('drops a key value covering more than 0.5% of rows and excludes its pairs', async () => {
+  it('drops a key value above the degenerate threshold and excludes its pairs', async () => {
     // 10,000 rows total, all of it from this histogram; the empty-surname key
     // covers 200 of them (2%), which is above the 0.5% degenerate threshold.
     const rest = Array.from({ length: 98 }, (_, i) => ({ key: `K${i}`, n: '100' }));
