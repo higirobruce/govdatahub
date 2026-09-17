@@ -471,6 +471,26 @@ appended to `lib/api.ts`, and a sidebar entry labelled "Entity Matching" in the
 | Cross-Query table browser | `match_crosswalk` becomes selectable, so A joins crosswalk joins B on `entity_key` |
 | Lineage | Each completed run emits edges from the source tables to the crosswalk |
 
+**Ruling R31 — deleting a Match Project is a soft delete.**
+`DELETE /api/matching/projects/:id` sets `status = 'inactive'`; it does not remove the
+row. The list endpoint excludes inactive projects by default.
+
+The reason is the audit trail's direction. The project row carries `lawfulBasis` and
+`dataOwner` — the recorded justification for copying citizen data and the person
+accountable for it. Every `match_decision`, `match_entity`, `match_crosswalk` row and
+gold pair is deliberately kept forever by retention as results and audit. No foreign key
+constrains any of them, so a hard delete does not fail; it silently orphans all of them
+and destroys the one row explaining under whose authority they were produced. Keeping the
+acts and deleting the authority is exactly backwards.
+
+Orphaned crosswalk rows are the sharper problem: the Crosswalk is a published interface
+other features join against, so those rows stay live and joinable while pointing at a
+project that no longer exists.
+
+Phase 1 therefore has no hard delete. A genuine purge of a project and everything
+produced under it is a deliberate, separately audited operation — not something a `DELETE`
+verb should do by accident.
+
 ## 9. Governance
 
 These are requirements. The data is citizen and business personal data, and
