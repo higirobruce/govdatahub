@@ -96,6 +96,23 @@ export type MatchRunStatus =
   | 'pending' | 'materializing' | 'normalizing' | 'blocking'
   | 'scoring' | 'clustering' | 'completed' | 'failed';
 export type CandidateDecision = 'auto_match' | 'grey' | 'confirmed' | 'rejected';
+export type MatchVerdict = 'match' | 'no_match';
+
+**Ruling R25 — a person's verdict and a candidate's state are two different vocabularies.**
+`MatchDecision.decision` is a `MatchVerdict` — what a human said about a pair: `'match'`
+or `'no_match'`. `match_candidates.decision` is a `CandidateDecision` — the pair's state
+in a run: `'auto_match'`, `'grey'`, `'confirmed'`, `'rejected'`. They are not
+interchangeable and must not share a type.
+Scoring maps one to the other: a `'match'` verdict makes the candidate `'confirmed'`, a
+`'no_match'` verdict makes it `'rejected'`.
+This was a real defect spanning four tasks. `MatchDecision.decision` had been typed
+`CandidateDecision`, so the human-verdict table advertised values no reviewer can
+produce, while Task 14's own controller test submits `decision: 'match'` and Task 17
+binds `m` and `n` to match and no-match. Scoring then filtered
+`decision IN ('confirmed','rejected')` against that table. Each piece compiled and passed
+its own tests; together, the moment Task 14 wrote a real verdict the scoring join would
+have matched nothing, every human decision would have become invisible, and the review
+queue would have re-asked every question forever — silently, with no error anywhere.
 
 export interface MatchMember { sourceRef: string; sourceKey: string; }
 
