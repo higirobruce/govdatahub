@@ -121,6 +121,45 @@ describe('CrosswalkService', () => {
     expect(sql).toContain('DO UPDATE SET');
   });
 
+  it('writes confidence as NULL rather than a fabricated value (Ruling R27)', async () => {
+    entityRepo.find.mockResolvedValue([
+      { entityKey: 'E1', flagged: false, size: 2, members: [{ sourceKey: 'a' }, { sourceKey: 'b' }] },
+    ]);
+    await service.publish(project, run);
+    const sql = String(dataSource.query.mock.calls[0][0]);
+    const params = dataSource.query.mock.calls[0][1] as unknown[];
+    expect(sql).toContain('$6::double precision');
+    // Six bound params per row (org, project, source_ref, source_key,
+    // entity_key, confidence); the sixth slot in each group of six is
+    // confidence, and phase 1 must never write it as anything but NULL --
+    // see the doc comment on `upsertChunk` for why a constant was rejected.
+    expect(params[5]).toBeNull();
+    expect(params[11]).toBeNull();
+  });
+
+  it('never publishes a non-null confidence anywhere in phase 1, across multiple clusters and chunk boundaries', async () => {
+    const bigMembers = Array.from({ length: 50 }, (_, i) => ({ sourceKey: `k${i}` }));
+    entityRepo.find.mockResolvedValue([
+      { entityKey: 'A', flagged: false, size: 2, members: [{ sourceKey: 'a' }, { sourceKey: 'b' }] },
+      { entityKey: 'BIG', flagged: false, size: bigMembers.length, members: bigMembers },
+    ]);
+
+    await service.publish(project, run);
+
+    expect(dataSource.query.mock.calls.length).toBeGreaterThan(0);
+    for (const call of dataSource.query.mock.calls) {
+      const params = call[1] as unknown[];
+      // Confidence sits at position 5 within every group of 6 bound
+      // params. If a future change reinstates a plausible-looking
+      // constant (`1`, `0.9`, ...) here, this assertion is what catches
+      // it -- not just that *a* row exists, but that *every* row's
+      // confidence slot, in every statement, is still NULL.
+      for (let i = 5; i < params.length; i += 6) {
+        expect(params[i]).toBeNull();
+      }
+    }
+  });
+
   it('scopes the read to this run and organization, never regenerating entity_key', async () => {
     entityRepo.find.mockResolvedValue([
       { entityKey: 'stable-key', flagged: false, size: 2, members: [{ sourceKey: 'a' }, { sourceKey: 'b' }] },
