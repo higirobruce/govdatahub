@@ -1073,7 +1073,9 @@ class ScoringService {
 describe('ScoringService', () => {
   it('inserts only pairs at or above the reject threshold', async () => {
     await service.scorePass(project, run, pass, []);
-    const sql = String(dataSource.query.mock.calls[0][0]);
+    // Ruling P9 fixes the order: call 0 is the count over the candidate CTE,
+    // call 1 is the counted insert. Read the insert from call 1.
+    const sql = String(dataSource.query.mock.calls[1][0]);
     expect(sql).toMatch(/INSERT INTO "match_candidates"/);
     expect(sql).toContain('WHERE score >= ');
     expect(sql).not.toMatch(/'auto_reject'/);
@@ -1118,7 +1120,27 @@ describe('ScoringService', () => {
 - [ ] **Step 2: FAIL. Step 3: implement per the Interfaces block.**
 
 Notes that matter:
-- One statement per pass, shaped as: candidate pairs from `candidatePairsSql` in a CTE, comparator expressions in a second CTE, then `INSERT INTO match_candidates ... SELECT ... WHERE score >= :rejectAt`.
+- One statement per pass, shaped as: candidate pairs from `candidatePairsSql` in a CTE, comparator expressions in a second CTE, then `INSERT INTO match_candidates ... SELECT ... WHERE score >= :rejectAt OR <the pair carries a human decision>`.
+
+**Ruling R23 — a human-decided pair is stored regardless of its score.**
+The reject filter must not drop a pair that a person has already ruled on. A steward
+confirms exactly the pairs the score is unsure about; a pair scoring 0.95 never reached
+the review queue. So the confirmed pairs are disproportionately the ones whose computed
+score sits low — and filtering on score alone discards the human verdict before the
+decision join can honour it, silently re-opening a question someone already answered and
+contradicting the rule that a Decision is permanent.
+This does not weaken "never store a rejected pair". That rule exists because auto-rejects
+are hundreds of millions of rows; human-decided pairs are bounded by what people can
+actually review — thousands — so the storage argument does not apply to them.
+
+**Ruling R24 — `autoReject` counts pairs not newly stored, and says so.**
+With `ON CONFLICT DO NOTHING`, a pair a previous pass already stored is counted by the
+pass total but skipped by the insert, so `total - inserted` attributes it to rejection.
+Distinguishing the two would need a third statement, which Ruling P9 forbids for good
+reason. Document the counter for what it measures — candidate pairs seen minus rows newly
+inserted, including pairs an earlier pass already stored — on the interface and wherever
+Task 13 surfaces it. A number whose meaning is written down is fine; a number quietly
+meaning something other than its name is not.
 - `decision` is `CASE WHEN score >= :matchAt THEN 'auto_match' ELSE 'grey' END`.
 - Pairs present in `match_decisions` for this project are inserted with `decision` taken from the human verdict (`'confirmed'` or `'rejected'`) and are excluded from the threshold CASE. Use a `LEFT JOIN match_decisions`.
 - Exactly two statements per pass, in this order, because the tests mock two calls: (1) `SELECT count(*) AS total` over the candidate-pair CTE, (2) the `INSERT ... SELECT ... RETURNING`-counted insert. `autoReject` is statement 1's total minus statement 2's inserted count. Never `SELECT` the rejected rows themselves to count them.
