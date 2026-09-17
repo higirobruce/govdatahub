@@ -7,7 +7,19 @@ export type MatchRunStatus =
 
 export interface MatchRunCounters {
   leftRows: number; rightRows: number; candidatePairs: number;
-  autoMatch: number; grey: number;
+  /**
+   * Ruling R23/R24: of the rows *newly inserted*, those the thresholds
+   * labelled `auto_match`. Not a partition of `candidatePairs`: a pair
+   * carrying a human verdict is stored as `confirmed`/`rejected` and is
+   * counted by neither `autoMatch` nor `grey`, while having left
+   * `autoReject` by being inserted. Once any decision exists,
+   * `candidatePairs != autoMatch + grey + autoReject`, so a run summary
+   * showing those four side by side will visibly fail to add up unless it
+   * says so.
+   */
+  autoMatch: number;
+  /** Of the rows newly inserted, those labelled `grey`. Same caveat as `autoMatch`. */
+  grey: number;
   /**
    * Ruling R24: candidate pairs seen minus rows newly inserted, summed
    * over the run's passes -- not a count of pairs below `rejectAt`.
