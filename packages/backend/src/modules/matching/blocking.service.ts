@@ -36,27 +36,49 @@ const DEFAULT_TRIGRAM_THRESHOLD = 0.3;
 
 export interface PassEstimate {
   pass: string;
+  /** Kept keys only (Ruling R22) -- dropped keys are reported separately in `droppedKeys`. */
   distinctKeys: number;
+  /**
+   * For an `exact` pass, the exact number of pairs the self-join will
+   * propose. For an inexact pass (`exact: false` -- always a `trigram`
+   * pass, Ruling R20), this is a declared LOWER BOUND only: it counts
+   * pairs whose keys are exactly equal, but a trigram pass proposes every
+   * pair with `similarity >= threshold`, a strict superset the histogram
+   * cannot see. No consumer may present this value for an inexact pass as
+   * an estimate of, or a bound on, the real candidate-pair count.
+   */
   estimatedPairs: number;
   droppedKeys: string[];
+  /** `false` for every `trigram` pass (Ruling R20); `true` for `equi`. */
+  exact: boolean;
 }
 
 export interface BlockingEstimate {
   perPass: PassEstimate[];
   totalEstimatedPairs: number;
+  /** True when any pass reports `exact: false` -- see `PassEstimate.estimatedPairs`. */
+  hasInexactPass: boolean;
   exceedsCap: boolean;
   refused: boolean;
 }
 
-/** One row of a blocking pass's key-frequency histogram, as returned over the wire. */
-interface HistogramRow {
-  key: string;
-  n: string;
+/**
+ * The single row a pass's histogram query returns (Ruling R22): every
+ * aggregate PostgreSQL can compute server-side, plus only the key values
+ * that actually exceeded the degenerate threshold -- never the full,
+ * unbounded per-key histogram.
+ */
+interface HistogramSummaryRow {
+  total_rows: string;
+  kept_pairs: string;
+  kept_key_count: string;
+  dropped_keys: (string | null)[] | null;
 }
 
 /**
  * Estimates how many candidate pairs each of a project's blocking passes
- * would propose, and generates the SQL that proposes them.
+ * would propose, and generates the SQL (and its session requirements)
+ * that proposes them.
  *
  * Phase 1 is dedupe-only: every pass compares the project's left workspace
  * table with itself (`MaterializeService.workspaceTable(project.id,
@@ -75,10 +97,19 @@ export class BlockingService {
    * `sum(n)`, the projected pairs are `sum(n*(n-1)/2)` over the keys kept
    * after dropping any that individually cover more than
    * `max(DEGENERATE_KEY_FLOOR, DEGENERATE_KEY_SHARE * total)` (Ruling
-   * R19 -- the bare percentage alone is wrong for small and mid-sized
-   * tables; see `DEGENERATE_KEY_FLOOR`). No separate `count(*)` is ever
-   * issued; a second round trip per pass is exactly what Ruling P8
-   * exists to avoid.
+   * R19). The aggregation happens server-side and only the kept totals
+   * plus the (bounded, ~200-row) list of dropped key values ever cross
+   * the wire (Ruling R22) -- not one row per distinct key, which would be
+   * the table's own row count for a high-cardinality key. No separate
+   * `count(*)` is ever issued; a second round trip per pass is exactly
+   * what Ruling P8 exists to avoid.
+   *
+   * A trigram pass's `estimatedPairs` is a declared lower bound, not an
+   * estimate (Ruling R20, see `PassEstimate.exact`): the histogram can
+   * only count exact-key matches, and a trigram pass's real join proposes
+   * a strict superset of those. `hasInexactPass` surfaces that so a
+   * caller cannot mistake a near-zero projection on a near-unique
+   * trigram key for a cleared gate.
    */
   async estimate(project: MatchProject): Promise<BlockingEstimate> {
     const table = this.materialize.workspaceTable(project.id, 'left');
@@ -93,6 +124,7 @@ export class BlockingService {
     return {
       perPass,
       totalEstimatedPairs,
+      hasInexactPass: perPass.some((p) => !p.exact),
       exceedsCap: totalEstimatedPairs > cap,
       refused: totalEstimatedPairs > cap * 2,
     };
@@ -102,35 +134,78 @@ export class BlockingService {
     const passName = assertIdent(pass.name, 'blocking pass name');
     const column = assertIdent(`bk_${passName}`, 'blocking pass column name');
 
-    const rows: HistogramRow[] = await this.dataSource.query(
-      `SELECT "${column}" AS key, count(*) AS n FROM ${table} GROUP BY "${column}"`,
+    const rows: HistogramSummaryRow[] = await this.dataSource.query(this.histogramSummarySql(table, column));
+    const summary = rows[0];
+
+    // Counts and sums come back from PostgreSQL as strings over the wire --
+    // parse before any arithmetic, or they silently concatenate instead of
+    // adding.
+    const estimatedPairs = summary ? Number(summary.kept_pairs) : 0;
+    const distinctKeys = summary ? Number(summary.kept_key_count) : 0;
+    // Defensive even though the workspace's field columns are guaranteed
+    // never-null: a single NULL surviving into a NOT IN (...) list makes
+    // that predicate UNKNOWN for every row, silently zeroing every pair
+    // the query would otherwise have proposed. The SQL itself also
+    // excludes NULL keys from dropped_keys; this is a second, cheap line
+    // of defence against the one failure mode that is both total and
+    // silent.
+    const droppedKeys = (summary?.dropped_keys ?? []).filter((key): key is string => key !== null);
+
+    return { pass: passName, distinctKeys, estimatedPairs, droppedKeys, exact: pass.kind !== 'trigram' };
+  }
+
+  /**
+   * Builds the one histogram query for a pass (Ruling R22). The
+   * per-distinct-key rows never leave PostgreSQL: `histogram` groups them,
+   * `totals` reduces that to a single row total, `threshold` derives the
+   * degenerate cutoff from it, and the final `SELECT` returns exactly one
+   * row carrying the kept-key pair sum, the kept-key count, and the
+   * (bounded) list of key values that exceeded the cutoff. A key must
+   * exceed `max(50, 0.5% of total)` to appear in `dropped_keys` at all, so
+   * that array is bounded to roughly `total / 50` entries in the worst
+   * case -- nowhere near the row count a naive per-key histogram would
+   * return on a high-cardinality key.
+   */
+  private histogramSummarySql(table: string, column: string): string {
+    return (
+      `WITH histogram AS (` +
+      `SELECT "${column}" AS key, count(*) AS n FROM ${table} GROUP BY "${column}"` +
+      `), totals AS (` +
+      `SELECT coalesce(sum(n), 0) AS total_rows FROM histogram` +
+      `), threshold AS (` +
+      `SELECT GREATEST(${DEGENERATE_KEY_FLOOR}, total_rows * ${DEGENERATE_KEY_SHARE}) AS cutoff FROM totals` +
+      `) ` +
+      `SELECT totals.total_rows AS total_rows, ` +
+      `coalesce(sum(h.n * (h.n - 1) / 2) FILTER (WHERE h.n <= threshold.cutoff), 0) AS kept_pairs, ` +
+      `count(*) FILTER (WHERE h.n <= threshold.cutoff) AS kept_key_count, ` +
+      `coalesce(array_agg(h.key) FILTER (WHERE h.n > threshold.cutoff AND h.key IS NOT NULL), ARRAY[]::text[]) AS dropped_keys ` +
+      `FROM histogram h, totals, threshold ` +
+      `GROUP BY totals.total_rows, threshold.cutoff`
     );
-
-    // PostgreSQL returns count(*) as a string over the wire -- parse before
-    // any arithmetic, or the running total silently concatenates instead
-    // of adding.
-    const counts = rows.map((r) => ({ key: r.key, n: Number(r.n) }));
-    const total = counts.reduce((sum, r) => sum + r.n, 0);
-    // Ruling R19: a key must clear both the absolute floor and the
-    // percentage share to count as degenerate -- see DEGENERATE_KEY_FLOOR.
-    const degenerateAt = Math.max(DEGENERATE_KEY_FLOOR, total * DEGENERATE_KEY_SHARE);
-
-    const droppedKeys: string[] = [];
-    let estimatedPairs = 0;
-    for (const { key, n } of counts) {
-      if (n > degenerateAt) {
-        droppedKeys.push(key);
-        continue;
-      }
-      estimatedPairs += (n * (n - 1)) / 2;
-    }
-
-    return { pass: passName, distinctKeys: counts.length, estimatedPairs, droppedKeys };
   }
 
   private maxCandidatePairs(): number {
     const parsed = parseInt(process.env.MATCHING_MAX_CANDIDATE_PAIRS || '', 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_CANDIDATE_PAIRS;
+  }
+
+  /**
+   * Statements a caller must execute in the same transaction/session
+   * before running `candidatePairsSql` for this pass (Ruling R21).
+   *
+   * The `%` operator this method's SQL counterpart emits for a `trigram`
+   * pass is governed by the session GUC `pg_trgm.similarity_threshold`,
+   * not a per-call argument. If that GUC sits above the pass's own
+   * threshold, `%` -- the index-scannable predicate -- silently filters
+   * out pairs that the `similarity(...) >= threshold` recheck in the same
+   * query would otherwise have kept, shrinking the result set without any
+   * error. Returning the fix as data, not prose, makes it mechanical: an
+   * executor that skips this array is skipping a returned instruction,
+   * not forgetting an unwritten one.
+   */
+  passSessionSettings(pass: BlockingPass): string[] {
+    if (pass.kind !== 'trigram') return [];
+    return [`SET LOCAL pg_trgm.similarity_threshold = ${this.trigramThreshold(pass)}`];
   }
 
   /**
@@ -151,20 +226,19 @@ export class BlockingService {
    * at `$1`; the caller is expected to pass `droppedKeys` as the query
    * parameters in the same order.
    *
-   * A trigram pass is joined on `similarity(...) >= threshold` rather
-   * than the pg_trgm `%` operator: `%` is evaluated against the session's
-   * `pg_trgm.similarity_threshold` GUC, not a per-call value, so using it
-   * correctly for an arbitrary per-pass threshold would require a
-   * preceding `SET` statement -- and that can't be folded into this one
-   * parameterized string, because PostgreSQL (via the extended query
-   * protocol used for bound parameters) refuses multiple statements in a
-   * single prepared statement. `similarity(...)` between two column
-   * references is correct but, unlike `%` against a constant, cannot be
-   * satisfied from the GIN trigram index alone -- it typically costs a
-   * sequential-scan-shaped comparison per candidate row. Making a trigram
-   * self-join index-accelerated (via a session-level `SET` issued before
-   * this query) is Task 15's concern as the executor, not this SQL
-   * string's.
+   * A trigram pass is joined on **both** `l.col % r.col` and
+   * `similarity(l.col, r.col) >= threshold` (Ruling R21). `similarity()`
+   * alone is a plain function call in the join predicate -- only `%`,
+   * `<%` and `<->` map to `gin_trgm_ops`, so `similarity()` alone cannot
+   * use the GIN trigram index the materializer builds, and the planner
+   * falls back to a full self cross-product that is correct but never
+   * returns at real scale. `%` supplies the index-scannable predicate;
+   * `similarity()` stays as an exact recheck at the pass's own threshold,
+   * so the result set is unchanged. `%`'s threshold comes from the
+   * session GUC `pg_trgm.similarity_threshold`, not this call -- see
+   * `passSessionSettings`, which the caller must run first in the same
+   * session/transaction, or the index predicate can silently disagree
+   * with the recheck.
    */
   candidatePairsSql(project: MatchProject, pass: BlockingPass, droppedKeys: string[]): string {
     const table = this.materialize.workspaceTable(project.id, 'left');
@@ -175,7 +249,7 @@ export class BlockingService {
 
     const joinCondition =
       pass.kind === 'trigram'
-        ? `similarity(${left}, ${right}) >= ${this.trigramThreshold(pass)}`
+        ? `${left} % ${right} AND similarity(${left}, ${right}) >= ${this.trigramThreshold(pass)}`
         : `${left} = ${right}`;
 
     const exclude = this.excludeDroppedKeysSql(left, right, droppedKeys);
