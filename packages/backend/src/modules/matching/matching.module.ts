@@ -11,6 +11,8 @@ import { CrosswalkService } from './crosswalk.service';
 import { EvalService } from './eval.service';
 import { MatchingCleanupService } from './matching-cleanup.service';
 import { MatchRunService } from './match-run.service';
+import { MatchingService } from './matching.service';
+import { MatchingController } from './matching.controller';
 import { ConnectionsModule } from '../connections/connections.module';
 import { SettingsModule } from '../settings/settings.module';
 
@@ -20,6 +22,7 @@ import { SettingsModule } from '../settings/settings.module';
     ConnectionsModule,
     SettingsModule,
   ],
+  controllers: [MatchingController],
   providers: [
     NormalizationService,
     SourceReaderService,
@@ -31,6 +34,7 @@ import { SettingsModule } from '../settings/settings.module';
     EvalService,
     MatchingCleanupService,
     MatchRunService,
+    MatchingService,
   ],
   exports: [MatchRunService],
 })
