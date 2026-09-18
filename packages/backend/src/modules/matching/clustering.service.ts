@@ -187,25 +187,43 @@ export class ClusteringService {
   }
 
   /**
-   * Ruling R49 needs a deterministic processing order, because which
-   * cluster gets to keep a contested entity key is now decided by which
-   * one is reached first. `unionFind` returns a `Map` keyed by whichever
-   * node happened to become the root, iterated in insertion order --
-   * which is the order `match_candidates` rows arrived in, and an
-   * unordered `SELECT` gives PostgreSQL no obligation to repeat that.
-   * Two runs over identical data could therefore have assigned the same
-   * two clusters each other's keys.
+   * The order clusters are processed in, which Ruling R49 made
+   * load-bearing: a contested entity key goes to whichever cluster is
+   * reached first, and the other mints a new one.
    *
-   * So: members sorted within a cluster, clusters sorted by their first
-   * (therefore smallest) member. Every cluster is disjoint, so no two
-   * clusters share a smallest member and the ordering is total. Sorting
-   * the members also makes the persisted `members` array itself stable
-   * run to run, which nothing depended on before and several things read
-   * now.
+   * **Largest cluster first, ties broken by the smallest member key
+   * (Ruling R60).**
+   *
+   * Determinism alone is not the whole requirement. `entity_key` is what
+   * other government systems join against, so how many published
+   * identities change is itself a correctness criterion, and the rule
+   * that minimizes it is "the larger fragment keeps the key" -- which is
+   * also what the design spec narrates. Ordering by member key alone got
+   * that backwards in the ordinary case: a steward splitting
+   * `{A, B, C, D, E2}` into `{A, F}` and `{B, C, D, E2}` handed the key to
+   * the TWO-member fragment purely because `'A' < 'B'`, churning four of
+   * the five published identities to save one.
+   *
+   * The size comparison is strict, so the member-key tie-break still
+   * decides every equal-sized pair and the total order is unchanged in
+   * strength: clusters are disjoint, so no two share a smallest member.
+   * Members are sorted within each cluster first -- that is what makes
+   * the tie-break well defined, and it also makes the persisted `members`
+   * array stable run to run.
+   *
+   * Without any ordering at all this would be unstable, not merely
+   * suboptimal: `unionFind` returns a `Map` keyed by whichever node
+   * happened to become the root, iterated in insertion order -- the order
+   * `match_candidates` rows arrived in, which an unordered `SELECT` gives
+   * PostgreSQL no obligation to repeat. Two runs over identical data
+   * could have assigned the same two clusters each other's keys.
    */
   private inStableOrder(groups: Map<string, string[]>): string[][] {
     const clusters = [...groups.values()].map((members) => [...members].sort());
-    clusters.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    clusters.sort((a, b) => {
+      if (a.length !== b.length) return b.length - a.length;
+      return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+    });
     return clusters;
   }
 
@@ -311,12 +329,11 @@ export class ClusteringService {
    * holds -- is the merge the split existed to undo.
    *
    * Which cluster keeps the contested key is therefore load-bearing, and
-   * `cluster` fixes it by processing clusters in `inStableOrder`. The
-   * larger fragment does not automatically win; the first one in that
-   * order does. That is deliberate: "largest wins" would be a different
-   * rule that still has to break its own ties, and neither rule is more
-   * correct than the other -- what matters is that the same input always
-   * produces the same assignment.
+   * `cluster` fixes it by processing clusters in `inStableOrder`: largest
+   * first, ties broken by smallest member key (Ruling R60). The larger
+   * fragment keeping the key is not merely one deterministic choice among
+   * several -- it is the one that changes the fewest published
+   * identities, and `entity_key` is what other systems join against.
    *
    * Scoped by `organization_id` and `project_id` only -- not `source_ref`
    * -- because a dedupe project has exactly one Match Source, so project

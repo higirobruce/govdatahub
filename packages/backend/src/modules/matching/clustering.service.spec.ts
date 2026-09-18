@@ -352,14 +352,16 @@ describe('ClusteringService', () => {
       expect(new Set(keys).size).toBe(2);
     });
 
-    it('keeps E on the first cluster in stable order and mints a fresh key for the fragment', async () => {
+    it('keeps E on the larger cluster and mints a fresh key for the fragment', async () => {
       await service.cluster(project, run);
       const byFirstMember = new Map(
         entityRepo.save.mock.calls
           .map((c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> })
           .map((e) => [e.members.map((m) => m.sourceKey).sort().join(','), e.entityKey]),
       );
-      // {A,B} sorts first, so it keeps the key its majority voted for.
+      // {A,B} and {C,D} are the same size, so the member-key tie-break
+      // decides: {A,B} is reached first and keeps the key its majority
+      // voted for.
       expect(byFirstMember.get('A,B')).toBe('E');
       // {C,D} voted for E too, but E is taken: a fragment split off from
       // a merge a steward undid is a NEW identity, not the old one.
@@ -389,6 +391,110 @@ describe('ClusteringService', () => {
 
       expect(second).toEqual(first);
       expect(second).toEqual(['E']);
+    });
+  });
+
+  describe('Ruling R60: the larger fragment keeps the key', () => {
+    /**
+     * The churn scenario, exactly as the ruling states it.
+     *
+     * Run 1 published `{A, B, C, D, E2}` under key `E`. A steward splits
+     * it, and run 2 produces a two-member fragment `{A, F}` and a
+     * four-member fragment `{B, C, D, E2}`. Both vote for `E` -- only one
+     * can have it.
+     *
+     * Ordering by member key alone handed it to `{A, F}` purely because
+     * `'A' < 'B'`, changing FOUR of the five published identities to save
+     * one. `entity_key` is what other government systems join against, so
+     * the number of identities that change is a correctness criterion,
+     * not a cosmetic one -- and the design spec narrates "the larger
+     * fragment keeps the key by majority".
+     */
+    beforeEach(() => {
+      survivorRows = [
+        { left_key: 'A', right_key: 'F', score: 0.95, decision: 'auto_match' },
+        { left_key: 'B', right_key: 'C', score: 0.95, decision: 'auto_match' },
+        { left_key: 'C', right_key: 'D', score: 0.95, decision: 'auto_match' },
+        { left_key: 'D', right_key: 'E2', score: 0.95, decision: 'auto_match' },
+      ];
+      crosswalkRows = [
+        { source_key: 'A', entity_key: 'E' },
+        { source_key: 'B', entity_key: 'E' },
+        { source_key: 'C', entity_key: 'E' },
+        { source_key: 'D', entity_key: 'E' },
+        { source_key: 'E2', entity_key: 'E' },
+      ];
+      query.mockImplementation(async (sql: string, params?: unknown[]) => {
+        if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
+        if (sql.includes('match_crosswalk')) {
+          const members = (params as unknown[])[2] as string[];
+          return crosswalkRows.filter((r) => members.includes(r.source_key));
+        }
+        if (sql.includes('FROM match_candidates')) {
+          return [guardAggregate([{ score: 0.95, decision: 'auto_match' }])];
+        }
+        throw new Error(`Unexpected query: ${sql}`);
+      });
+    });
+
+    /** entityKey by sorted member list, for every cluster this run saved. */
+    const savedByMembers = (): Map<string, string> =>
+      new Map(
+        entityRepo.save.mock.calls
+          .map((c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> })
+          .map((e) => [e.members.map((m) => m.sourceKey).sort().join(','), e.entityKey]),
+      );
+
+    it('gives the contested key to the four-member fragment, not the two-member one', async () => {
+      await service.cluster(project, run);
+      const byMembers = savedByMembers();
+      expect(byMembers.get('B,C,D,E2')).toBe('E');
+      expect(byMembers.get('A,F')).not.toBe('E');
+      expect(byMembers.get('A,F')).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it('changes one published identity rather than four', async () => {
+      await service.cluster(project, run);
+      const byMembers = savedByMembers();
+      const keyFor = new Map<string, string>();
+      for (const [members, key] of byMembers) {
+        for (const member of members.split(',')) keyFor.set(member, key);
+      }
+      // Every one of the five was published under 'E' by run 1.
+      const changed = ['A', 'B', 'C', 'D', 'E2'].filter((m) => keyFor.get(m) !== 'E');
+      expect(changed).toEqual(['A']);
+      // Ordering by member key alone gave the opposite answer here, and
+      // this is the assertion that says which one we want -- not merely
+      // that the answer is stable.
+      expect(changed).toHaveLength(1);
+    });
+
+    it('still breaks an equal-sized tie by the smallest member key, so the order stays total', async () => {
+      survivorRows = [
+        { left_key: 'X', right_key: 'Y', score: 0.95, decision: 'auto_match' },
+        { left_key: 'A', right_key: 'B', score: 0.95, decision: 'auto_match' },
+      ];
+      crosswalkRows = [
+        { source_key: 'A', entity_key: 'E' },
+        { source_key: 'X', entity_key: 'E' },
+      ];
+      await service.cluster(project, run);
+      const byMembers = savedByMembers();
+      expect(byMembers.get('A,B')).toBe('E');
+      expect(byMembers.get('X,Y')).not.toBe('E');
+    });
+
+    it('is independent of the order the survivor rows arrive in', async () => {
+      await service.cluster(project, run);
+      const first = savedByMembers();
+
+      entityRepo.save.mockClear();
+      survivorRows = [...survivorRows].reverse();
+      await service.cluster(project, run);
+      const second = savedByMembers();
+
+      expect(second.get('B,C,D,E2')).toBe(first.get('B,C,D,E2'));
+      expect(second.get('B,C,D,E2')).toBe('E');
     });
   });
 

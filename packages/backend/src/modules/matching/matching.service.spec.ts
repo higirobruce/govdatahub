@@ -350,6 +350,74 @@ describe('MatchingService', () => {
       expect(dataSource.query).not.toHaveBeenCalled();
     });
 
+    /**
+     * Ruling R61. The workspace this method joins is keyed by PROJECT and
+     * every run rebuilds it, so the record values it attaches are always
+     * the CURRENT ones. Serving an older run puts today's values beside a
+     * stale score and asks a steward to certify a pair against data the
+     * score was never computed from -- and the verdict is permanent.
+     *
+     * Ruling R52 put that restriction in the UI, which is not the same
+     * thing: that guard fails OPEN when the runs request errors, and the
+     * endpoint was reachable directly regardless. These tests are about
+     * the copy of the rule that can actually be relied on.
+     *
+     * The default `runRepo.findOne` mock returns the same run for both
+     * the org-scoped load and the latest-completed lookup, so the happy
+     * path above is already exercised; each test here overrides the
+     * SECOND call.
+     */
+    describe('Ruling R61: only the latest completed run is served', () => {
+      it('refuses a run that is not the latest completed run of its project', async () => {
+        runRepo.findOne
+          .mockResolvedValueOnce(run) // the org-scoped load
+          .mockResolvedValueOnce({ ...run, id: 'r2' } as unknown as MatchRun); // a newer completed run
+
+        await expect(service.listCandidates('r1', 'org1', { decision: 'grey' } as any)).rejects.toBeInstanceOf(
+          ConflictException,
+        );
+        // Refused before any SQL: the to_regclass probe must not run
+        // either, or a refusal still costs a round trip per request.
+        expect(dataSource.query).not.toHaveBeenCalled();
+      });
+
+      it('names the run the steward should be reviewing instead', async () => {
+        runRepo.findOne
+          .mockResolvedValueOnce(run)
+          .mockResolvedValueOnce({ ...run, id: 'r2' } as unknown as MatchRun);
+
+        await expect(service.listCandidates('r1', 'org1', {})).rejects.toThrow(/r2/);
+      });
+
+      it('refuses when the project has no completed run at all, with its own message', async () => {
+        runRepo.findOne.mockResolvedValueOnce(run).mockResolvedValueOnce(null);
+
+        await expect(service.listCandidates('r1', 'org1', {})).rejects.toThrow(/no completed run/);
+        expect(dataSource.query).not.toHaveBeenCalled();
+      });
+
+      it('looks the latest run up scoped to this project and organization, completed only, newest first', async () => {
+        dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
+        dataSource.query.mockResolvedValueOnce([]);
+        await service.listCandidates('r1', 'org1', {});
+
+        // The second findOne is the R61 lookup. Its ordering must match
+        // `listRuns` exactly, or the run the UI calls latest and the run
+        // this accepts could disagree.
+        expect(runRepo.findOne).toHaveBeenNthCalledWith(2, {
+          where: { projectId: 'p1', organizationId: 'org1', status: 'completed' },
+          order: { startedAt: 'DESC', id: 'DESC' },
+        });
+      });
+
+      it('serves the latest completed run normally', async () => {
+        dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
+        dataSource.query.mockResolvedValueOnce([{ left_key: 'a', right_key: 'b' }]);
+        const rows = await service.listCandidates('r1', 'org1', { decision: 'grey' } as any);
+        expect(rows).toHaveLength(1);
+      });
+    });
+
     // -----------------------------------------------------------------
     // Ruling R39: features, and the workspace join for record values
     // -----------------------------------------------------------------

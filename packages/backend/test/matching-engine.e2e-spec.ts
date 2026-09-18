@@ -41,6 +41,7 @@ import { BlockingService } from '../src/modules/matching/blocking.service';
 import { EvalService } from '../src/modules/matching/eval.service';
 import { MatchingCleanupService } from '../src/modules/matching/matching-cleanup.service';
 import { MaterializeService } from '../src/modules/matching/materialize.service';
+import { MatchingService } from '../src/modules/matching/matching.service';
 import { EncryptionService } from '../src/modules/encryption/encryption.service';
 
 // The same three candidate locations `src/database/data-source.ts` tries, so
@@ -89,6 +90,7 @@ describe('matching engine (integration)', () => {
   let evalService: EvalService;
   let cleanupService: MatchingCleanupService;
   let materialize: MaterializeService;
+  let matchingService: MatchingService;
   let runRepo: Repository<MatchRun>;
   let projectRepo: Repository<MatchProject>;
 
@@ -225,6 +227,7 @@ describe('matching engine (integration)', () => {
     evalService = moduleRef.get(EvalService);
     cleanupService = moduleRef.get(MatchingCleanupService);
     materialize = moduleRef.get(MaterializeService);
+    matchingService = moduleRef.get(MatchingService);
     runRepo = moduleRef.get(getRepositoryToken(MatchRun));
     projectRepo = moduleRef.get(getRepositoryToken(MatchProject));
     const encryption = moduleRef.get(EncryptionService);
@@ -288,6 +291,18 @@ describe('matching engine (integration)', () => {
         { left: 'full_name', right: 'full_name', role: 'person_name', weight: 0.4, comparator: 'trgm' },
         { left: 'surname', right: 'surname', role: 'person_name', weight: 0.15, comparator: 'trgm' },
         { left: 'birth_date', right: 'birth_date', role: 'date', weight: 0.35, comparator: 'daydiff' },
+        // Ruling R59c. Weight 0, for the same reason as `address` below:
+        // this mapping exists so the string branch of
+        // `NormalizationService.normalizeDate` is exercised end to end,
+        // through the real driver, without disturbing a score model
+        // calibrated on the other four fields. The column holds the SAME
+        // calendar day as `birth_date` rendered as text WITH A TIME --
+        // SQLite's canonical 'YYYY-MM-DD HH:MM:SS', the T-separated form,
+        // a late-evening time and the unparseable string 'not recorded'.
+        // A bare date-only string parses as UTC midnight and never
+        // shifted, which is exactly why only a string carrying a time can
+        // catch the residue Ruling R59b fixed.
+        { left: 'birth_date_text', right: 'birth_date_text', role: 'date', weight: 0, comparator: 'daydiff' },
         { left: 'phone', right: 'phone', role: 'phone', weight: 0.1, comparator: 'exact' },
         // Weight 0, deliberately: this mapping exists so the `address` role's
         // three comparators -- including `lev`, which raises
@@ -323,7 +338,16 @@ describe('matching engine (integration)', () => {
       thresholds: THRESHOLDS,
       // `district` is deliberately left out: the reader must never copy a
       // column nobody mapped, and the allow-list is the legal boundary.
-      columnAllowlist: ['id', 'given_name', 'surname', 'full_name', 'birth_date', 'phone', 'address'],
+      columnAllowlist: [
+        'id',
+        'given_name',
+        'surname',
+        'full_name',
+        'birth_date',
+        'birth_date_text',
+        'phone',
+        'address',
+      ],
       lawfulBasis: 'e2e test fixture',
       dataOwner: 'matching e2e suite',
       retentionDays: 30,
@@ -517,6 +541,62 @@ describe('matching engine (integration)', () => {
       `SELECT count(*)::int AS "inYear" FROM ${workspace} WHERE birth_date LIKE '1985-%' AND src_key = 'P000000'`,
     );
     expect(inYear).toBe(1);
+  });
+
+  it('R59b/R59c: carries a TEXT date column carrying a time through normalization without shifting the day', async () => {
+    // The mirror image of the test above, and the defect the first fix
+    // left behind. Making `birth_date` a real `date` moved the run onto
+    // `normalizeDate`'s `Date` branch and left the STRING branch
+    // untouched by any gate -- which is where the residue of R50 was
+    // still live. A bare 'YYYY-MM-DD' parses under the ECMAScript
+    // date-only grammar as UTC midnight and round-trips unchanged; add a
+    // time and the grammar switches to LOCAL, and `toISOString()` moved
+    // it back a calendar day in every zone east of Greenwich.
+    //
+    // `birth_date_text` holds the SAME day as `birth_date`, as text with
+    // a time: SQLite's canonical 'YYYY-MM-DD HH:MM:SS' (returned verbatim
+    // by better-sqlite3, one of the five supported connection types), the
+    // T-separated form, and a late-evening time that shifts FORWARD in a
+    // western zone rather than backward.
+    const workspace = materialize.workspaceTable(projectId, 'left');
+
+    // The two branches must agree, row by row, through the real driver.
+    // This is the assertion: not "the string branch produces something",
+    // but "the string branch and the date branch name the same day".
+    const [{ disagreements, compared }] = await dataSource.query(
+      `SELECT count(*) FILTER (WHERE w.birth_date <> w.birth_date_text)::int AS disagreements,
+              count(*)::int AS compared
+         FROM ${workspace} w
+        WHERE w.birth_date <> '' AND w.birth_date_text <> ''`,
+    );
+    expect(compared).toBeGreaterThan(9_000);
+    expect(disagreements).toBe(0);
+
+    // P000000 again: born 1985-01-01 and stored as '1985-01-01 00:00:00'.
+    // Midnight on a January 1st is the single worst case -- the pre-fix
+    // string branch returned 1984-12-31, changing the year and therefore
+    // the `year(birth_date)` blocking key.
+    const [newYear] = await dataSource.query(
+      `SELECT birth_date, birth_date_text FROM ${workspace} WHERE src_key = 'P000000'`,
+    );
+    expect(newYear.birth_date_text).toBe('1985-01-01');
+    expect(newYear.birth_date_text).toBe(newYear.birth_date);
+
+    // Ruling R59c also restores the unparseable-string cohort the `date`
+    // column could not hold: 'not recorded' must normalize to '' exactly
+    // as a NULL does, which is what makes `''::date` reachable at all.
+    const [{ blanks }] = await dataSource.query(
+      `SELECT count(*)::int AS blanks FROM ${workspace}
+        WHERE birth_date_text = '' AND src_key IN (
+          SELECT 'P' || lpad((4241 + 2 * k)::text, 6, '0') FROM generate_series(0, 19) AS k)`,
+    );
+    expect(blanks).toBe(20);
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `\nR59c: ${compared} rows compared across the date and text branches, ` +
+        `${disagreements} disagreements; P000000 text -> ${newYear.birth_date_text}`,
+    );
   });
 
   it('recovers at least 80 percent of the known duplicate pairs', async () => {
@@ -812,6 +892,35 @@ describe('matching engine (integration)', () => {
     );
     expect(merged).toBe(0);
   }, RUN_TIMEOUT_MS);
+
+  it('R61: refuses to serve the review queue for anything but the latest completed run', async () => {
+    // `firstRunId` is the very first run of this project and several
+    // completed runs have happened since, so it is definitively stale.
+    // The workspace it would be joined against was rebuilt by every one
+    // of those runs, so its record values are today's and its scores are
+    // not -- exactly the pairing a steward must never be asked to certify.
+    const latest = await runRepo.findOne({
+      where: { projectId, organizationId: orgId, status: 'completed' },
+      order: { startedAt: 'DESC', id: 'DESC' },
+    });
+    expect(latest).toBeDefined();
+    expect(latest!.id).not.toBe(firstRunId);
+
+    await expect(matchingService.listCandidates(firstRunId, orgId, { decision: 'grey' } as never)).rejects.toThrow(
+      /not the latest completed run/,
+    );
+
+    // Ruling R52 put this rule in the UI only, where it also failed open
+    // if the runs request errored. This is the copy that holds when the
+    // endpoint is called directly -- so the latest run must still serve.
+    const rows = await matchingService.listCandidates(latest!.id, orgId, { decision: 'grey' } as never);
+    expect(Array.isArray(rows)).toBe(true);
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `\nR61: refused stale run ${firstRunId}; served latest completed run ${latest!.id} (${rows.length} grey pairs)`,
+    );
+  });
 
   it('records a refused blocking estimate as a failed run and gives the lock back', async () => {
     // The only path in this pipeline that fails on purpose, and the only one
