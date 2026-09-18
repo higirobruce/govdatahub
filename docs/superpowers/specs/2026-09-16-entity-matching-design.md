@@ -489,6 +489,39 @@ appended to `lib/api.ts`, and a sidebar entry labelled "Entity Matching" in the
 - **`[id]/clusters/page.tsx`** — clusters, each with its golden record and the
   source of every field.
 
+**The Crosswalk is replaced by each run, not accumulated (Ruling R48).**
+Everything upstream of publication is recomputed from scratch every run — the
+workspace is dropped and reloaded in full, candidates and clusters are rebuilt.
+Only the Crosswalk persisted across runs, and `resolveEntityKey` read that
+accumulation as current truth. Two consequences followed, and both are defects.
+
+A published merge could never be withdrawn. A steward records `no_match`, the
+over-merge guard flags the cluster, publication correctly writes nothing for it
+— and the rows from the earlier run still say those records are one person. The
+verdict reaches scoring and never reaches the published product, which is the
+one artefact other systems join against. The same held for a raised threshold,
+a deleted source row, and a cluster that split back into singletons.
+
+So publication replaces rather than accumulates: in one transaction, rows for
+this project and source that the current run did not publish are deleted, then
+the run's rows are upserted. This is sound precisely because every run sees the
+complete source, so the latest run's conclusions are the complete current
+picture. A flagged cluster is deliberately not published, and its earlier claim
+is therefore withdrawn — the register stops asserting that two people are one
+while a human decides, which is the safe direction. A run that publishes
+nothing at all must still withdraw: "this run found no duplicates" is a
+conclusion, not an absence of one.
+
+**An entity key belongs to at most one cluster per run (Ruling R49).**
+`resolveEntityKey` takes the majority key among its members' existing Crosswalk
+rows, with no record of what the same run already assigned. Two clusters could
+therefore claim the same key: if a steward splits a three-record entity, the
+larger fragment keeps the key by majority and the smaller fragment can vote for
+it too, republishing all of them under one key — more merged than before the
+steward intervened, as a direct result of their correction. Keys are claimed
+once per run; a cluster whose majority key is already taken mints a new one,
+which is the correct identity for a fragment that has just been split off.
+
 **The grey queue re-serves pairs that already carry a verdict (phase 2).**
 Recording a decision does not change `match_candidates.decision`, so a pair a
 steward already judged is served again on their next visit. It is not corrupting
