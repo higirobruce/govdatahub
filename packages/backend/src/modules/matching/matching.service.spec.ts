@@ -187,35 +187,44 @@ describe('MatchingService', () => {
   // ---------------------------------------------------------------------
 
   describe('listCandidates', () => {
+    // Every test below stubs the `to_regclass` probe as its own call
+    // (dataSource.query.mock.calls[0]) before the real select
+    // (dataSource.query.mock.calls[1]) -- see the `workspaceExists`
+    // branch this method added under Ruling R39.
+
     it('queries match_candidates scoped by organization and run, with no decision filter', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
       dataSource.query.mockResolvedValueOnce([]);
       await service.listCandidates('r1', 'org1', {});
-      const [sql, params] = dataSource.query.mock.calls[0];
+      const [sql, params] = dataSource.query.mock.calls[1];
       expect(sql).not.toContain('"decision" =');
       expect(params).toEqual(['org1', 'r1', 50, 0]);
       expect(sql).toContain('LIMIT $3 OFFSET $4');
     });
 
     it('orders by score with left_key/right_key tiebreakers, so paging is stable across ties (Minor finding)', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
       dataSource.query.mockResolvedValueOnce([]);
       await service.listCandidates('r1', 'org1', {});
-      const [sql] = dataSource.query.mock.calls[0];
-      expect(sql).toContain('ORDER BY "score" DESC, "left_key", "right_key"');
+      const [sql] = dataSource.query.mock.calls[1];
+      expect(sql).toContain('ORDER BY c."score" DESC, c."left_key", c."right_key"');
     });
 
     it('adds the decision filter as its own bound parameter, not string-interpolated', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
       dataSource.query.mockResolvedValueOnce([]);
       await service.listCandidates('r1', 'org1', { decision: 'grey', limit: 10, offset: 5 } as any);
-      const [sql, params] = dataSource.query.mock.calls[0];
-      expect(sql).toContain('"decision" = $3');
+      const [sql, params] = dataSource.query.mock.calls[1];
+      expect(sql).toContain('c."decision" = $3');
       expect(sql).toContain('LIMIT $4 OFFSET $5');
       expect(params).toEqual(['org1', 'r1', 'grey', 10, 5]);
     });
 
     it('caps the limit at the documented maximum regardless of what is requested', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
       dataSource.query.mockResolvedValueOnce([]);
       await service.listCandidates('r1', 'org1', { limit: 999999 } as any);
-      const [, params] = dataSource.query.mock.calls[0];
+      const [, params] = dataSource.query.mock.calls[1];
       expect(params[2]).toBe(500);
     });
 
@@ -223,6 +232,57 @@ describe('MatchingService', () => {
       runRepo.findOne.mockResolvedValueOnce(null);
       await expect(service.listCandidates('r1', 'other-org', {})).rejects.toThrow(NotFoundException);
       expect(dataSource.query).not.toHaveBeenCalled();
+    });
+
+    // -----------------------------------------------------------------
+    // Ruling R39: features, and the workspace join for record values
+    // -----------------------------------------------------------------
+
+    it('always selects features, alongside the pre-existing columns', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
+      dataSource.query.mockResolvedValueOnce([]);
+      await service.listCandidates('r1', 'org1', {});
+      const [sql] = dataSource.query.mock.calls[1];
+      expect(sql).toContain('c."features"');
+    });
+
+    it('probes the run\'s project\'s left workspace table with to_regclass before the real select', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
+      dataSource.query.mockResolvedValueOnce([]);
+      await service.listCandidates('r1', 'org1', {});
+      expect(dataSource.query.mock.calls[0]).toEqual(['SELECT to_regclass($1) AS reg', ['matching.p_p1_left']]);
+    });
+
+    it('LEFT JOINs the workspace table on src_key, twice, when it exists -- both sides read the same dedupe-mode table', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
+      dataSource.query.mockResolvedValueOnce([]);
+      await service.listCandidates('r1', 'org1', {});
+      const [sql] = dataSource.query.mock.calls[1];
+      expect(sql).toContain('LEFT JOIN matching.p_p1_left l ON l."src_key" = c."left_key"');
+      expect(sql).toContain('LEFT JOIN matching.p_p1_left r ON r."src_key" = c."right_key"');
+      expect(sql).toContain('to_jsonb(l.*) AS "left_record"');
+      expect(sql).toContain('to_jsonb(r.*) AS "right_record"');
+    });
+
+    it('returns null records without joining or throwing when the workspace table has been dropped (retention sweep)', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: null }]);
+      dataSource.query.mockResolvedValueOnce([
+        { left_key: 'a', right_key: 'b', score: 0.9, decision: 'grey', blocking_pass: 'p1', features: {} },
+      ]);
+      const rows = await service.listCandidates('r1', 'org1', {});
+      const [sql] = dataSource.query.mock.calls[1];
+      expect(sql).not.toContain('LEFT JOIN matching.p_p1_left');
+      expect(sql).toContain('NULL::jsonb AS "left_record"');
+      expect(sql).toContain('NULL::jsonb AS "right_record"');
+      expect(rows).toHaveLength(1);
+    });
+
+    it('treats an empty to_regclass result the same as a missing relation, rather than throwing', async () => {
+      dataSource.query.mockResolvedValueOnce([]);
+      dataSource.query.mockResolvedValueOnce([]);
+      await service.listCandidates('r1', 'org1', {});
+      const [sql] = dataSource.query.mock.calls[1];
+      expect(sql).toContain('NULL::jsonb AS "left_record"');
     });
   });
 

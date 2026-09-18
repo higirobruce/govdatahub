@@ -21,6 +21,12 @@ import {
  * One row of `match_candidates` as read for the review queue. There is no
  * entity for this table (see `ScoringService`/`EvalService`, which read it
  * the same raw-SQL way); the API surface reads it identically here.
+ *
+ * Ruling R39: `features` (already stored by `ScoringService.featuresExpr`)
+ * and `left_record`/`right_record` (the two source rows, read live off the
+ * run's materialized workspace table) are included so a reviewer sees more
+ * than two opaque keys and a number. Both records are `null` when the
+ * workspace table has been dropped -- see `listCandidates` below.
  */
 export interface CandidateRow {
   left_key: string;
@@ -28,6 +34,9 @@ export interface CandidateRow {
   score: number;
   decision: CandidateDecision;
   blocking_pass: string;
+  features: Record<string, number>;
+  left_record: Record<string, unknown> | null;
+  right_record: Record<string, unknown> | null;
 }
 
 export interface RunEvaluation {
@@ -244,23 +253,66 @@ export class MatchingService {
 
   // ─── Review queue ────────────────────────────────────────────────────
 
+  /**
+   * Ruling R39: as written before this change, the review queue surfaced
+   * only `left_key, right_key, score, decision, blocking_pass` -- two
+   * opaque keys and a number, nothing a human could actually certify a
+   * match against. This now also selects `features` (already stored on
+   * every row by `ScoringService`, simply not selected before) and joins
+   * the run's project's workspace table to attach the two source rows as
+   * `left_record`/`right_record`.
+   *
+   * Phase 1 is dedupe-only, so both sides of a candidate pair are keys
+   * into the *same* workspace table -- `ScoringService.buildScoringSql`
+   * joins it the same way, twice, for the same reason (see
+   * `scoring.service.ts:205`).
+   *
+   * The workspace table is not guaranteed to still exist: the retention
+   * sweep (`matching-cleanup.service.ts`) drops it after
+   * `project.retentionDays`. `to_regclass` checks that directly, the same
+   * way `assertWorkspaceMaterialized` above does for the estimate path,
+   * rather than attempting the join and pattern-matching a "relation does
+   * not exist" error. When the table is gone, both record columns come
+   * back `null` and the candidate rows are still returned in full --
+   * never thrown, and the workspace is never re-materialized just to
+   * answer a read.
+   */
   async listCandidates(
     runId: string,
     organizationId: string,
     query: GetCandidatesQueryDto,
   ): Promise<CandidateRow[]> {
-    await this.loadRun(runId, organizationId);
+    const run = await this.loadRun(runId, organizationId);
+    const project = await this.loadProject(run.projectId, organizationId);
 
     const limit = Math.min(query.limit ?? DEFAULT_CANDIDATES_LIMIT, MAX_CANDIDATES_LIMIT);
     const offset = query.offset ?? 0;
+
+    const table = this.materialize.workspaceTable(project.id, 'left');
+    const regRows: { reg: string | null }[] = await this.dataSource.query('SELECT to_regclass($1) AS reg', [table]);
+    const workspaceExists = !!regRows[0] && regRows[0].reg !== null;
 
     const params: unknown[] = [organizationId, runId];
     let decisionClause = '';
     if (query.decision) {
       params.push(query.decision);
-      decisionClause = ` AND "decision" = $${params.length}`;
+      decisionClause = ` AND c."decision" = $${params.length}`;
     }
     params.push(limit, offset);
+
+    // A LEFT JOIN, deliberately: a candidate whose workspace row is
+    // missing (a race with the retention sweep, or a corrupt row) must
+    // still appear in the queue as a null-record pair, not silently
+    // vanish from it. `c`/`l`/`r` are fixed aliases, never user input;
+    // match_candidates' own columns are qualified by `c.` throughout so
+    // they can never collide with an allow-listed source column of the
+    // same name (e.g. a registry column literally called "score").
+    const recordColumns = workspaceExists
+      ? `, to_jsonb(l.*) AS "left_record", to_jsonb(r.*) AS "right_record"`
+      : `, NULL::jsonb AS "left_record", NULL::jsonb AS "right_record"`;
+    const joinClause = workspaceExists
+      ? ` LEFT JOIN ${table} l ON l."src_key" = c."left_key" LEFT JOIN ${table} r ON r."src_key" = c."right_key"`
+      : '';
 
     // Ties on `score` are common (many pairs land on the same weighted
     // sum), and ORDER BY + LIMIT/OFFSET over an untied column is not a
@@ -268,9 +320,10 @@ export class MatchingService {
     // see the same pair twice and never see another one at all. The
     // tiebreaker columns are fixed identifiers, never user input.
     return this.dataSource.query(
-      `SELECT "left_key", "right_key", "score", "decision", "blocking_pass" FROM "match_candidates" ` +
-        `WHERE "organization_id" = $1 AND "run_id" = $2${decisionClause} ` +
-        `ORDER BY "score" DESC, "left_key", "right_key" LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      `SELECT c."left_key", c."right_key", c."score", c."decision", c."blocking_pass", c."features"${recordColumns} ` +
+        `FROM "match_candidates" c${joinClause} ` +
+        `WHERE c."organization_id" = $1 AND c."run_id" = $2${decisionClause} ` +
+        `ORDER BY c."score" DESC, c."left_key", c."right_key" LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
   }
