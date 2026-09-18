@@ -239,6 +239,18 @@ export default function NewMatchProjectPage() {
     return Array.from(new Set([primaryKey, ...cols].filter((c) => c && c.length > 0)));
   }, [fieldMap, primaryKey]);
 
+  /**
+   * Ruling R42: the sum every field's weight is divided by
+   * (`weightedScoreExpr`, blocking-sql.ts:189-207) — nothing constrains it
+   * to 1, so a field's actual score cap (`weight / totalFieldWeight`) is
+   * shown next to its weight input rather than assumed. Zero until the
+   * first weight is entered; guarded below wherever it's divided by.
+   */
+  const totalFieldWeight = useMemo(
+    () => fieldMap.reduce((sum, f) => sum + (Number.isFinite(f.weight) ? f.weight : 0), 0),
+    [fieldMap],
+  );
+
   const step1Valid = leftSource !== null;
   const step2Valid = fieldMap.length > 0 && fieldMap.every((f) => f.weight > 0);
   const step3Valid =
@@ -688,6 +700,21 @@ export default function NewMatchProjectPage() {
                                 onChange={(e) => updateFieldWeight(col.name, parseFloat(e.target.value) || 0)}
                               />
                             </div>
+                            {/*
+                              Ruling R42: the share this field actually
+                              contributes to the score cap once a pair is
+                              missing every other field, i.e. weight /
+                              totalFieldWeight -- shown so the threshold
+                              step's warning names a number this screen
+                              already displayed, not one the reader must
+                              compute by hand against a total never shown
+                              anywhere.
+                            */}
+                            <span className="w-16 text-right text-xs text-[#aaaaaa] tabular-nums shrink-0">
+                              {totalFieldWeight > 0
+                                ? `${Math.round((mapping.weight / totalFieldWeight) * 100)}% share`
+                                : '—'}
+                            </span>
                           </>
                         )}
                       </div>
@@ -963,10 +990,10 @@ export default function NewMatchProjectPage() {
               <p className="text-xs text-[#777777] mt-3 leading-relaxed">
                 Scores are a weighted average across every mapped field&apos;s weight — not just the
                 fields present on a given pair. A pair missing a field can never score above 1 minus that
-                field&apos;s weight share, however well the rest agree. If phone carries weight 0.2 and a
-                pair has no phone on either side, it caps at 0.8 and can never reach a 0.9 match threshold.
-                Set thresholds using the precision and recall you measure against a gold set, not by
-                assuming every field is always populated.
+                field&apos;s share, shown next to its weight in step 2 — however well the rest agree, a
+                field at a 20% share caps a pair missing it at 0.80, whatever the field&apos;s raw weight
+                number happens to be. Set thresholds using the precision and recall you measure against a
+                gold set, not by assuming every field is always populated.
               </p>
             </div>
 
