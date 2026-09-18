@@ -489,6 +489,17 @@ appended to `lib/api.ts`, and a sidebar entry labelled "Entity Matching" in the
 - **`[id]/clusters/page.tsx`** — clusters, each with its golden record and the
   source of every field.
 
+**The grey queue re-serves pairs that already carry a verdict (phase 2).**
+Recording a decision does not change `match_candidates.decision`, so a pair a
+steward already judged is served again on their next visit. It is not corrupting
+— a second verdict upserts over the first — but it wastes review time and it
+means the queue's position indicator must not be labelled as progress. Filtering
+decided pairs out needs an honest denominator, and `counters.grey` is fixed at
+run time, so it would require a count of undecided pairs the API does not expose.
+Phase 2 adds that count and the filter together; until then the queue shows
+position ("Pair X of Y"), plus a separate count of decisions made in this
+session, and never claims a certified-progress figure it cannot substantiate.
+
 **Undo retracts a verdict; it does not assert the opposite (Ruling R43).**
 `match_decisions` carries a `UNIQUE` constraint on the pair, and a stored verdict
 is honoured by scoring *regardless of score* — `'no_match'` becomes `'rejected'`
