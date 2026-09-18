@@ -302,6 +302,28 @@ export class MatchingService {
    * back `null` and the candidate rows are still returned in full --
    * never thrown, and the workspace is never re-materialized just to
    * answer a read.
+   *
+   * **Ruling R61: only the latest completed run of the project is
+   * served.** The workspace this method joins is keyed by PROJECT, and
+   * every run drops and rebuilds it, so the `left_record`/`right_record`
+   * it attaches are always the CURRENT values whatever run the score
+   * beside them came from. Serving an older run puts today's field values
+   * next to a stale score and asks a steward to certify a pair against
+   * data the score was never computed from -- and a verdict is permanent
+   * (Ruling R25), so there is no cheap way to unwind one made on a false
+   * premise.
+   *
+   * Ruling R52 put that restriction in the UI. That is not the same
+   * thing: the UI guard fails OPEN if the runs request errors, and the
+   * endpoint was reachable directly regardless. The condition belongs
+   * here, where it is the only copy that can actually be relied on --
+   * this is a read that hands a human the evidence they will certify
+   * against, so it refuses rather than caveats.
+   *
+   * Scoped per project, not globally: "latest completed" means the latest
+   * completed run of THIS run's project, so two projects reviewing at the
+   * same time do not lock each other out. Versioning the workspace per
+   * run is the phase-3 change that would lift this.
    */
   async listCandidates(
     runId: string,
@@ -310,6 +332,7 @@ export class MatchingService {
   ): Promise<CandidateRow[]> {
     const run = await this.loadRun(runId, organizationId);
     const project = await this.loadProject(run.projectId, organizationId);
+    await this.assertLatestCompletedRun(run);
 
     const limit = Math.min(query.limit ?? DEFAULT_CANDIDATES_LIMIT, MAX_CANDIDATES_LIMIT);
     const offset = query.offset ?? 0;
@@ -532,6 +555,43 @@ export class MatchingService {
   }
 
   // ─── Shared loaders ──────────────────────────────────────────────────
+
+  /**
+   * Ruling R61: refuses any run that is not the latest completed run of
+   * its own project.
+   *
+   * The comparison is by `startedAt DESC` with the run id as the
+   * tie-break, exactly matching `listRuns`'s ordering, so the run the UI
+   * calls latest and the run this accepts can never disagree. A
+   * non-terminal run is not a candidate: a run still materializing has
+   * not finished rebuilding the workspace, and a failed one may have
+   * rebuilt it only partway.
+   *
+   * A project with no completed run at all refuses too, with its own
+   * message -- there is nothing to review, and "not the latest" would be
+   * a misleading way to say so.
+   */
+  private async assertLatestCompletedRun(run: MatchRun): Promise<void> {
+    const latest = await this.runRepo.findOne({
+      where: { projectId: run.projectId, organizationId: run.organizationId, status: 'completed' },
+      order: { startedAt: 'DESC', id: 'DESC' },
+    });
+
+    if (!latest) {
+      throw new ConflictException(
+        `Match project ${run.projectId} has no completed run, so there are no candidates to review yet.`,
+      );
+    }
+
+    if (latest.id !== run.id) {
+      throw new ConflictException(
+        `Match run ${run.id} is not the latest completed run of project ${run.projectId} (that is ${latest.id}). ` +
+          `Every run rebuilds this project's workspace from scratch, so the record values served here are the ` +
+          `current ones — beside an older run's scores they would show a pair as it is now, not as it was when ` +
+          `that score was computed. Review the latest completed run instead.`,
+      );
+    }
+  }
 
   private async loadProject(id: string, organizationId: string): Promise<MatchProject> {
     const project = await this.projectRepo.findOne({ where: { id, organizationId } });

@@ -52,12 +52,26 @@ export default function ReviewQueuePage() {
   );
   // Ruling R52: this page may only serve the latest completed run -- see
   // the refusal block below for why -- so it has to know which that is.
-  const { data: runs } = useSWR<MatchRunDto[]>(`/matching/projects/${projectId}/runs`, () =>
-    api.matching.listRuns(projectId),
+  const { data: runs, error: runsError } = useSWR<MatchRunDto[]>(
+    `/matching/projects/${projectId}/runs`,
+    () => api.matching.listRuns(projectId),
   );
   // Runs come back startedAt DESC, so the first completed one is the latest.
   const latestCompletedRun = runs?.find((r) => r.status === 'completed') ?? null;
-  const isStaleRun = !!runId && !!runs && (!latestCompletedRun || latestCompletedRun.id !== runId);
+  /*
+    Ruling R61: this guard FAILS CLOSED. The first version only refused
+    once `runs` had loaded, so a failed runs request left it false and the
+    page served whatever run the URL named -- the one state in which the
+    check was most needed was the one in which it did not run.
+
+    `listCandidates` now enforces the same rule server-side, which is the
+    copy that can actually be relied on; this one exists so the refusal
+    arrives as an explanation rather than as a red toast. Both are needed:
+    without the server rule the endpoint is reachable directly, and
+    without this one the steward gets an error where a sentence belongs.
+  */
+  const isStaleRun =
+    !!runId && (!!runsError || (!!runs && (!latestCompletedRun || latestCompletedRun.id !== runId)));
 
   const [globalIndex, setGlobalIndex] = useState(0);
   const [pages, setPages] = useState<Record<number, MatchCandidateDto[]>>({});
@@ -234,9 +248,11 @@ export default function ReviewQueuePage() {
     premise. Versioning workspaces per run is phase-3 work; refusing the
     stale run, and saying why, is the honest fix available now.
 
-    The guard waits for `runs` to load (`isStaleRun` is false until then)
-    rather than refusing optimistically, so a slow list never flashes a
-    refusal at someone who opened the right run.
+    While the runs list is still loading the guard holds off, so a slow
+    list never flashes a refusal at someone who opened the right run --
+    but if that request FAILS it refuses (Ruling R61). An unverifiable
+    run is not a verified one, and the cost of being wrong here is a
+    permanent verdict recorded against the wrong evidence.
   */
   if (isStaleRun) {
     return (
@@ -251,11 +267,14 @@ export default function ReviewQueuePage() {
           </Link>
         </div>
         <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-8 text-center">
-          <p className="text-sm text-[#1a1a1a] font-medium mb-1">Review is only open on the latest completed run</p>
+          <p className="text-sm text-[#1a1a1a] font-medium mb-1">
+            {runsError ? 'Cannot confirm this is the latest completed run' : 'Review is only open on the latest completed run'}
+          </p>
           <p className="text-sm text-[#aaaaaa] mb-4 max-w-xl mx-auto">
             Every run rebuilds this project&rsquo;s match workspace from scratch, so the record values on this
             screen are always the current ones. Beside an older run&rsquo;s scores they would ask you to certify
             a pair against data the score was never computed from, and a verdict cannot be un-recorded.
+            {runsError && ' The run list could not be loaded, so this page cannot tell which run is the latest — it refuses rather than guess.'}
           </p>
           {latestCompletedRun ? (
             <Button asChild>

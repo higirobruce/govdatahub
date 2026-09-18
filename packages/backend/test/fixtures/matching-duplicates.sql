@@ -72,8 +72,10 @@
 --     always proposed by the trigram pass and their comparators are therefore
 --     always evaluated. Their birth dates are absent -- NULL on the odd
 --     member of every pair, and for k < 10 on BOTH sides rather than one.
---     `NormalizationService.normalizeDate` turns every one of those into
---     the empty string, which is precisely the value
+--     The odd members also carry the unparseable string 'not recorded' in
+--     `birth_date_text` (Ruling R59c), so both ways a date can be missing
+--     are exercised. `NormalizationService.normalizeDate` turns every one
+--     of those into the empty string, which is precisely the value
 --     that makes `''::date` raise `invalid input syntax for type date: ""` --
 --     an error that aborts the whole scoring statement, not one pair. Nothing
 --     else in this fixture produces a missing date, so without this cohort the
@@ -129,14 +131,41 @@ CREATE TABLE matching_fixture.citizens (
   -- round trip through the real driver is what the run exercises.
   --
   -- Still nullable: a civil register with no absent date of birth in it is
-  -- not a civil register. A `date` column cannot hold the unparseable
-  -- string this fixture used to carry alongside the NULLs -- PostgreSQL
-  -- rejects it at INSERT -- so the missing-date cohort below is now NULL
-  -- on both shapes. `normalizeDate` mapped both to '' identically, so the
-  -- '' that reaches the workspace (and therefore the `''::date` hazard the
-  -- e2e suite exists to catch) is unchanged; the unparseable-string branch
-  -- itself is covered by `normalization.service.spec.ts`.
+  -- not a civil register. A `date` column cannot hold an unparseable
+  -- string -- PostgreSQL rejects it at INSERT -- so the missing-date
+  -- cohort is NULL here and carries its malformed shapes in
+  -- `birth_date_text` below instead.
   birth_date  date NULL,
+  -- Ruling R59c: the SAME calendar day as `birth_date`, stored as TEXT
+  -- carrying a time.
+  --
+  -- Making `birth_date` a real `date` fixed one blind spot and opened its
+  -- mirror image: the run then exercised only `normalizeDate`'s `Date`
+  -- branch, and nothing end to end touched the string branch -- which is
+  -- exactly where the unfixed residue of Ruling R50 was still living
+  -- (R59b). A bare 'YYYY-MM-DD' parses as UTC midnight and round-trips
+  -- unchanged, so only a string carrying a TIME can catch it: under the
+  -- ECMAScript grammar that switches the parse to LOCAL, and
+  -- `toISOString()` then moved it back a day in every zone east of
+  -- Greenwich.
+  --
+  -- The shapes below are the ones a real register produces:
+  --   * 'YYYY-MM-DD HH:MM:SS' at midnight -- SQLite's canonical date
+  --     storage, returned verbatim by better-sqlite3 (SQLite is one of the
+  --     five connection types phase 1 supports), and the ordinary shape of
+  --     a CSV-imported date on PostgreSQL and MySQL too. Midnight is the
+  --     value that shifts BACKWARD east of Greenwich.
+  --   * 'YYYY-MM-DDTHH:MM:SS' -- the same hazard, T-separated.
+  --   * a late-evening time, which shifts FORWARD in western zones, so the
+  --     fixture is not only sensitive to the deployment zone's direction.
+  --   * the unparseable string 'not recorded', restoring the coverage the
+  --     `date` column could not keep: it must normalize to '' exactly as a
+  --     NULL does, which is what makes `''::date` reachable.
+  --
+  -- Mapped at weight 0 in the e2e project, like `address`: its comparators
+  -- are evaluated and its normalized value lands in the workspace, without
+  -- disturbing a score model calibrated on the other four fields.
+  birth_date_text text NULL,
   phone       text NULL,
   address     text NULL,
   district    text NOT NULL
@@ -153,13 +182,33 @@ CREATE TABLE matching_fixture.truth (
 -- --------------------------------------------------------------------------
 -- 9,700 base people.
 -- --------------------------------------------------------------------------
-INSERT INTO matching_fixture.citizens (id, given_name, surname, full_name, birth_date, phone, address, district)
+INSERT INTO matching_fixture.citizens
+  (id, given_name, surname, full_name, birth_date, birth_date_text, phone, address, district)
 SELECT
   'P' || lpad(i::text, 6, '0'),
   gn,
   sn,
   btrim(gn || ' ' || sn),
   bd,
+  -- Ruling R59c: the same day as `bd`, as text with a time. Three
+  -- shapes plus the unparseable one, chosen by row index so the file
+  -- stays deterministic.
+  CASE
+    -- The missing-date cohort's odd members: NULL in `birth_date`,
+    -- unparseable here. Both must normalize to ''.
+    WHEN i >= 4240 AND i < 4280 AND i % 2 = 1 THEN 'not recorded'
+    WHEN bd IS NULL THEN NULL
+    -- Midnight, space-separated: SQLite's canonical storage, and the
+    -- value that moves back a day east of Greenwich.
+    WHEN i % 4 = 0 THEN to_char(bd, 'YYYY-MM-DD HH24:MI:SS')
+    -- Midnight, T-separated: the same hazard, ISO-8601 shape.
+    WHEN i % 4 = 1 THEN to_char(bd, 'YYYY-MM-DD"T"HH24:MI:SS')
+    -- Late evening: moves FORWARD a day in western zones.
+    WHEN i % 4 = 2 THEN to_char(bd, 'YYYY-MM-DD 23:30:00')
+    -- Bare date-only: the one shape that never shifted, kept so the
+    -- easy case stays covered alongside the hard ones.
+    ELSE to_char(bd, 'YYYY-MM-DD')
+  END,
   CASE WHEN i >= 4241 AND i < 4280 AND i % 2 = 1 THEN NULL
        ELSE '078' || lpad((((i * 37) + 11) % 10000000)::text, 7, '0') END,
   CASE
@@ -227,18 +276,28 @@ FROM (
 -- --------------------------------------------------------------------------
 -- 300 duplicates.
 -- --------------------------------------------------------------------------
-INSERT INTO matching_fixture.citizens (id, given_name, surname, full_name, birth_date, phone, address, district)
+INSERT INTO matching_fixture.citizens
+  (id, given_name, surname, full_name, birth_date, birth_date_text, phone, address, district)
 SELECT
   d.dup_id,
   d.given_name,
   d.surname,
   btrim(d.given_name || ' ' || d.surname),
   d.birth_date,
+  -- Ruling R59c: the duplicate's OWN day, as a midnight timestamp. The
+  -- 'dob' cohort transposed its day digits, so this must be rendered from
+  -- the duplicate's date and never copied from the source's text.
+  CASE
+    WHEN d.birth_date IS NULL THEN NULL
+    WHEN d.k % 2 = 0 THEN to_char(d.birth_date, 'YYYY-MM-DD HH24:MI:SS')
+    ELSE to_char(d.birth_date, 'YYYY-MM-DD"T"HH24:MI:SS')
+  END,
   d.phone,
   d.address,
   d.district
 FROM (
   SELECT
+    k,
     'D' || lpad(k::text, 6, '0') AS dup_id,
     CASE WHEN k < 100 THEN c.surname ELSE c.given_name END AS given_name,
     CASE
