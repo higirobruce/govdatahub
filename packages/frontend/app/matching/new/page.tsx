@@ -169,7 +169,11 @@ export default function NewMatchProjectPage() {
   // Step 3 — Blocking
   const [passes, setPasses] = useState<PassDraft[]>([]);
   const [estimate, setEstimate] = useState<BlockingEstimate | null>(null);
-  const [estimateUnavailable, setEstimateUnavailable] = useState(false);
+  // Set from the backend's own ConflictException message (Ruling R36:
+  // MatchingService.estimate refuses cleanly, without materializing on
+  // demand, when the project hasn't run yet) -- rendered verbatim rather
+  // than a hardcoded copy, so the two cannot drift apart.
+  const [estimateUnavailableMessage, setEstimateUnavailableMessage] = useState<string | null>(null);
   const [estimating, setEstimating] = useState(false);
 
   // Step 4 — Thresholds & authority
@@ -280,20 +284,25 @@ export default function NewMatchProjectPage() {
       return;
     }
     setEstimating(true);
-    setEstimateUnavailable(false);
+    setEstimateUnavailableMessage(null);
     try {
       const project = await saveDraft();
       const result = await api.matching.estimate(project.id);
       setEstimate(result);
-    } catch (err: unknown) {
-      // Expected on a project's very first estimate: the blocking-key
-      // histogram reads the workspace table `MaterializeService.materialize`
-      // creates, and that table is only created during a run's own
-      // materialize stage — there is no way to populate it ahead of one.
-      // This is a real backend/frontend gap, not a bug in this handler;
-      // see the task-16 report's Concerns section.
+    } catch (err: any) {
       setEstimate(null);
-      setEstimateUnavailable(true);
+      if (err?.statusCode === 409) {
+        // Expected for a project's first-ever estimate call (Ruling R36):
+        // MatchingService.estimate reads the workspace table a run's own
+        // materialize step creates, and refuses cleanly rather than
+        // materializing on demand -- doing that here would copy data
+        // before this wizard's step 4 records lawful basis and data
+        // owner. Render the backend's own message so this copy cannot
+        // drift out of sync with the reason it actually gives.
+        setEstimateUnavailableMessage(err.message);
+      } else {
+        showToast(err?.message || 'Failed to compute estimate', 'error');
+      }
     } finally {
       setEstimating(false);
     }
@@ -360,19 +369,19 @@ export default function NewMatchProjectPage() {
       },
     ]);
     setEstimate(null);
-    setEstimateUnavailable(false);
+    setEstimateUnavailableMessage(null);
   }
 
   function removePass(index: number) {
     setPasses((prev) => prev.filter((_, i) => i !== index));
     setEstimate(null);
-    setEstimateUnavailable(false);
+    setEstimateUnavailableMessage(null);
   }
 
   function updatePass(index: number, patch: Partial<PassDraft>) {
     setPasses((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
     setEstimate(null);
-    setEstimateUnavailable(false);
+    setEstimateUnavailableMessage(null);
   }
 
   function addTerm(passIndex: number) {
@@ -911,12 +920,9 @@ export default function NewMatchProjectPage() {
                 </div>
               )}
 
-              {estimateUnavailable && (
+              {estimateUnavailableMessage && (
                 <div className="mt-3 rounded-md border border-[#e8e8e8] bg-[#fafafa] p-3 text-sm text-[#555555]">
-                  This project hasn&apos;t run yet, so blocking can&apos;t be measured against real data
-                  yet — the projection is computed from the workspace copy the first run creates. Once you
-                  start a run, it computes this automatically and refuses safely if the projected volume is
-                  too large for the configured cap.
+                  {estimateUnavailableMessage}
                 </div>
               )}
             </div>

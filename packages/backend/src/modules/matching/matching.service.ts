@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { MatchDecision, MatchEntity, MatchGoldPair, MatchProject, MatchRun } from '../../database/entities';
 import type { CandidateDecision } from '../../database/entities';
 import { BlockingEstimate, BlockingService } from './blocking.service';
+import { MaterializeService } from './materialize.service';
 import { EvalMetrics, EvalService, SweepPoint } from './eval.service';
 import { MatchRunService } from './match-run.service';
 import {
@@ -58,6 +59,7 @@ export class MatchingService {
     private readonly blocking: BlockingService,
     private readonly matchRun: MatchRunService,
     private readonly evalService: EvalService,
+    private readonly materialize: MaterializeService,
   ) {}
 
   // ─── Projects ────────────────────────────────────────────────────────
@@ -169,7 +171,43 @@ export class MatchingService {
   /** Ruling R32: an inactive project refuses estimation, not just runs. */
   async estimate(id: string, organizationId: string): Promise<BlockingEstimate> {
     const project = await this.loadActiveProject(id, organizationId);
+    await this.assertWorkspaceMaterialized(project);
     return this.blocking.estimate(project);
+  }
+
+  /**
+   * Ruling R36: `BlockingService.estimate` reads
+   * `MaterializeService.workspaceTable(project.id, 'left')`, a real
+   * PostgreSQL table that is only ever created by a run's own materialize
+   * step (`MatchRunService.start`, which materializes before it estimates
+   * -- see `match-run.service.ts`). This method deliberately does NOT
+   * materialize on demand to make a first-time estimate succeed:
+   * materializing copies citizen or business data into DataGate, and the
+   * wizard records the lawful basis and data owner in its last step, after
+   * blocking. Copying data early to answer "how big would this be" would
+   * invert the order this feature is built around -- authority recorded
+   * first, data copied second -- and would leave copied personal data
+   * behind if the user abandoned the wizard before finishing it.
+   *
+   * So: before a project's first run, the workspace table genuinely does
+   * not exist, and that must surface as a clear, actionable error rather
+   * than a raw `relation "matching.p_..." does not exist` -- an internal
+   * error otherwise leaking straight to an HTTP caller. `to_regclass`
+   * checks existence directly instead of catching and pattern-matching the
+   * driver's error text, which would silently stop working the moment a
+   * PostgreSQL upgrade or driver change reworded the message.
+   */
+  private async assertWorkspaceMaterialized(project: MatchProject): Promise<void> {
+    const table = this.materialize.workspaceTable(project.id, 'left');
+    const rows: { reg: string | null }[] = await this.dataSource.query('SELECT to_regclass($1) AS reg', [table]);
+    if (!rows[0] || rows[0].reg === null) {
+      throw new ConflictException(
+        `Match project ${project.id} has not run yet -- a blocking estimate reads the workspace copy a run's ` +
+          `own materialize step creates, and that copy does not exist until this project completes its first ` +
+          `run. "Create and run" is safe without a preview: the run computes this estimate internally, before ` +
+          `scoring, and refuses automatically if the projected pairs exceed twice the configured cap.`,
+      );
+    }
   }
 
   // ─── Runs ────────────────────────────────────────────────────────────
