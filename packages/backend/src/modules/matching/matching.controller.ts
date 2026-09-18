@@ -36,7 +36,7 @@ const EDITOR_ROLES = [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR]
  * takes `@CurrentUser() user: User` and forwards `user.organizationId`.
  */
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/matching')
+@Controller('matching')
 export class MatchingController {
   constructor(private readonly service: MatchingService) {}
 

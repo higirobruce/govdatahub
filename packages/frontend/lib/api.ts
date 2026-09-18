@@ -698,6 +698,52 @@ export const api = {
     remove: (id: string): Promise<void> =>
       request(`/dashboards/${id}`, { method: 'DELETE' }),
   },
+
+  // Entity Matching
+  matching: {
+    listProjects: (): Promise<MatchProjectDto[]> => request('/matching/projects'),
+
+    getProject: (id: string): Promise<MatchProjectDto> =>
+      request(`/matching/projects/${id}`),
+
+    createProject: (body: CreateMatchProjectBody): Promise<MatchProjectDto> =>
+      request('/matching/projects', { method: 'POST', body: JSON.stringify(body) }),
+
+    updateProject: (id: string, body: Partial<CreateMatchProjectBody>): Promise<MatchProjectDto> =>
+      request(`/matching/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+    deleteProject: (id: string): Promise<void> =>
+      request(`/matching/projects/${id}`, { method: 'DELETE' }),
+
+    estimate: (id: string): Promise<BlockingEstimate> =>
+      request(`/matching/projects/${id}/estimate`, { method: 'POST' }),
+
+    startRun: (id: string): Promise<MatchRunDto> =>
+      request(`/matching/projects/${id}/runs`, { method: 'POST' }),
+
+    listRuns: (id: string): Promise<MatchRunDto[]> =>
+      request(`/matching/projects/${id}/runs`),
+
+    getRun: (runId: string): Promise<MatchRunDto> =>
+      request(`/matching/runs/${runId}`),
+
+    listCandidates: (runId: string, decision: string, limit = 50): Promise<MatchCandidateDto[]> =>
+      request(
+        `/matching/runs/${runId}/candidates?decision=${encodeURIComponent(decision)}&limit=${limit}`,
+      ),
+
+    submitDecision: (projectId: string, body: SubmitDecisionBody): Promise<void> =>
+      request(`/matching/projects/${projectId}/decisions`, { method: 'POST', body: JSON.stringify(body) }),
+
+    listClusters: (runId: string): Promise<MatchClusterDto[]> =>
+      request(`/matching/runs/${runId}/clusters`),
+
+    evaluate: (runId: string): Promise<{ metrics: EvalMetrics; sweep: SweepPoint[] }> =>
+      request(`/matching/runs/${runId}/evaluate`),
+
+    addGoldPair: (projectId: string, body: AddGoldPairBody): Promise<void> =>
+      request(`/matching/projects/${projectId}/gold-pairs`, { method: 'POST', body: JSON.stringify(body) }),
+  },
 };
 
 // ============================================================================
@@ -859,6 +905,225 @@ export interface SuggestedCheck {
   columnName?: string;
   config: Record<string, any>;
   rationale: string;
+}
+
+// ============================================================================
+// Entity Matching (Task 16) — types mirror the backend entities/DTOs in
+// packages/backend/src/database/entities/match-*.entity.ts and
+// packages/backend/src/modules/matching/*, verified field-for-field against
+// them rather than guessed.
+// ============================================================================
+
+export type MatchMode = 'dedupe' | 'link';
+export type FieldRole = 'person_name' | 'org_name' | 'date' | 'phone' | 'identifier' | 'address' | 'text';
+export type BlockingKind = 'equi' | 'trigram';
+export type MatchRunStatus =
+  | 'pending'
+  | 'materializing'
+  | 'normalizing'
+  | 'blocking'
+  | 'scoring'
+  | 'clustering'
+  | 'completed'
+  | 'failed';
+/** A candidate pair's state within one run — never what a human submits (see MatchVerdict). */
+export type CandidateDecision = 'auto_match' | 'grey' | 'confirmed' | 'rejected';
+/** The only vocabulary a human reviewer can produce (Ruling R25) — distinct from CandidateDecision. */
+export type MatchVerdict = 'match' | 'no_match';
+
+/** A Match Project's Match Source: either a table behind a Connection, or a Staged Data dataset. */
+export interface MatchSourceRef {
+  kind: 'connection' | 'staged';
+  connectionId?: string;
+  schemaName?: string;
+  tableName?: string;
+  stagedDataId?: string;
+  primaryKey: string;
+}
+
+/** One field's role, comparator and weight in the scoring formula. */
+export interface FieldMapping {
+  left: string;
+  right: string;
+  role: FieldRole;
+  weight: number;
+  comparator: string;
+}
+
+/** One Blocking Pass: an equi-join key, or a trigram-similarity key with a threshold. */
+export interface BlockingPass {
+  name: string;
+  kind: BlockingKind;
+  keyExpr: string;
+  threshold?: number;
+}
+
+export interface MatchThresholds {
+  matchAt: number;
+  rejectAt: number;
+}
+
+export interface MatchProjectDto {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  mode: MatchMode;
+  leftSource: MatchSourceRef;
+  rightSource: MatchSourceRef | null;
+  fieldMap: FieldMapping[];
+  blockingPasses: BlockingPass[];
+  thresholds: MatchThresholds;
+  columnAllowlist: string[];
+  lawfulBasis: string;
+  dataOwner: string;
+  retentionDays: number;
+  /** 'active' | 'inactive' (soft-deleted — Ruling R31). Not a closed union server-side. */
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMatchProjectBody {
+  name: string;
+  description?: string;
+  mode: MatchMode;
+  leftSource: MatchSourceRef;
+  rightSource?: MatchSourceRef;
+  fieldMap: FieldMapping[];
+  blockingPasses: BlockingPass[];
+  thresholds: MatchThresholds;
+  columnAllowlist: string[];
+  lawfulBasis: string;
+  dataOwner: string;
+  retentionDays: number;
+}
+
+/**
+ * Ruling R23/R24: candidatePairs is NOT autoMatch + grey + autoReject once any
+ * human decision exists on the run — a pair carrying a verdict is stored as
+ * confirmed/rejected and is counted by neither. Never render these four as a
+ * total that must add up.
+ */
+export interface MatchRunCounters {
+  leftRows: number;
+  rightRows: number;
+  candidatePairs: number;
+  autoMatch: number;
+  grey: number;
+  autoReject: number;
+  clusters: number;
+  flaggedClusters: number;
+  /** What the blocking estimate projected before the run started — not a count of anything the run did. */
+  estimatedPairs: number;
+  /**
+   * Ruling R20: true when any blocking pass was inexact (trigram). When true,
+   * `estimatedPairs` is a LOWER BOUND, not an estimate — render it as
+   * "at least N", never a bare number.
+   */
+  hasInexactPass: boolean;
+}
+
+/** One Blocking Pass's degenerate (dropped) key values, as recorded on the run. */
+export interface RunDroppedKeys {
+  pass: string;
+  keys: string[];
+}
+
+export interface MatchRunDto {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  status: MatchRunStatus;
+  counters: MatchRunCounters;
+  watermarks: Record<string, unknown>;
+  droppedKeys: RunDroppedKeys[];
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  errorMessage: string | null;
+}
+
+/**
+ * One row of match_candidates as read for the review queue — raw SQL, not a
+ * TypeORM entity, so the field names stay snake_case exactly as the backend
+ * (MatchingService.CandidateRow) returns them.
+ */
+export interface MatchCandidateDto {
+  left_key: string;
+  right_key: string;
+  score: number;
+  decision: CandidateDecision;
+  blocking_pass: string;
+}
+
+export interface SubmitDecisionBody {
+  leftSourceRef: string;
+  leftKey: string;
+  rightSourceRef: string;
+  rightKey: string;
+  decision: MatchVerdict;
+}
+
+/** One member of a Cluster: which Match Source it came from, and its key within that source. */
+export interface MatchMember {
+  sourceRef: string;
+  sourceKey: string;
+}
+
+export interface MatchClusterDto {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  runId: string;
+  entityKey: string;
+  members: MatchMember[];
+  golden: Record<string, unknown>;
+  size: number;
+  flagged: boolean;
+  createdAt: string;
+}
+
+export interface EvalMetrics {
+  truePositives: number;
+  falsePositives: number;
+  falseNegatives: number;
+  precision: number;
+  recall: number;
+  f1: number;
+}
+
+export interface SweepPoint {
+  matchAt: number;
+  metrics: EvalMetrics;
+}
+
+export interface AddGoldPairBody {
+  leftKey: string;
+  rightKey: string;
+  isMatch: boolean;
+}
+
+/**
+ * One Blocking Pass's projected pair count. For an inexact (trigram) pass,
+ * `exact: false` and `estimatedPairs` is a declared LOWER BOUND only — see
+ * `BlockingEstimate.hasInexactPass`. No caller may present it as an estimate.
+ */
+export interface PassEstimate {
+  pass: string;
+  distinctKeys: number;
+  estimatedPairs: number;
+  droppedKeys: string[];
+  exact: boolean;
+}
+
+export interface BlockingEstimate {
+  perPass: PassEstimate[];
+  totalEstimatedPairs: number;
+  /** True when any pass reports exact: false — totalEstimatedPairs is then a lower bound, not an estimate. */
+  hasInexactPass: boolean;
+  exceedsCap: boolean;
+  refused: boolean;
 }
 
 export { ApiError };
