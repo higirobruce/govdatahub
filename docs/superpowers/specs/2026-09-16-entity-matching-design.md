@@ -489,6 +489,25 @@ appended to `lib/api.ts`, and a sidebar entry labelled "Entity Matching" in the
 - **`[id]/clusters/page.tsx`** — clusters, each with its golden record and the
   source of every field.
 
+**What the review queue is served (Ruling R39).** A pair the queue shows must
+arrive with the data a human needs to judge it, or the screen asks someone to
+certify a match they cannot see. `GET /matching/runs/:runId/candidates`
+therefore returns, per pair: the stored `features` (the per-field scores the
+similarity bars are driven by) and `leftRecord` / `rightRecord`, the two rows
+as JSON, read by joining the materialized workspace on `src_key`.
+
+The disclosure is already bounded: only allow-listed columns are ever copied
+into a workspace, so the allow-list recorded at project creation is exactly the
+ceiling on what this endpoint can return. The generated blocking-key columns
+travel with the row and are derived from those same values, so they widen
+nothing; the client renders the Field Map's fields and ignores the rest.
+
+The workspace outlives its run but not forever — the retention sweep drops it.
+When it is gone the endpoint returns the pair with `leftRecord` and
+`rightRecord` null, and the queue then shows why the records are unavailable
+and collects no verdict. Refusing to take a verdict is the point: an unseen
+pair must never be certifiable.
+
 ### 8.1 Integration points
 
 | Place | Change |
