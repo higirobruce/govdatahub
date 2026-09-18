@@ -795,3 +795,59 @@ the two differ, `CONTEXT.md` wins.
 | **Crosswalk** | The published table mapping `(source, source_key)` to `entity_key` |
 | **Decision** | A person's permanent verdict on one pair |
 | **Gold set** | Hand-labelled pairs used to measure precision and recall |
+
+---
+
+## Appendix: carried out of phase 1
+
+Recorded when phase 1 closed, so the next person does not rediscover them. Each
+was found by a review, judged, and deliberately left — none is an unknown.
+
+**Wanted before the feature is used in anger**
+
+- **No evaluation surface.** The precision/recall sweep and the gold-pair API are
+  built and tested with zero callers, because nothing manages a gold set. Until
+  that exists, an operator cannot measure the thresholds they are asked to
+  choose. This is the first phase-2 item.
+- **No frontend test infrastructure exists in this repository** — no runner, no
+  specs. The most serious review-queue defect found during phase 1 was exactly
+  what such a test would pin, and nothing prevents its regression.
+- **Four of the nine database drivers ignore bound parameters**, a pre-existing
+  defect in shared code. Matching refuses those source types rather than
+  interpolating values into SQL, so phase 1 supports five connection types plus
+  staged data. Fixing the drivers means threading each vendor's binding API.
+
+**Rules duplicated by hand, accurate today**
+
+- The source-reference format appears in three places (clustering, crosswalk,
+  and the review page). The comparator-ordering rule appears in three
+  (`blocking-sql`, the wizard, `RecordDiff`). Both drift silently: nothing fails,
+  the values simply stop agreeing. This is the same class as the verdict/state
+  enum mismatch that survived four task reviews.
+
+**Known and bounded**
+
+- The grey queue re-serves pairs that already carry a verdict; a second verdict
+  upserts over the first, so this wastes review time rather than corrupting
+  anything. Filtering needs a count of undecided pairs the API does not expose.
+- A displaced cluster mints a fresh entity key rather than taking an unclaimed
+  runner-up it previously owned. Converges after one run; churn only.
+- Between releasing the project lock and recording the final status there is a
+  millisecond window in which the abandon endpoint could mark a completed run
+  failed. An inaccurate audit row, no data effect.
+- The over-merge guard and key resolution each make one database round trip per
+  cluster, unbatched. Batching is a design change, not a fix.
+- `@Index(['organizationId'])` on the five matching entities is inert metadata:
+  `synchronize` is off and no migration creates those indexes.
+- The reviewer role described in §9.4 is not implemented; review requires editor
+  rights.
+- Dropped degenerate blocking keys and the job-size warning are recorded on the
+  run and surfaced nowhere a user can see.
+- A project's source can still be repointed after runs exist, while entity-key
+  resolution ignores the source reference.
+
+**Environment**
+
+- The working `.env` names a different database than `.env.example` and
+  `docker-compose.yml`. Pre-existing, unrelated to matching, surfaced when the
+  integration suite was first run.
