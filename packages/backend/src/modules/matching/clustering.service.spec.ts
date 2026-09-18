@@ -1,0 +1,588 @@
+import { Test } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { ClusteringService, unionFind } from './clustering.service';
+import { MatchEntity } from '../../database/entities';
+import type { MatchProject, MatchRun } from '../../database/entities';
+
+describe('unionFind', () => {
+  it('groups transitively connected keys into one cluster', () => {
+    const out = unionFind([
+      ['a', 'b'],
+      ['b', 'c'],
+      ['x', 'y'],
+    ]);
+    const groups = [...out.values()].map((g) => g.sort().join(',')).sort();
+    expect(groups).toEqual(['a,b,c', 'x,y']);
+  });
+
+  it('leaves an unpaired key out entirely', () => {
+    const out = unionFind([['a', 'b']]);
+    expect([...out.values()].flat()).not.toContain('z');
+  });
+
+  it('treats a self-loop pair as a single-member group, not an error', () => {
+    const out = unionFind([['a', 'a']]);
+    expect([...out.values()]).toEqual([['a']]);
+  });
+
+  it('handles a long chain without stack overflow and clusters it as one group', () => {
+    const n = 5000;
+    const pairs: Array<[string, string]> = [];
+    for (let i = 0; i < n - 1; i++) pairs.push([`k${i}`, `k${i + 1}`]);
+    const out = unionFind(pairs);
+    expect(out.size).toBe(1);
+    expect([...out.values()][0].length).toBe(n);
+  });
+});
+
+/** Matches `project.thresholds.rejectAt` below -- kept as one named constant so every fixture agrees. */
+const REJECT_AT = 0.55;
+
+/**
+ * The over-merge guard reads a single aggregate row, not one row per
+ * internal pair (see `clustering.service.ts`'s `isOverMerged`): `total`,
+ * `n_rejected` (count of `decision = 'rejected'`), and `n_low` (count of
+ * `decision <> 'confirmed' AND score < rejectAt`). PostgreSQL returns all
+ * three as strings over the wire, so this helper mirrors that shape
+ * exactly -- tests describe scenarios as a list of "pairs actually
+ * stored" (easy to read against the brief's fixtures) and this computes
+ * what the real SQL would hand back for that list, string-typed counts
+ * included.
+ */
+function guardAggregate(storedPairs: Array<{ score: number; decision: string }>): {
+  total: string;
+  n_rejected: string;
+  n_low: string;
+} {
+  const total = storedPairs.length;
+  const nRejected = storedPairs.filter((p) => p.decision === 'rejected').length;
+  const nLow = storedPairs.filter((p) => p.decision !== 'confirmed' && p.score < REJECT_AT).length;
+  return { total: String(total), n_rejected: String(nRejected), n_low: String(nLow) };
+}
+
+/**
+ * `ClusteringService` reads three shapes of raw SQL off `DataSource.query`:
+ *  1. the survivor set (`decision IN ('auto_match', 'confirmed')`) used to
+ *     build the union-find edge list;
+ *  2. the over-merge guard's per-cluster aggregate
+ *     (`left_key = ANY($2) AND right_key = ANY($2)`, no decision filter,
+ *     `count(*)` columns only -- see `guardAggregate` above);
+ *  3. the majority-entity-key read off `match_crosswalk`.
+ * The mock below routes on SQL text so each test only needs to set the
+ * rows relevant to it, mirroring the routing style already used in
+ * `scoring.service.spec.ts`.
+ */
+describe('ClusteringService', () => {
+  let service: ClusteringService;
+
+  let survivorRows: Array<{ left_key: string; right_key: string; score: number; decision: string }> = [];
+  /** Pairs actually stored for the cluster under test; converted to the wire aggregate by `guardAggregate`. */
+  let internalPairs: Array<{ score: number; decision: string }> = [];
+  let crosswalkRows: Array<{ source_key: string; entity_key: string }> = [];
+
+  const query = jest.fn(async (sql: string, params?: unknown[]) => {
+    if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
+    if (sql.includes('match_crosswalk')) return crosswalkRows;
+    if (sql.includes('FROM match_candidates')) return [guardAggregate(internalPairs)];
+    throw new Error(`Unexpected query in test: ${sql} ${JSON.stringify(params)}`);
+  });
+
+  const dataSource = { query };
+
+  const entityRepo = {
+    save: jest.fn(async (entity: unknown) => entity),
+  };
+
+  const project: MatchProject = {
+    id: 'p1',
+    organizationId: 'org1',
+    name: 'Citizens dedupe',
+    description: null,
+    mode: 'dedupe',
+    leftSource: {
+      kind: 'connection',
+      connectionId: 'c1',
+      schemaName: 'public',
+      tableName: 'citizens',
+      primaryKey: 'id',
+    },
+    rightSource: null,
+    fieldMap: [{ left: 'surname', right: 'surname', role: 'person_name', weight: 1, comparator: 'trgm' }],
+    blockingPasses: [{ name: 'name', kind: 'equi', keyExpr: 'surname' }],
+    thresholds: { matchAt: 0.9, rejectAt: REJECT_AT },
+    columnAllowlist: ['id', 'surname'],
+    lawfulBasis: 'consent',
+    dataOwner: 'owner@example.com',
+    retentionDays: 30,
+    status: 'active',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as unknown as MatchProject;
+
+  const run: MatchRun = {
+    id: 'run1',
+    organizationId: 'org1',
+    projectId: 'p1',
+    status: 'clustering',
+    counters: {},
+    watermarks: {},
+    droppedKeys: [],
+    startedAt: new Date(),
+    finishedAt: null,
+    durationMs: null,
+    errorMessage: null,
+  } as unknown as MatchRun;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    survivorRows = [];
+    internalPairs = [];
+    crosswalkRows = [];
+    query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
+      if (sql.includes('match_crosswalk')) return crosswalkRows;
+      if (sql.includes('FROM match_candidates')) return [guardAggregate(internalPairs)];
+      throw new Error(`Unexpected query in test: ${sql} ${JSON.stringify(params)}`);
+    });
+
+    const mod = await Test.createTestingModule({
+      providers: [
+        ClusteringService,
+        { provide: DataSource, useValue: dataSource },
+        { provide: getRepositoryToken(MatchEntity), useValue: entityRepo },
+      ],
+    }).compile();
+    service = mod.get(ClusteringService);
+  });
+
+  describe('the over-merge guard (Ruling R26)', () => {
+    it('flags a cluster when an internal pair is missing from match_candidates -- absence is evidence, not a gap', async () => {
+      // a~b at 0.95 and b~c at 0.95 put a, b, c in one cluster, but a~c
+      // scored below rejectAt (0.55) and so was never stored at all: only
+      // 2 of the 3 expected pairs are present, so `total` (2) < expected (3).
+      survivorRows = [
+        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
+        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
+      ];
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
+        // a~c: absent on purpose.
+      ];
+
+      const result = await service.cluster(project, run);
+      expect(result.clusters).toBe(1);
+      expect(result.flagged).toBe(1);
+      const saved = entityRepo.save.mock.calls[0][0] as { flagged: boolean };
+      expect(saved.flagged).toBe(true);
+    });
+
+    it('does not flag a cluster whose internal pairs are all present and clear rejectAt', async () => {
+      survivorRows = [
+        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
+        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
+      ];
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.8, decision: 'grey' },
+      ];
+
+      const result = await service.cluster(project, run);
+      expect(result.flagged).toBe(0);
+      const saved = entityRepo.save.mock.calls[0][0] as { flagged: boolean };
+      expect(saved.flagged).toBe(false);
+    });
+
+    it('R26: a confirmed decision clears the threshold test even when the score is below rejectAt', async () => {
+      survivorRows = [
+        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
+        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
+      ];
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
+        // a~c: a steward confirmed this pair despite a score under rejectAt.
+        // The bare score test (0.4 < 0.55) would wrongly flag this cluster;
+        // `n_low` excludes `confirmed` rows by construction, so it stays 0.
+        { score: 0.4, decision: 'confirmed' },
+      ];
+
+      const result = await service.cluster(project, run);
+      expect(result.flagged).toBe(0);
+    });
+
+    it('R26: a rejected decision hard-flags the cluster no matter how high the score', async () => {
+      survivorRows = [
+        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
+        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
+      ];
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
+        // a~c: a steward said "different people" even though the score is
+        // high. The bare score test (0.99 >= 0.55) would wrongly clear this;
+        // `n_rejected` counts it regardless of score.
+        { score: 0.99, decision: 'rejected' },
+      ];
+
+      const result = await service.cluster(project, run);
+      expect(result.flagged).toBe(1);
+    });
+
+    it('R26: any other decision falls back to the plain score test', async () => {
+      survivorRows = [
+        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
+        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
+      ];
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.4, decision: 'grey' },
+      ];
+
+      const result = await service.cluster(project, run);
+      expect(result.flagged).toBe(1);
+    });
+
+    it('parses the guard aggregate counts as numbers and rejects a non-numeric count rather than silently miscomparing', async () => {
+      // A malformed `total` must fail loudly. If the implementation ever
+      // regressed to comparing the raw string (or skipped Number() and let
+      // it coerce to NaN), every `<`/`>` test against it is silently
+      // `false` -- the guard would clear a cluster it never actually
+      // evaluated. That is a strictly worse failure than an explicit throw.
+      survivorRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
+      query.mockImplementation(async (sql: string) => {
+        if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
+        if (sql.includes('FROM match_candidates')) {
+          return [{ total: 'not-a-number', n_rejected: '0', n_low: '0' }];
+        }
+        throw new Error(`Unexpected query in test: ${sql}`);
+      });
+
+      await expect(service.cluster(project, run)).rejects.toThrow(/non-numeric/i);
+    });
+  });
+
+  describe('stable entity keys', () => {
+    beforeEach(() => {
+      survivorRows = [
+        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
+        { left_key: 'b', right_key: 'c', score: 0.95, decision: 'auto_match' },
+      ];
+      internalPairs = [
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.95, decision: 'auto_match' },
+        { score: 0.8, decision: 'grey' },
+      ];
+    });
+
+    it("reuses the entity key held by the majority of a cluster's previous members", async () => {
+      crosswalkRows = [
+        { source_key: 'a', entity_key: 'E1' },
+        { source_key: 'b', entity_key: 'E1' },
+        { source_key: 'c', entity_key: 'E2' },
+      ];
+      await service.cluster(project, run);
+      expect((entityRepo.save.mock.calls[0][0] as { entityKey: string }).entityKey).toBe('E1');
+    });
+
+    it('breaks a majority tie by the lexicographically smallest entity key', async () => {
+      crosswalkRows = [
+        { source_key: 'a', entity_key: 'E2' },
+        { source_key: 'b', entity_key: 'E1' },
+      ];
+      await service.cluster(project, run);
+      expect((entityRepo.save.mock.calls[0][0] as { entityKey: string }).entityKey).toBe('E1');
+    });
+
+    it('mints a fresh entity key for a cluster with no previous members', async () => {
+      crosswalkRows = [];
+      await service.cluster(project, run);
+      expect((entityRepo.save.mock.calls[0][0] as { entityKey: string }).entityKey).toMatch(/^[0-9a-f-]{36}$/);
+    });
+  });
+
+  describe('Ruling R49: an entity key belongs to at most one cluster per run', () => {
+    /**
+     * The steward-split scenario, exactly as the ruling states it.
+     *
+     * Run 1 clustered A, B and C under key E and published all three. A
+     * steward then rejected (A,C) and (B,C), so run 2 produces {A,B} --
+     * two votes for E -- and {C,D} -- one vote for E, since C still
+     * carries E in the crosswalk. Resolving each cluster in isolation
+     * gives BOTH of them E, and publication then puts all four records
+     * under one key: more merged than before the steward intervened, as
+     * a direct result of their correction.
+     */
+    beforeEach(() => {
+      survivorRows = [
+        { left_key: 'A', right_key: 'B', score: 0.95, decision: 'auto_match' },
+        { left_key: 'C', right_key: 'D', score: 0.95, decision: 'auto_match' },
+      ];
+      crosswalkRows = [
+        { source_key: 'A', entity_key: 'E' },
+        { source_key: 'B', entity_key: 'E' },
+        { source_key: 'C', entity_key: 'E' },
+      ];
+      query.mockImplementation(async (sql: string, params?: unknown[]) => {
+        if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
+        if (sql.includes('match_crosswalk')) {
+          // The real statement filters by `source_key = ANY($3)`; the mock
+          // must too, or every cluster would see every other cluster's
+          // votes and this test would prove nothing about the claim set.
+          const members = (params as unknown[])[2] as string[];
+          return crosswalkRows.filter((r) => members.includes(r.source_key));
+        }
+        if (sql.includes('FROM match_candidates')) {
+          return [guardAggregate([{ score: 0.95, decision: 'auto_match' }])];
+        }
+        throw new Error(`Unexpected query: ${sql}`);
+      });
+    });
+
+    it('never gives two clusters of one run the same entity key', async () => {
+      await service.cluster(project, run);
+      const saved = entityRepo.save.mock.calls.map(
+        (c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> },
+      );
+      expect(saved).toHaveLength(2);
+      const keys = saved.map((e) => e.entityKey);
+      expect(new Set(keys).size).toBe(2);
+    });
+
+    it('keeps E on the larger cluster and mints a fresh key for the fragment', async () => {
+      await service.cluster(project, run);
+      const byFirstMember = new Map(
+        entityRepo.save.mock.calls
+          .map((c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> })
+          .map((e) => [e.members.map((m) => m.sourceKey).sort().join(','), e.entityKey]),
+      );
+      // {A,B} and {C,D} are the same size, so the member-key tie-break
+      // decides: {A,B} is reached first and keeps the key its majority
+      // voted for.
+      expect(byFirstMember.get('A,B')).toBe('E');
+      // {C,D} voted for E too, but E is taken: a fragment split off from
+      // a merge a steward undid is a NEW identity, not the old one.
+      expect(byFirstMember.get('C,D')).toMatch(/^[0-9a-f-]{36}$/);
+      expect(byFirstMember.get('C,D')).not.toBe('E');
+    });
+
+    it('assigns the same keys however the survivor rows are ordered', async () => {
+      await service.cluster(project, run);
+      const first = entityRepo.save.mock.calls
+        .map((c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> })
+        .filter((e) => e.members.some((m) => m.sourceKey === 'A'))
+        .map((e) => e.entityKey);
+
+      // Same edge list, reversed -- which is all an unordered `SELECT`
+      // has to change for the Map's iteration order to change with it.
+      entityRepo.save.mockClear();
+      survivorRows = [
+        { left_key: 'C', right_key: 'D', score: 0.95, decision: 'auto_match' },
+        { left_key: 'A', right_key: 'B', score: 0.95, decision: 'auto_match' },
+      ];
+      await service.cluster(project, run);
+      const second = entityRepo.save.mock.calls
+        .map((c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> })
+        .filter((e) => e.members.some((m) => m.sourceKey === 'A'))
+        .map((e) => e.entityKey);
+
+      expect(second).toEqual(first);
+      expect(second).toEqual(['E']);
+    });
+  });
+
+  describe('Ruling R60: the larger fragment keeps the key', () => {
+    /**
+     * The churn scenario, exactly as the ruling states it.
+     *
+     * Run 1 published `{A, B, C, D, E2}` under key `E`. A steward splits
+     * it, and run 2 produces a two-member fragment `{A, F}` and a
+     * four-member fragment `{B, C, D, E2}`. Both vote for `E` -- only one
+     * can have it.
+     *
+     * Ordering by member key alone handed it to `{A, F}` purely because
+     * `'A' < 'B'`, changing FOUR of the five published identities to save
+     * one. `entity_key` is what other government systems join against, so
+     * the number of identities that change is a correctness criterion,
+     * not a cosmetic one -- and the design spec narrates "the larger
+     * fragment keeps the key by majority".
+     */
+    beforeEach(() => {
+      survivorRows = [
+        { left_key: 'A', right_key: 'F', score: 0.95, decision: 'auto_match' },
+        { left_key: 'B', right_key: 'C', score: 0.95, decision: 'auto_match' },
+        { left_key: 'C', right_key: 'D', score: 0.95, decision: 'auto_match' },
+        { left_key: 'D', right_key: 'E2', score: 0.95, decision: 'auto_match' },
+      ];
+      crosswalkRows = [
+        { source_key: 'A', entity_key: 'E' },
+        { source_key: 'B', entity_key: 'E' },
+        { source_key: 'C', entity_key: 'E' },
+        { source_key: 'D', entity_key: 'E' },
+        { source_key: 'E2', entity_key: 'E' },
+      ];
+      query.mockImplementation(async (sql: string, params?: unknown[]) => {
+        if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
+        if (sql.includes('match_crosswalk')) {
+          const members = (params as unknown[])[2] as string[];
+          return crosswalkRows.filter((r) => members.includes(r.source_key));
+        }
+        if (sql.includes('FROM match_candidates')) {
+          return [guardAggregate([{ score: 0.95, decision: 'auto_match' }])];
+        }
+        throw new Error(`Unexpected query: ${sql}`);
+      });
+    });
+
+    /** entityKey by sorted member list, for every cluster this run saved. */
+    const savedByMembers = (): Map<string, string> =>
+      new Map(
+        entityRepo.save.mock.calls
+          .map((c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> })
+          .map((e) => [e.members.map((m) => m.sourceKey).sort().join(','), e.entityKey]),
+      );
+
+    it('gives the contested key to the four-member fragment, not the two-member one', async () => {
+      await service.cluster(project, run);
+      const byMembers = savedByMembers();
+      expect(byMembers.get('B,C,D,E2')).toBe('E');
+      expect(byMembers.get('A,F')).not.toBe('E');
+      expect(byMembers.get('A,F')).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it('changes one published identity rather than four', async () => {
+      await service.cluster(project, run);
+      const byMembers = savedByMembers();
+      const keyFor = new Map<string, string>();
+      for (const [members, key] of byMembers) {
+        for (const member of members.split(',')) keyFor.set(member, key);
+      }
+      // Every one of the five was published under 'E' by run 1.
+      const changed = ['A', 'B', 'C', 'D', 'E2'].filter((m) => keyFor.get(m) !== 'E');
+      expect(changed).toEqual(['A']);
+      // Ordering by member key alone gave the opposite answer here, and
+      // this is the assertion that says which one we want -- not merely
+      // that the answer is stable.
+      expect(changed).toHaveLength(1);
+    });
+
+    it('still breaks an equal-sized tie by the smallest member key, so the order stays total', async () => {
+      survivorRows = [
+        { left_key: 'X', right_key: 'Y', score: 0.95, decision: 'auto_match' },
+        { left_key: 'A', right_key: 'B', score: 0.95, decision: 'auto_match' },
+      ];
+      crosswalkRows = [
+        { source_key: 'A', entity_key: 'E' },
+        { source_key: 'X', entity_key: 'E' },
+      ];
+      await service.cluster(project, run);
+      const byMembers = savedByMembers();
+      expect(byMembers.get('A,B')).toBe('E');
+      expect(byMembers.get('X,Y')).not.toBe('E');
+    });
+
+    it('is independent of the order the survivor rows arrive in', async () => {
+      await service.cluster(project, run);
+      const first = savedByMembers();
+
+      entityRepo.save.mockClear();
+      survivorRows = [...survivorRows].reverse();
+      await service.cluster(project, run);
+      const second = savedByMembers();
+
+      expect(second.get('B,C,D,E2')).toBe(first.get('B,C,D,E2'));
+      expect(second.get('B,C,D,E2')).toBe('E');
+    });
+  });
+
+  describe('Ruling R55: organization scoping on the raw-SQL reads', () => {
+    it('binds organizationId on the survivor read and on the over-merge guard', async () => {
+      survivorRows = [
+        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
+      ];
+      internalPairs = [{ score: 0.95, decision: 'auto_match' }];
+
+      await service.cluster(project, run);
+
+      const survivor = query.mock.calls.find((c) =>
+        String(c[0]).includes("decision IN ('auto_match', 'confirmed')"),
+      )!;
+      expect(String(survivor[0])).toContain('organization_id');
+      expect(survivor[1]).toContain('org1');
+
+      const guard = query.mock.calls.find(
+        (c) => String(c[0]).includes('FROM match_candidates') && String(c[0]).includes('n_rejected'),
+      )!;
+      expect(String(guard[0])).toContain('organization_id');
+      expect(guard[1]).toContain('org1');
+    });
+  });
+
+  describe('members and the golden record', () => {
+    it('leaves the golden record empty because survivorship is phase 3', async () => {
+      survivorRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
+      internalPairs = [{ score: 0.95, decision: 'auto_match' }];
+
+      await service.cluster(project, run);
+      expect((entityRepo.save.mock.calls[0][0] as { golden: unknown }).golden).toEqual({});
+    });
+
+    it('builds member sourceRef as connection:<id>:<schema>.<table> for a connection source', async () => {
+      survivorRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
+      internalPairs = [{ score: 0.95, decision: 'auto_match' }];
+
+      await service.cluster(project, run);
+      const saved = entityRepo.save.mock.calls[0][0] as { members: Array<{ sourceRef: string; sourceKey: string }> };
+      expect(saved.members.sort((x, y) => x.sourceKey.localeCompare(y.sourceKey))).toEqual([
+        { sourceRef: 'connection:c1:public.citizens', sourceKey: 'a' },
+        { sourceRef: 'connection:c1:public.citizens', sourceKey: 'b' },
+      ]);
+    });
+
+    it('builds member sourceRef as staged:<stagedDataId> for a staged source', async () => {
+      const stagedProject = {
+        ...project,
+        leftSource: { kind: 'staged', stagedDataId: 'sd1', primaryKey: 'id' },
+      } as unknown as MatchProject;
+      survivorRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];
+      internalPairs = [{ score: 0.95, decision: 'auto_match' }];
+
+      await service.cluster(stagedProject, run);
+      const saved = entityRepo.save.mock.calls[0][0] as { members: Array<{ sourceRef: string }> };
+      expect(saved.members[0].sourceRef).toBe('staged:sd1');
+    });
+  });
+
+  describe('multiple clusters in one run', () => {
+    it('saves one entity per cluster and counts clusters/flagged independently', async () => {
+      survivorRows = [
+        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
+        { left_key: 'x', right_key: 'y', score: 0.95, decision: 'auto_match' },
+        { left_key: 'y', right_key: 'z', score: 0.95, decision: 'auto_match' },
+      ];
+      query.mockImplementation(async (sql: string, params?: unknown[]) => {
+        if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
+        if (sql.includes('match_crosswalk')) return [];
+        if (sql.includes('FROM match_candidates')) {
+          const members = (params as unknown[])[1] as string[];
+          if (members.includes('x')) {
+            // {x,y,z}: x~y and y~z present and clean; x~z missing entirely.
+            return [guardAggregate([{ score: 0.95, decision: 'auto_match' }, { score: 0.95, decision: 'auto_match' }])];
+          }
+          return [guardAggregate([{ score: 0.95, decision: 'auto_match' }])];
+        }
+        throw new Error(`Unexpected query: ${sql}`);
+      });
+
+      const result = await service.cluster(project, run);
+      expect(result.clusters).toBe(2);
+      expect(result.flagged).toBe(1);
+      expect(entityRepo.save).toHaveBeenCalledTimes(2);
+      const savedFlags = entityRepo.save.mock.calls.map((c) => (c[0] as { flagged: boolean }).flagged).sort();
+      expect(savedFlags).toEqual([false, true]);
+    });
+  });
+});

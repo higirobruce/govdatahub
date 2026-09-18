@@ -98,6 +98,10 @@
       "ts"
     ],
     "rootDir": "src",
+    "globalSetup": "<rootDir>/../test/pin-timezone.js",
+    "setupFiles": [
+      "<rootDir>/../test/pin-timezone.js"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"

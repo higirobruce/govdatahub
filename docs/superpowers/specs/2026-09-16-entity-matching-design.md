@@ -188,6 +188,23 @@ table; storing only the survivors keeps it in the low millions.
 `confidence`, `updated_at`. Unique on
 `(organization_id, project_id, source_ref, source_key)`.
 
+**Ruling R27 — `confidence` is nullable and phase 1 writes NULL.**
+The column was listed in this table without ever defining its semantics or its
+producer. Phase 1 has no calibrated number to put in it: the weight model is
+explicitly *weights the user tunes against a gold set*, not a probability, and
+clustering carries forward only a cluster-level `flagged` boolean, not a
+per-member score.
+Writing a constant `1.0` was the obvious alternative and is the wrong one. It
+asserts certainty the system has not computed — a cluster whose weakest internal
+pair scored 0.56 against a 0.55 reject threshold would publish as fully
+confident, indistinguishable from one whose every pair scored 0.99. That is the
+same failure as fabricating a verdict: the system stating something it never
+derived. A consumer filtering `confidence > 0.9` would then pass every row.
+`NULL` means "not computed". The same filter returns nothing instead of
+everything, which fails closed — the correct direction for a register of people.
+Phase 4's Fellegi–Sunter weights are what produce a calibrated value; this column
+waits for them.
+
 **`match_norm_cache`** — normalized values. Primary key
 `(organization_id, role, raw_value)`, plus `normalized jsonb`, `model`,
 `updated_at`. This is what keeps model-based normalization affordable.
@@ -201,9 +218,21 @@ record. Dimension is 384 because the CPU-profile embedding model is a small
 multilingual encoder, not the 1024-dimension `bge-m3` used by
 `catalog_embeddings`; the two tables are deliberately independent.
 
-**`match_gold_pairs`** — the evaluation set. `organization_id`, `project_id`,
-`left_source_ref`, `left_key`, `right_source_ref`, `right_key`,
-`is_match boolean`, `labelled_by`, `labelled_at`.
+**Ruling R28 — `match_gold_pairs` DOES get a TypeORM entity**, unlike its
+neighbours in this list. Grouping it with the bulk tables was a
+mis-classification: `match_candidates` and `match_crosswalk` are written
+millions of rows at a time by set-based statements, which is why they are raw
+SQL. The gold set is small, read wholesale by the evaluator, and written one
+row at a time by a controller endpoint — precisely the access pattern an
+entity serves. The entity maps the existing DDL; no migration changes.
+
+**`match_gold_pairs`** — the evaluation set. `id`, `organization_id`,
+`project_id`, `left_key`, `right_key`, `is_match boolean`, `labelled_by`,
+`labelled_at`, unique on `(organization_id, project_id, left_key, right_key)`.
+There are **no** source-ref columns: an earlier draft of this paragraph listed
+`left_source_ref` and `right_source_ref`, the migration never created them, and
+Task 14 builds its `addGoldPair` DTO from this list — a stale column here is
+exactly how a four-task type conflict happened elsewhere in this plan.
 
 ### 5.3 Workspace tables
 
@@ -395,9 +424,37 @@ It fits, tightly. The 30B chat model must not run on this box; it needs about
 **Disk:** roughly 15 to 20 GB per large project — workspace columns, indexes
 and surviving candidates. Retention must reclaim it.
 
-**Estimated run time for 10M x 10M**, to be confirmed on the real hardware:
-materialize 20–60 minutes, block and score 10–40 minutes, cluster a few
-minutes. One to two hours, with no model in the hot path.
+**Estimated run time for 10M x 10M**, still unconfirmed: materialize 20–60
+minutes, block and score 10–40 minutes, cluster a few minutes. One to two
+hours, with no model in the hot path. Nothing below verifies these numbers —
+they remain estimates, and the 10M-scale measurement is still outstanding.
+
+**Measured on 10k rows** (Task 15, `test/matching-engine.e2e-spec.ts`, against
+PostgreSQL 15 on a developer laptop; one dedupe project, 10,000 rows, four
+blocking passes — one trigram, three exact — five mapped fields, 12,021
+candidate pairs seen and 3,124 stored). A complete pipeline run takes **9 to
+10 seconds end to end**, measured over the several full runs the suite
+performs. By stage:
+
+| Stage | Measured at 10k rows |
+|---|---|
+| materialize left (read 10k rows through the connection driver, one page, plus index build) | 0.3–0.4 s |
+| blocking estimate (one histogram query per pass, 4 passes) | ~0.05 s |
+| scoring (count + scored insert per pass, 4 passes) | 8–9 s |
+| cluster + publish crosswalk (300 clusters, 600 crosswalk rows) | 0.6–1.3 s |
+
+Scoring dominates, and within it the single trigram pass dominates: the three
+exact passes are index-equality joins, while the trigram pass probes the GIN
+index once per row. One outlier run measured 135 s of scoring while two other
+runs were executing concurrently on the same laptop, which is machine
+contention rather than a property of the workload — but it is worth recording
+that this stage degrades sharply under CPU pressure.
+
+These are 10k-row numbers on a laptop. They say nothing about the 10M-scale
+estimates above: the costs that dominate at 10M — paging 200 batches through
+the source driver, a candidate set three to four orders of magnitude larger,
+and a workspace that no longer fits in cache — are all absent at this scale.
+Do not extrapolate from this table.
 
 ### 7.6 Retention
 
@@ -432,6 +489,86 @@ appended to `lib/api.ts`, and a sidebar entry labelled "Entity Matching" in the
 - **`[id]/clusters/page.tsx`** — clusters, each with its golden record and the
   source of every field.
 
+**The Crosswalk is replaced by each run, not accumulated (Ruling R48).**
+Everything upstream of publication is recomputed from scratch every run — the
+workspace is dropped and reloaded in full, candidates and clusters are rebuilt.
+Only the Crosswalk persisted across runs, and `resolveEntityKey` read that
+accumulation as current truth. Two consequences followed, and both are defects.
+
+A published merge could never be withdrawn. A steward records `no_match`, the
+over-merge guard flags the cluster, publication correctly writes nothing for it
+— and the rows from the earlier run still say those records are one person. The
+verdict reaches scoring and never reaches the published product, which is the
+one artefact other systems join against. The same held for a raised threshold,
+a deleted source row, and a cluster that split back into singletons.
+
+So publication replaces rather than accumulates: in one transaction, rows for
+this project and source that the current run did not publish are deleted, then
+the run's rows are upserted. This is sound precisely because every run sees the
+complete source, so the latest run's conclusions are the complete current
+picture. A flagged cluster is deliberately not published, and its earlier claim
+is therefore withdrawn — the register stops asserting that two people are one
+while a human decides, which is the safe direction. A run that publishes
+nothing at all must still withdraw: "this run found no duplicates" is a
+conclusion, not an absence of one.
+
+**An entity key belongs to at most one cluster per run (Ruling R49).**
+`resolveEntityKey` takes the majority key among its members' existing Crosswalk
+rows, with no record of what the same run already assigned. Two clusters could
+therefore claim the same key: if a steward splits a three-record entity, the
+larger fragment keeps the key by majority and the smaller fragment can vote for
+it too, republishing all of them under one key — more merged than before the
+steward intervened, as a direct result of their correction. Keys are claimed
+once per run; a cluster whose majority key is already taken mints a new one,
+which is the correct identity for a fragment that has just been split off.
+
+**The grey queue re-serves pairs that already carry a verdict (phase 2).**
+Recording a decision does not change `match_candidates.decision`, so a pair a
+steward already judged is served again on their next visit. It is not corrupting
+— a second verdict upserts over the first — but it wastes review time and it
+means the queue's position indicator must not be labelled as progress. Filtering
+decided pairs out needs an honest denominator, and `counters.grey` is fixed at
+run time, so it would require a count of undecided pairs the API does not expose.
+Phase 2 adds that count and the filter together; until then the queue shows
+position ("Pair X of Y"), plus a separate count of decisions made in this
+session, and never claims a certified-progress figure it cannot substantiate.
+
+**Undo retracts a verdict; it does not assert the opposite (Ruling R43).**
+`match_decisions` carries a `UNIQUE` constraint on the pair, and a stored verdict
+is honoured by scoring *regardless of score* — `'no_match'` becomes `'rejected'`
+for that pair in every later run. Two consequences follow.
+
+First, recording a verdict is an upsert, not an insert. A steward who reaches the
+same pair twice — through undo, a reload, or a second review session — is
+correcting their answer, and a correction must not be a constraint violation.
+The latest verdict replaces the earlier one, with its author and timestamp.
+
+Second, undo *removes* the verdict rather than submitting its opposite. These are
+different claims: "I have no opinion on this pair" leaves it to be scored on its
+merits, while "these are not the same person" suppresses it permanently. A
+mis-keyed keystroke must never be recorded as a certification the steward never
+made, so the queue's undo deletes the decision row and the pair returns to the
+grey band it came from.
+
+**What the review queue is served (Ruling R39).** A pair the queue shows must
+arrive with the data a human needs to judge it, or the screen asks someone to
+certify a match they cannot see. `GET /matching/runs/:runId/candidates`
+therefore returns, per pair: the stored `features` (the per-field scores the
+similarity bars are driven by) and `leftRecord` / `rightRecord`, the two rows
+as JSON, read by joining the materialized workspace on `src_key`.
+
+The disclosure is already bounded: only allow-listed columns are ever copied
+into a workspace, so the allow-list recorded at project creation is exactly the
+ceiling on what this endpoint can return. The generated blocking-key columns
+travel with the row and are derived from those same values, so they widen
+nothing; the client renders the Field Map's fields and ignores the rest.
+
+The workspace outlives its run but not forever — the retention sweep drops it.
+When it is gone the endpoint returns the pair with `leftRecord` and
+`rightRecord` null, and the queue then shows why the records are unavailable
+and collects no verdict. Refusing to take a verdict is the point: an unseen
+pair must never be certifiable.
+
 ### 8.1 Integration points
 
 | Place | Change |
@@ -442,6 +579,73 @@ appended to `lib/api.ts`, and a sidebar entry labelled "Entity Matching" in the
 | Cross-Query table browser | `match_crosswalk` becomes selectable, so A joins crosswalk joins B on `entity_key` |
 | Lineage | Each completed run emits edges from the source tables to the crosswalk |
 
+**Ruling R31 — deleting a Match Project is a soft delete.**
+`DELETE /api/matching/projects/:id` sets `status = 'inactive'`; it does not remove the
+row. The list endpoint excludes inactive projects by default.
+
+The reason is the audit trail's direction. The project row carries `lawfulBasis` and
+`dataOwner` — the recorded justification for copying citizen data and the person
+accountable for it. Every `match_decision`, `match_entity`, `match_crosswalk` row and
+gold pair is deliberately kept forever by retention as results and audit. No foreign key
+constrains any of them, so a hard delete does not fail; it silently orphans all of them
+and destroys the one row explaining under whose authority they were produced. Keeping the
+acts and deleting the authority is exactly backwards.
+
+Orphaned crosswalk rows are the sharper problem: the Crosswalk is a published interface
+other features join against, so those rows stay live and joinable while pointing at a
+project that no longer exists.
+
+Phase 1 therefore has no hard delete. A genuine purge of a project and everything
+produced under it is a deliberate, separately audited operation — not something a `DELETE`
+verb should do by accident.
+
+**Ruling R32 — an inactive project refuses mutation; reads stay open.**
+R31 defined what a soft delete *stores* and never defined what it *prevents*. As written,
+a deleted project is fully operable: `POST projects/:id/runs` still starts a run, so a
+"deleted" project can materialize fresh citizen data into a workspace table, and `PATCH`,
+`POST decisions`, `POST gold-pairs` and `POST estimate` all keep working. The only
+observable effect of `DELETE` was that the project left a list.
+So every mutating route refuses `status = 'inactive'` with a 409 naming the reason, and
+every read route continues to serve it — an auditor reconstructing a decision must still
+reach the lawful basis it was made under.
+
+**Ruling R33 — a project's recorded authority is immutable once it has run.**
+`PATCH` currently overwrites `lawfulBasis`, `dataOwner` and `columnAllowlist` in place
+with no history. R31's whole rationale is that the row carrying the recorded authority
+must not be destroyed while the acts performed under it are kept forever — and a PATCH
+destroys it exactly as completely as the hard delete R31 forbade. Widening
+`columnAllowlist` after runs exist is worse than losing history: it retroactively changes
+the legal boundary of what the feature was permitted to copy, with nothing recording that
+the boundary moved.
+Therefore: before a project's first run these three fields are freely editable, because
+the project is still configuration. From its first run onward they are **immutable**, and
+`PATCH` rejects a change to any of them with a 409 directing the operator to create a new
+project. Everything else on the project stays editable.
+A full field-level history table is the better long-term answer and is phase-4 work; this
+is the cheap rule that closes the hole now.
+
+**Ruling R36 — the estimate endpoint re-estimates an existing workspace; it is not a pre-flight check.**
+`BlockingService.estimate` reads the materialized workspace table, which only
+`MaterializeService.materialize` creates, and materialization happens inside a run. So
+`POST projects/:id/estimate` cannot work before a project's first run — the plan
+specified a wizard step that was structurally impossible.
+
+The fix is not to have the estimate materialize on demand, and the reason is governance
+rather than cost. **Materializing copies citizen data into DataGate**, and in the wizard
+the lawful basis and data owner are recorded in step 4 — *after* the step-3 estimate.
+Copying the data to answer "how big would this be?" would invert the order the whole
+feature is built around: authority recorded first, data copied second.
+
+So the estimate is a **tuning tool for a project that has already run** — change the
+blocking passes, re-estimate against the workspace that exists, see the new projection.
+Before the first run the wizard says so plainly and leaves "Create and run" enabled,
+because the run pipeline's own `materialize → estimate → refuse` sequence is the real
+gate. That gate is verified end to end: the integration test asserts a refused estimate
+is recorded as a failed run with the advisory lock released.
+
+The endpoint must return a clear 409 naming this when the workspace is absent, not a raw
+`relation "matching.p_..._left" does not exist`.
+
 ## 9. Governance
 
 These are requirements. The data is citizen and business personal data, and
@@ -450,9 +654,14 @@ bear on it.
 
 1. The materializer reads only `columnAllowlist` columns. One rule, one place,
    covered by a test.
-2. A matching project **refuses** a remote AI provider. `AiProvider.LOCAL`, or
-   `CUSTOM` pointed at a private host, only. The code throws on `OPENAI`,
-   `ANTHROPIC` and `AZURE`. Personal data never leaves the server.
+2. A matching project **refuses** any provider that is not known-local.
+   `AiProvider.LOCAL`, or `CUSTOM` pointed at a private host, only. The check
+   is an **allow-list, not a block-list**: the code throws unless the provider
+   is exactly `LOCAL` or `CUSTOM`. This matters because `ai_provider` is an
+   unconstrained `varchar` with no database enum or CHECK, so a typo, a
+   hand-edited row, or a provider added to the enum later without revisiting
+   this guard would otherwise **fail open** and be treated as local. Personal
+   data never leaves the server.
 3. `lawfulBasis` and `dataOwner` are required, non-empty fields on every
    project.
 4. `@Roles` guards every mutating endpoint, and review is its own role. The
@@ -522,6 +731,38 @@ New environment variables, added to both `.env.example` files:
 | `MATCHING_BATCH_ROWS` | `50000` | Keyset page size |
 | `MATCHING_NORM_CALL_BUDGET` | `5000` | Model normalization calls per run |
 
+## 13a. Known limitation — four drivers cannot page
+
+`DatabaseDriver.query(sql, params?)` is the interface, but four of the nine
+implementations do not honour the second argument. `snowflake.driver.ts`,
+`bigquery.driver.ts` and `mongodb.driver.ts` declare `query(sql: string)` with
+no `params` at all — which still satisfies the interface, because TypeScript
+permits a narrower parameter list — and `clickhouse.driver.ts` accepts
+`_params` and discards it. Only postgres, mysql, redshift, sql-server and
+sqlite thread parameters through.
+
+MongoDB is the worst of the four and not merely unbindable: its `query()`
+calls `JSON.parse(sql)` and expects `{"collection":…,"filter":…}`. It does not
+speak SQL at all, so a generated `SELECT` reaches it as malformed JSON and
+raises a raw error about JSON syntax — nothing resembling a diagnosable
+refusal. (`ProfilingService` already refuses MongoDB explicitly for the same
+underlying reason, so this is an established pattern in the codebase rather
+than a new exception.)
+
+Keyset pagination binds `afterKey` as a parameter, so on those four connection
+types the parameter is silently dropped and the emitted SQL retains a literal
+`$1`. Matching therefore **refuses Snowflake, BigQuery, ClickHouse and MongoDB
+sources in phase 1**, failing closed at the point of use with a message naming
+the reason.
+
+This is a pre-existing driver gap, not a matching defect, and fixing it means
+threading each client's own binding API (BigQuery named parameters, Snowflake
+`binds`) and testing against three hosted services — its own piece of work,
+deliberately not bolted onto this feature. Phase 1 supports five of the nine
+connection types plus staged data — postgres, mysql, redshift, sql-server and
+sqlite (Ruling R58: the count said six while the list named five; five is the
+number that matches the four refusals above).
+
 ## 14. Risks
 
 | Risk | Mitigation |
@@ -554,3 +795,59 @@ the two differ, `CONTEXT.md` wins.
 | **Crosswalk** | The published table mapping `(source, source_key)` to `entity_key` |
 | **Decision** | A person's permanent verdict on one pair |
 | **Gold set** | Hand-labelled pairs used to measure precision and recall |
+
+---
+
+## Appendix: carried out of phase 1
+
+Recorded when phase 1 closed, so the next person does not rediscover them. Each
+was found by a review, judged, and deliberately left — none is an unknown.
+
+**Wanted before the feature is used in anger**
+
+- **No evaluation surface.** The precision/recall sweep and the gold-pair API are
+  built and tested with zero callers, because nothing manages a gold set. Until
+  that exists, an operator cannot measure the thresholds they are asked to
+  choose. This is the first phase-2 item.
+- **No frontend test infrastructure exists in this repository** — no runner, no
+  specs. The most serious review-queue defect found during phase 1 was exactly
+  what such a test would pin, and nothing prevents its regression.
+- **Four of the nine database drivers ignore bound parameters**, a pre-existing
+  defect in shared code. Matching refuses those source types rather than
+  interpolating values into SQL, so phase 1 supports five connection types plus
+  staged data. Fixing the drivers means threading each vendor's binding API.
+
+**Rules duplicated by hand, accurate today**
+
+- The source-reference format appears in three places (clustering, crosswalk,
+  and the review page). The comparator-ordering rule appears in three
+  (`blocking-sql`, the wizard, `RecordDiff`). Both drift silently: nothing fails,
+  the values simply stop agreeing. This is the same class as the verdict/state
+  enum mismatch that survived four task reviews.
+
+**Known and bounded**
+
+- The grey queue re-serves pairs that already carry a verdict; a second verdict
+  upserts over the first, so this wastes review time rather than corrupting
+  anything. Filtering needs a count of undecided pairs the API does not expose.
+- A displaced cluster mints a fresh entity key rather than taking an unclaimed
+  runner-up it previously owned. Converges after one run; churn only.
+- Between releasing the project lock and recording the final status there is a
+  millisecond window in which the abandon endpoint could mark a completed run
+  failed. An inaccurate audit row, no data effect.
+- The over-merge guard and key resolution each make one database round trip per
+  cluster, unbatched. Batching is a design change, not a fix.
+- `@Index(['organizationId'])` on the five matching entities is inert metadata:
+  `synchronize` is off and no migration creates those indexes.
+- The reviewer role described in §9.4 is not implemented; review requires editor
+  rights.
+- Dropped degenerate blocking keys and the job-size warning are recorded on the
+  run and surfaced nowhere a user can see.
+- A project's source can still be repointed after runs exist, while entity-key
+  resolution ignores the source reference.
+
+**Environment**
+
+- The working `.env` names a different database than `.env.example` and
+  `docker-compose.yml`. Pre-existing, unrelated to matching, surfaced when the
+  integration suite was first run.

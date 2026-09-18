@@ -16,7 +16,8 @@ export type CheckType =
   | 'min_rows'
   | 'max_rows'
   | 'freshness'
-  | 'custom_sql';
+  | 'custom_sql'
+  | 'no_duplicates';
 
 export type CheckStatus = 'active' | 'inactive';
 export type RunStatus = 'pass' | 'fail' | 'error';

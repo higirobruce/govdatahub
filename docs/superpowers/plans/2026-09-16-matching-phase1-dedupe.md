@@ -24,9 +24,11 @@ Every task's requirements implicitly include this section.
 - **Local-only AI provider.** Creating or running a Match Project throws when the Organization's `aiProvider` is `OPENAI`, `ANTHROPIC` or `AZURE` — enforced in phase 1 even though phase 1 calls no model, so the rule is never retrofitted.
 - **Organization isolation.** Every query filters by `organizationId`. Every controller uses `JwtAuthGuard` + `@CurrentUser() user: User`.
 - **RBAC.** Mutating endpoints carry `@Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)`. Submitting a Decision requires the same. Read endpoints require auth only.
+- **Every task that creates a service registers it as a provider in `matching.module.ts` within that same task.** Nest fails at boot on a missing provider, and the first place that surfaces is Task 15, many tasks later.
 - Identifier interpolated into SQL must be validated against `/^[A-Za-z0-9_]+$/` before interpolation, or quoted with the existing `quoteId` helper style from `data-quality/profiling.service.ts`.
 - Golden Record population is **phase 3**. The `golden` column is created here and left as `{}`.
 - Commits: the message given in each task's commit step, a blank line, then `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`. Do not push.
+- **Never `git commit --amend`, and never rebase or reset.** A fix round always adds a NEW commit. Amending destroys the artifact a reviewer verdicted, and `HEAD` is not necessarily your own commit — the controller commits to this branch too, so an amend can silently absorb someone else's work into a commit message that does not describe it. If your last commit needs changing, add another one.
 - **Encryption at rest is deployment, not code.** Spec section 9 rule 6 requires it, and no task in this plan can satisfy it — it is a property of the PostgreSQL volume on the deploy host. It is listed here so it is not mistaken for something the code handles: raise it with the deploy owner before a Match Project runs against real citizen data. Do not close phase 1 as "governance complete" without it.
 
 ## File Structure
@@ -94,6 +96,9 @@ export type MatchRunStatus =
   | 'pending' | 'materializing' | 'normalizing' | 'blocking'
   | 'scoring' | 'clustering' | 'completed' | 'failed';
 export type CandidateDecision = 'auto_match' | 'grey' | 'confirmed' | 'rejected';
+export type MatchVerdict = 'match' | 'no_match';
+
+export interface MatchMember { sourceRef: string; sourceKey: string; }
 
 export interface MatchSourceRef {
   kind: 'connection' | 'staged';
@@ -118,6 +123,23 @@ export interface MatchRunCounters {
   clusters: number; flaggedClusters: number;
 }
 ```
+
+**Ruling R25 — a person's verdict and a candidate's state are two different vocabularies.**
+`MatchDecision.decision` is a `MatchVerdict` — what a human said about a pair: `'match'`
+or `'no_match'`. `match_candidates.decision` is a `CandidateDecision` — the pair's state
+in a run: `'auto_match'`, `'grey'`, `'confirmed'`, `'rejected'`. They are not
+interchangeable and must not share a type.
+Scoring maps one to the other: a `'match'` verdict makes the candidate `'confirmed'`, a
+`'no_match'` verdict makes it `'rejected'`.
+This was a real defect spanning four tasks. `MatchDecision.decision` had been typed
+`CandidateDecision`, so the human-verdict table advertised values no reviewer can
+produce, while Task 14's own controller test submits `decision: 'match'` and Task 17
+binds `m` and `n` to match and no-match. Scoring then filtered
+`decision IN ('confirmed','rejected')` against that table. Each piece compiled and passed
+its own tests; together, the moment Task 14 wrote a real verdict the scoring join would
+have matched nothing, every human decision would have become invisible, and the review
+queue would have re-asked every question forever — silently, with no error anywhere.
+
 
 - [ ] **Step 1: Write the migration**
 
@@ -337,6 +359,7 @@ export type { MatchMode, FieldRole, BlockingKind, MatchSourceRef, FieldMapping, 
 export { MatchRun } from './match-run.entity';
 export type { MatchRunStatus, MatchRunCounters } from './match-run.entity';
 export { MatchEntity } from './match-entity.entity';
+export type { MatchMember } from './match-entity.entity';
 export { MatchDecision } from './match-decision.entity';
 export type { CandidateDecision } from './match-decision.entity';
 ```
@@ -460,7 +483,7 @@ export class NormalizationService {
     if (raw === null || raw === undefined) return '';
     return String(raw)
       .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
+      .replace(/[\u0300-\u036f]/g, '')   // combining marks, escaped deliberately
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
       .replace(/\s+/g, ' ')
@@ -738,7 +761,7 @@ describe('SourceReaderService', () => {
 
   it('selects only the primary key and allow-listed columns', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    await service.readPage(source, ['surname', 'dob'], 'org1', null, 100);
+    await service.readPage(source, ['id', 'surname', 'dob'], 'org1', null, 100);
     const sql = query.mock.calls[0][0] as string;
     expect(sql).toContain('"id"');
     expect(sql).toContain('"surname"');
@@ -748,7 +771,7 @@ describe('SourceReaderService', () => {
 
   it('pages by keyset rather than offset', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    await service.readPage(source, ['surname'], 'org1', 'abc', 100);
+    await service.readPage(source, ['id', 'surname'], 'org1', 'abc', 100);
     const sql = query.mock.calls[0][0] as string;
     expect(sql).toMatch(/WHERE "id" > /);
     expect(sql).toContain('ORDER BY "id"');
@@ -760,13 +783,13 @@ describe('SourceReaderService', () => {
     query.mockResolvedValue({
       rows: [{ id: 'k1', surname: 'a' }, { id: 'k2', surname: 'b' }], rowCount: 2, fields: [],
     });
-    const page = await service.readPage(source, ['surname'], 'org1', null, 100);
+    const page = await service.readPage(source, ['id', 'surname'], 'org1', null, 100);
     expect(page.lastKey).toBe('k2');
   });
 
   it('returns a null last key for an empty page', async () => {
     query.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
-    const page = await service.readPage(source, ['surname'], 'org1', null, 100);
+    const page = await service.readPage(source, ['id', 'surname'], 'org1', null, 100);
     expect(page.lastKey).toBeNull();
   });
 
@@ -783,7 +806,7 @@ describe('SourceReaderService', () => {
       data: [{ id: 'k1', surname: 'a' }, { id: 'k2', surname: 'b' }],
     });
     const page = await service.readPage(
-      { kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['surname'], 'org1', 'k1', 100);
+      { kind: 'staged', stagedDataId: 's1', primaryKey: 'id' }, ['id', 'surname'], 'org1', 'k1', 100);
     expect(page.rows).toEqual([{ id: 'k2', surname: 'b' }]);
     expect(page.lastKey).toBe('k2');
   });
@@ -793,7 +816,9 @@ describe('SourceReaderService', () => {
 - [ ] **Step 2: FAIL. Step 3: implement per the Interfaces block.**
 
 Notes that matter:
-- The primary key itself goes through `assertColumnAllowed(source.primaryKey, [...allowlist, source.primaryKey])` only when it passes `IDENT` — a primary key with punctuation is refused outright.
+- **The primary key must itself be on the column allow-list**, checked with the same `assertColumnAllowed(source.primaryKey, allowlist)`. One rule with no exceptions is what makes the allow-list auditable: everything the materializer reads is allow-listed, including the key. The wizard (Task 16) is responsible for adding the chosen primary key to the allow-list it derives, so this costs the user nothing.
+- Consequently every happy-path test above passes the primary key inside its allow-list, and the refusal test passes a `primaryKey` that is genuinely absent from it. An earlier draft of this task had the happy paths omitting the key, which made the task unimplementable — no function can distinguish `assertColumnAllowed('id', ['surname'])` from `assertColumnAllowed('salary', ['surname'])`.
+- **De-duplicate the SELECT list.** Because the key is now normally present in the allow-list, build the projection as the key followed by the allow-listed columns *excluding* the key, so the emitted SQL says `SELECT "id", "surname"` rather than `SELECT "id", "id", "surname"`.
 - `afterKey` is passed as a bound parameter (`driver.query(sql, [afterKey])`), never interpolated.
 - Quote identifiers with the dialect-aware helper pattern from `data-quality/profiling.service.ts` (`quoteId(dbType, name)`), so MySQL backticks work.
 - The staged path filters the JSONB array by `String(row[pk]) > afterKey`, sorts by the same key, and slices to `limit`. Staged datasets are bounded by what already fits in a JSONB column, so no paging beyond that is needed.
@@ -884,6 +909,9 @@ Notes that matter:
 - Insert rows in batches with a multi-row parameterized `INSERT`, sized from `MATCHING_BATCH_ROWS`. `COPY` is a later optimization; a parameterized multi-row insert is correct and testable now, and the plan does not pretend otherwise.
 - Every column name written into DDL comes from `project.fieldMap[].left` and goes through `assertColumnAllowed` first.
 - Generated column name is `bk_<pass.name>` with `pass.name` run through `assertIdent`.
+- **Declare the generated columns in the `CREATE TABLE`, not with `ALTER TABLE ... ADD COLUMN` after the load.** Adding a `STORED` generated column to a populated table forces a full heap rewrite under `ACCESS EXCLUSIVE` — three passes over a 10M-row workspace is three sequential rewrites of a table just written. PostgreSQL computes `STORED` columns server-side during the `INSERT`s at no extra cost, so declaring them up front is strictly cheaper. Indexes still come **after** the load, where deferring them is genuinely faster.
+- **Index names must fit PostgreSQL's 63-byte `NAMEDATALEN` limit.** `assertIdent` checks the character class only, never length, and PostgreSQL *truncates* an over-long identifier with a notice rather than erroring — so two passes sharing a long prefix silently collide on one index name and the second `CREATE INDEX` fails mid-run, after the table has already been dropped and reloaded. Compose index names from a short project prefix rather than the full UUID-derived table segment, and assert the composed name is within 63 bytes, throwing a message that names the offending pass if not.
+- **Reject a duplicated `fieldMap[].left`** with a `BadRequestException` naming the repeated column. Two mappings on one source column yield `CREATE TABLE (… "surname" text, "surname" text)`, which PostgreSQL refuses outright. `fieldMap` is JSONB, so the shape is not guaranteed at runtime — the same reasoning that already governs weights in `blocking-sql.ts`. Throwing beats silently de-duplicating, because two mappings on one column with different roles is a configuration mistake the user needs told about.
 - Store the per-side row count and last key so Task 13 can record them on the run.
 
 - [ ] **Step 4: PASS, then the gates.**
@@ -903,16 +931,74 @@ Notes that matter:
 - Produces:
 
 ```typescript
-export interface PassEstimate { pass: string; distinctKeys: number; estimatedPairs: number; droppedKeys: string[]; }
-export interface BlockingEstimate { perPass: PassEstimate[]; totalEstimatedPairs: number; exceedsCap: boolean; refused: boolean; }
+export interface PassEstimate {
+  pass: string;
+  distinctKeys: number;      // kept keys only; dropped keys are reported separately
+  estimatedPairs: number;
+  droppedKeys: string[];
+  exact: boolean;            // false for trigram passes — see Ruling R20
+}
+export interface BlockingEstimate {
+  perPass: PassEstimate[];
+  totalEstimatedPairs: number;
+  hasInexactPass: boolean;   // true when any pass reports exact: false
+  exceedsCap: boolean;
+  refused: boolean;
+}
 
 class BlockingService {
   estimate(project: MatchProject): Promise<BlockingEstimate>;
   candidatePairsSql(project: MatchProject, pass: BlockingPass, droppedKeys: string[]): string;
+  passSessionSettings(pass: BlockingPass): string[];   // Ruling R21
 }
+
+**Ruling R20 — a trigram pass's projection is a declared lower bound, never an estimate.**
+`sum(n*(n-1)/2)` over a key histogram counts pairs whose keys are *exactly equal*. A
+trigram pass proposes every pair with `similarity >= threshold`, a strict superset. On a
+near-unique key — a surname, a phone number, precisely what trigram passes are for — the
+histogram is almost all singletons, so the projection reads near zero while the real work
+is quadratic. Reporting that as an estimate means the gate reads clear on the one query
+that cannot finish, which is the failure this stage exists to prevent.
+So `exact` is `false` for every trigram pass, `hasInexactPass` is true when any pass is
+inexact, and no consumer may present `estimatedPairs` for an inexact pass as a bound.
+Task 16's wizard must render it as "at least N pairs — a trigram pass cannot be estimated
+exactly", never as a bare number, and Task 13 must surface the flag on the run.
+Properly estimating a similarity join needs sampling and extrapolation; that is phase-4
+work, and declaring the limit honestly is what phase 1 owes.
+
+**Ruling R21 — the trigram join must be sargable, and its session requirement machine-readable.**
+`similarity(l.col, r.col) >= 0.4` is a function call in a join predicate. Only the `%`,
+`<%` and `<->` operators map to `gin_trgm_ops`, so the GIN index the materializer builds
+cannot be used and the planner falls back to a full self cross-product — a *correct*
+result that never returns at ten million rows, and one no assertion on SQL text can catch.
+Emit both: `l.col % r.col AND similarity(l.col, r.col) >= <threshold>`. The `%` supplies
+an index-scannable predicate; `similarity()` enforces the exact per-pass threshold as a
+recheck, so the result set is identical. `%` is governed by the session GUC
+`pg_trgm.similarity_threshold`, which must be set at or below the pass threshold or the
+index predicate silently filters out pairs the recheck would have kept.
+That requirement must be expressed in code, not prose: `passSessionSettings(pass)` returns
+the statements a caller must execute in the same transaction — `SET LOCAL
+pg_trgm.similarity_threshold = <threshold>` for a trigram pass, an empty array otherwise.
+A comment telling a future task to remember something is not a mechanism.
+
+**Ruling R22 — the histogram aggregates server-side and returns only what matters.**
+`SELECT key, count(*) GROUP BY key` returns one row per distinct key. On a high-cardinality
+blocking key — last-nine phone digits is one of this feature's own examples — a ten-million
+row table yields ten million rows buffered by the driver and then a second ten-million-object
+array in JavaScript: on the order of gigabytes of live heap. The estimator dies on exactly
+the input size it was written for, which is the same shape of defect as the 65535
+bound-parameter overflow: correct on three rows, fatal at scale.
+Keys with `n = 1` contribute nothing to the projection and can never be degenerate. They
+matter only to the totals, which PostgreSQL can compute itself. So the single query becomes
+a CTE that returns the row total, the kept-key pair sum, the kept-key count and only the
+above-threshold keys — bounding the result set at roughly 200 rows, since a key must exceed
+`max(50, 0.5% of total)` to be returned. This preserves Ruling P8 exactly: still one query
+per pass, still everything derived from it.
 ```
 
-`estimate` reads the key-frequency histogram from the workspace table, projects pairs as the sum of `n*(n-1)/2` per key for a dedupe self-join, and lists any key value covering more than 0.5% of rows as dropped. `exceedsCap` is true above `MATCHING_MAX_CANDIDATE_PAIRS`; `refused` is true above twice it.
+`estimate` runs **one** query per pass — the key-frequency histogram — and derives everything from it: the row total is `sum(n)`, the projected pairs are `sum(n*(n-1)/2)` over the kept keys for a dedupe self-join, and any key value whose frequency exceeds `max(50, 0.5% of the total)` is listed as dropped and excluded from the projection.
+
+The absolute floor is not decoration. On a 1,000-row table 0.5% is five rows, so the bare percentage would discard a surname shared by six people as "degenerate" — ordinary data, and dropping it silently loses real matches. A key at 50 rows contributes 1,225 pairs, which cannot meaningfully affect a projection measured against a 250-million-pair cap, so excluding it buys nothing and costs recall. Above roughly 10,000 rows the percentage governs again, which is the regime the rule was written for: 0.5% of ten million is 50,000 rows sharing one key, unambiguously degenerate. Without the floor this task's own tests 1 and 3 (totals of 5 and 30) drop every key and yield 0 pairs rather than the expected 4 and 435. Do not issue a separate `count(*)` query; the histogram already carries the total, and one round trip per pass is the point. `exceedsCap` is true above `MATCHING_MAX_CANDIDATE_PAIRS`; `refused` is true above twice it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -927,11 +1013,13 @@ describe('BlockingService', () => {
     expect(est.perPass[0].estimatedPairs).toBe(4);
   });
 
-  it('drops a key value covering more than 0.5% of rows and excludes its pairs', async () => {
-    // 10,000 rows; the empty-surname key covers 200 of them (2%).
-    dataSource.query
-      .mockResolvedValueOnce([{ total: '10000' }])
-      .mockResolvedValueOnce([{ key: '|1988', n: '200' }, { key: 'MKMN|1988', n: '3' }]);
+  it('drops a key value above the degenerate threshold and excludes its pairs', async () => {
+    // 10,000 rows total, all of it from this histogram; the empty-surname key
+    // covers 200 of them (2%), which is above the 0.5% degenerate threshold.
+    const rest = Array.from({ length: 98 }, (_, i) => ({ key: `K${i}`, n: '100' }));
+    dataSource.query.mockResolvedValue([
+      { key: '|1988', n: '200' }, { key: 'MKMN|1988', n: '3' }, ...rest,
+    ]);
     const est = await service.estimate(project);
     expect(est.perPass[0].droppedKeys).toContain('|1988');
     expect(est.perPass[0].estimatedPairs).toBe(3);
@@ -1003,7 +1091,9 @@ class ScoringService {
 describe('ScoringService', () => {
   it('inserts only pairs at or above the reject threshold', async () => {
     await service.scorePass(project, run, pass, []);
-    const sql = String(dataSource.query.mock.calls[0][0]);
+    // Ruling P9 fixes the order: call 0 is the count over the candidate CTE,
+    // call 1 is the counted insert. Read the insert from call 1.
+    const sql = String(dataSource.query.mock.calls[1][0]);
     expect(sql).toMatch(/INSERT INTO "match_candidates"/);
     expect(sql).toContain('WHERE score >= ');
     expect(sql).not.toMatch(/'auto_reject'/);
@@ -1048,10 +1138,30 @@ describe('ScoringService', () => {
 - [ ] **Step 2: FAIL. Step 3: implement per the Interfaces block.**
 
 Notes that matter:
-- One statement per pass, shaped as: candidate pairs from `candidatePairsSql` in a CTE, comparator expressions in a second CTE, then `INSERT INTO match_candidates ... SELECT ... WHERE score >= :rejectAt`.
+- One statement per pass, shaped as: candidate pairs from `candidatePairsSql` in a CTE, comparator expressions in a second CTE, then `INSERT INTO match_candidates ... SELECT ... WHERE score >= :rejectAt OR <the pair carries a human decision>`.
+
+**Ruling R23 — a human-decided pair is stored regardless of its score.**
+The reject filter must not drop a pair that a person has already ruled on. A steward
+confirms exactly the pairs the score is unsure about; a pair scoring 0.95 never reached
+the review queue. So the confirmed pairs are disproportionately the ones whose computed
+score sits low — and filtering on score alone discards the human verdict before the
+decision join can honour it, silently re-opening a question someone already answered and
+contradicting the rule that a Decision is permanent.
+This does not weaken "never store a rejected pair". That rule exists because auto-rejects
+are hundreds of millions of rows; human-decided pairs are bounded by what people can
+actually review — thousands — so the storage argument does not apply to them.
+
+**Ruling R24 — `autoReject` counts pairs not newly stored, and says so.**
+With `ON CONFLICT DO NOTHING`, a pair a previous pass already stored is counted by the
+pass total but skipped by the insert, so `total - inserted` attributes it to rejection.
+Distinguishing the two would need a third statement, which Ruling P9 forbids for good
+reason. Document the counter for what it measures — candidate pairs seen minus rows newly
+inserted, including pairs an earlier pass already stored — on the interface and wherever
+Task 13 surfaces it. A number whose meaning is written down is fine; a number quietly
+meaning something other than its name is not.
 - `decision` is `CASE WHEN score >= :matchAt THEN 'auto_match' ELSE 'grey' END`.
 - Pairs present in `match_decisions` for this project are inserted with `decision` taken from the human verdict (`'confirmed'` or `'rejected'`) and are excluded from the threshold CASE. Use a `LEFT JOIN match_decisions`.
-- `autoReject` is derived: candidate pairs seen minus rows inserted. Never `SELECT` the rejects to count them — count them in the same pass with a `COUNT(*)` over the candidate CTE.
+- Exactly two statements per pass, in this order, because the tests mock two calls: (1) `SELECT count(*) AS total` over the candidate-pair CTE, (2) the `INSERT ... SELECT ... RETURNING`-counted insert. `autoReject` is statement 1's total minus statement 2's inserted count. Never `SELECT` the rejected rows themselves to count them.
 - `ON CONFLICT ... DO NOTHING` against `uq_match_candidates_pair` makes a re-run safe, since two passes can propose the same pair.
 
 - [ ] **Step 4: PASS, then the gates.**
@@ -1135,7 +1245,28 @@ describe('ClusteringService', () => {
 Notes that matter:
 - Build the cluster set in Node from `auto_match` plus `confirmed` candidates only. That set is small — it is the survivors of scoring, not the candidate pairs.
 - The over-merge guard needs the score of every internal pair. Query `match_candidates` for all pairs whose both keys are in the cluster; any pair missing from the table scored below `rejectAt` and was discarded, so **a missing pair also flags the cluster**. Assert this in the first test — it is the subtle case.
+
+**Ruling R26 — a human decision overrides the over-merge guard's score test.**
+The guard above rests on an invariant that Ruling R23 has since broken: *present in
+`match_candidates` implies score at or above `rejectAt`*. That was true when only
+threshold-passing pairs were stored. R23 now stores a pair a steward has ruled on
+**regardless of its score**, precisely because stewards adjudicate the pairs the score is
+unsure about.
+So a pair a person explicitly confirmed can sit in the table at 0.4 against a 0.55
+threshold. Applying the bare score test would flag the cluster as over-merged *because* a
+human confirmed the merge, and a flagged cluster is withheld from the Crosswalk — so the
+confirmed match would never reach the entity register. That is R23's own failure mode
+wearing the opposite sign.
+The guard must therefore read `decision`, not only `score`:
+- `decision = 'confirmed'` clears the threshold test outright, whatever the score.
+- `decision = 'rejected'` is a **hard split**: the cluster is flagged no matter how high
+  the score, because a person has said these are different entities.
+- Everything else falls back to the score test, including the missing-pair case above.
+Test all four paths. Two of them invert the plain reading of the score, so a future editor
+who "simplifies" the guard back to a score comparison must fail a test.
 - Majority entity key: read existing `match_crosswalk` rows for the cluster's members, take the most frequent `entity_key`, break a tie by the lexicographically smallest key so the result is deterministic. Mint `uuidv4()` when there are none.
+- Scope that crosswalk read by `organization_id` and `project_id` **only** — do not filter by `source_ref`. A dedupe project has exactly one Match Source, so project scoping is sufficient, and this keeps Task 9 independent of `CrosswalkService.sourceRef()`, which Task 10 has not produced yet. Phase 3 revisits this when a right Match Source exists.
+- `members` entries are `MatchMember` — `{ sourceRef, sourceKey }`. Build `sourceRef` inline here as `'connection:<connectionId>:<schema>.<table>'` or `'staged:<stagedDataId>'`; Task 10 extracts the same rule into `sourceRef()` and both must agree.
 - A flagged cluster is saved to `match_entities` but contributes nothing to the Crosswalk — Task 10 filters on `flagged = false`.
 
 - [ ] **Step 4: PASS, then the gates.**
@@ -1449,7 +1580,19 @@ Notes that matter:
 - Modify: `src/modules/matching/matching.module.ts`
 
 **Interfaces:**
-- Produces these routes, all under `@Controller('api/matching')` with `@UseGuards(JwtAuthGuard, RolesGuard)`:
+- Produces these routes, all under `@Controller('matching')` with `@UseGuards(JwtAuthGuard, RolesGuard)`.
+
+**Ruling R35 — the controller path is bare, because `main.ts` already sets a global prefix.**
+`app.setGlobalPrefix('api')` means every controller in this codebase declares a bare path:
+`@Controller('connections')`, `@Controller('query')`, `@Controller('saved-queries')`. An
+earlier draft of this plan specified `@Controller('api/matching')`, which resolves to
+`/api/api/matching/...`, and *also* specified frontend calls to `/matching/...` on top
+of an `API_BASE_URL` already ending in `/api`. **Two errors that cancel.** The feature
+would work while being the only route in the codebase with a doubled prefix — wrong in
+Swagger, wrong for any external consumer, and broken the moment someone corrects either
+side or adds a route following the house convention. Nothing caught it: the integration
+test calls services directly and the controller spec tests handler methods, not routes.
+Backend: `@Controller('matching')`. Frontend: `apiFetch('/matching/...')`.
 
 | Method | Path | Roles | Returns |
 |---|---|---|---|
@@ -1654,22 +1797,26 @@ Append a short "Measured on 10k rows" note to the spec's section 7.5 with the ac
 
 ```typescript
 matching: {
-  listProjects: () => apiFetch<MatchProjectDto[]>('/api/matching/projects'),
-  getProject: (id: string) => apiFetch<MatchProjectDto>(`/api/matching/projects/${id}`),
+  listProjects: () => apiFetch<MatchProjectDto[]>('/matching/projects'),
+  getProject: (id: string) => apiFetch<MatchProjectDto>(`/matching/projects/${id}`),
   createProject: (body: CreateMatchProjectBody) =>
-    apiFetch<MatchProjectDto>('/api/matching/projects', { method: 'POST', body: JSON.stringify(body) }),
-  estimate: (id: string) => apiFetch<BlockingEstimate>(`/api/matching/projects/${id}/estimate`, { method: 'POST' }),
-  startRun: (id: string) => apiFetch<MatchRunDto>(`/api/matching/projects/${id}/runs`, { method: 'POST' }),
-  listRuns: (id: string) => apiFetch<MatchRunDto[]>(`/api/matching/projects/${id}/runs`),
-  getRun: (runId: string) => apiFetch<MatchRunDto>(`/api/matching/runs/${runId}`),
+    apiFetch<MatchProjectDto>('/matching/projects', { method: 'POST', body: JSON.stringify(body) }),
+  updateProject: (id: string, body: Partial<CreateMatchProjectBody>) =>
+    apiFetch<MatchProjectDto>(`/matching/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteProject: (id: string) =>
+    apiFetch<void>(`/matching/projects/${id}`, { method: 'DELETE' }),
+  estimate: (id: string) => apiFetch<BlockingEstimate>(`/matching/projects/${id}/estimate`, { method: 'POST' }),
+  startRun: (id: string) => apiFetch<MatchRunDto>(`/matching/projects/${id}/runs`, { method: 'POST' }),
+  listRuns: (id: string) => apiFetch<MatchRunDto[]>(`/matching/projects/${id}/runs`),
+  getRun: (runId: string) => apiFetch<MatchRunDto>(`/matching/runs/${runId}`),
   listCandidates: (runId: string, decision: string, limit = 50) =>
-    apiFetch<MatchCandidateDto[]>(`/api/matching/runs/${runId}/candidates?decision=${decision}&limit=${limit}`),
+    apiFetch<MatchCandidateDto[]>(`/matching/runs/${runId}/candidates?decision=${decision}&limit=${limit}`),
   submitDecision: (projectId: string, body: SubmitDecisionBody) =>
-    apiFetch<void>(`/api/matching/projects/${projectId}/decisions`, { method: 'POST', body: JSON.stringify(body) }),
-  listClusters: (runId: string) => apiFetch<MatchClusterDto[]>(`/api/matching/runs/${runId}/clusters`),
-  evaluate: (runId: string) => apiFetch<{ metrics: EvalMetrics; sweep: SweepPoint[] }>(`/api/matching/runs/${runId}/evaluate`),
+    apiFetch<void>(`/matching/projects/${projectId}/decisions`, { method: 'POST', body: JSON.stringify(body) }),
+  listClusters: (runId: string) => apiFetch<MatchClusterDto[]>(`/matching/runs/${runId}/clusters`),
+  evaluate: (runId: string) => apiFetch<{ metrics: EvalMetrics; sweep: SweepPoint[] }>(`/matching/runs/${runId}/evaluate`),
   addGoldPair: (projectId: string, body: AddGoldPairBody) =>
-    apiFetch<void>(`/api/matching/projects/${projectId}/gold-pairs`, { method: 'POST', body: JSON.stringify(body) }),
+    apiFetch<void>(`/matching/projects/${projectId}/gold-pairs`, { method: 'POST', body: JSON.stringify(body) }),
 },
 ```
 
@@ -1677,16 +1824,18 @@ Exported interfaces for every DTO above go at the end of `lib/api.ts`, beside `S
 
 - [ ] **Step 1: Add the namespace and the types.** Follow the existing namespaces for `apiFetch` usage; do not introduce a second fetch helper.
 
-- [ ] **Step 2: Build the project list page.** A table of projects with name, mode, last run status and a "New project" button. Empty state explains what a Match Project is in the vocabulary from `CONTEXT.md`.
+- [ ] **Step 2: Build the project list page.** A table of projects with name, mode, last run status, a "New project" button, and a per-row delete action calling `api.matching.deleteProject` behind an inline confirm (not `window.confirm` — a browser modal blocks the page). Empty state explains what a Match Project is in the vocabulary from `CONTEXT.md`. The PATCH and DELETE endpoints from Task 14 must both have a caller by the end of this task; an endpoint with no caller is dead code a reviewer will rightly flag.
 
 - [ ] **Step 3: Build the wizard**, four steps in one client component with local step state:
 
 1. **Match Source** — pick a Connection and table, or a Staged dataset. Pick the primary key.
-2. **Field map** — choose columns and assign a role and weight to each. **Entered by hand; phase 1 makes no model call here.** The column allow-list is derived from the chosen columns, so a user cannot select a field that is not allow-listed.
+2. **Field map** — choose columns and assign a role and weight to each. **Entered by hand; phase 1 makes no model call here.** The column allow-list is derived from the chosen columns **plus the primary key picked in step 1** — Task 5 requires the key to be allow-listed like any other column, so omitting it makes every run fail at materialization.
 3. **Blocking** — add passes, then "Estimate" calls `api.matching.estimate` and renders the projected pair count per pass and the total. Show the dropped degenerate keys. Disable "Create and run" when the response says `refused`.
 4. **Thresholds and authority** — two sliders, plus the required lawful basis and data owner fields. The step cannot be completed with either left blank.
 
 - [ ] **Step 4: Add the sidebar entry** to the `DATA OPERATIONS` section of `components/Sidebar.tsx`, after Data Quality: `{ id: 'matching', label: 'Entity Matching', href: '/matching', icon: <Users /> }`. Import `Users` from `lucide-react` alongside the existing icons.
+
+**Frontend baseline, verified 2026-09-18: `pnpm build` exits 0 and `npx next lint` reports ZERO errors** (warnings only, in pre-existing components). An earlier draft of this plan claimed `react/no-unescaped-entities` errors in `DataIngestion/ColumnMapping.tsx` failed the build; that is no longer true. The gate is therefore absolute rather than "ignore the known failures": any build failure or lint **error** after this task is yours.
 
 - [ ] **Step 5: Gates**
 
@@ -1694,8 +1843,7 @@ Exported interfaces for every DTO above go at the end of `lib/api.ts`, beside `S
 cd packages/frontend && pnpm build && npx next lint
 ```
 
-Expected: build exit 0, lint zero errors. Note the pre-existing `react/no-unescaped-entities` errors in `DataIngestion/ColumnMapping.tsx` — do not fix them here and do not let them be attributed to this task; confirm they are the only failures and that none are in `app/matching/`.
-
+Expected: build exit 0, lint zero errors. 
 - [ ] **Step 6: Commit** — `feat(matching): matching API client, project list and setup wizard`
 
 ---
@@ -1723,7 +1871,6 @@ Expected: build exit 0, lint zero errors. Note the pre-existing `react/no-unesca
 
 - [ ] **Step 5: Build the clusters page.** One card per cluster: entity key, size, members, flagged badge. The golden record section is phase 3 — omit it, do not render an empty one.
 
-- [ ] **Step 6: Gates.** `pnpm build` exit 0, `npx next lint` zero errors, same pre-existing-failures caveat as Task 16.
 
 - [ ] **Step 7: Commit** — `feat(matching): review queue, run summary and cluster pages`
 
@@ -1736,7 +1883,7 @@ Expected: build exit 0, lint zero errors. Note the pre-existing `react/no-unesca
 - Test: extend `src/modules/data-quality/quality-checks.service.spec.ts`
 
 **Interfaces:**
-- Consumes: `MatchRunService`, `MatchProject` repository.
+- Consumes: the `MatchProject`, `MatchRun` and `MatchEntity` repositories, read-only. **Not `MatchRunService`** — the check reads a completed run and must never be able to start one, so it has no reason to hold the service that can.
 - Produces: `CheckType` gains `'no_duplicates'`. Its `config` is `{ matchProjectId: string; maxDuplicateClusters: number }`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1784,7 +1931,7 @@ describe('no_duplicates check', () => {
 - Add a `case 'no_duplicates'` to the execution switch at `quality-checks.service.ts:322` and to the comparison switch at `:375`. The check counts `match_entities` rows with `size > 1` for the project's latest completed run, filtered by `organizationId`.
 - Do **not** add it to `ALLOWED_SUGGESTION_CHECK_TYPES` — it needs a Match Project id that no suggestion can invent.
 - The check reads an existing run; it never starts one. A quality check must not launch a two-hour job.
-- `DataQualityModule` imports `MatchingModule`; `MatchingModule` exports the repositories or a small read service for it. If that creates a circular graph, use the `ModuleRef` lazy-get pattern documented in `CLAUDE.md` rather than restructuring either module.
+- `DataQualityModule` imports `MatchingModule`; `MatchingModule` exports only the three repositories via `TypeOrmModule`, never `MatchRunService`. If that creates a circular graph, use the `ModuleRef` lazy-get pattern documented in `CLAUDE.md` rather than restructuring either module.
 
 - [ ] **Step 4: PASS, then the gates.**
 
@@ -1798,7 +1945,7 @@ describe('no_duplicates check', () => {
 - [ ] `cd packages/backend && npx tsc --noEmit` — clean
 - [ ] `cd packages/backend && pnpm test:e2e -- --runTestsByPath test/matching-engine.e2e-spec.ts` — green against docker-compose PostgreSQL
 - [ ] `cd packages/frontend && pnpm build` — exit 0
-- [ ] `cd packages/frontend && npx next lint` — zero errors outside the pre-existing `DataIngestion` failures
+- [ ] `cd packages/frontend && npx next lint` — ZERO errors, no exceptions (see the verified baseline note under Task 16: the `DataIngestion` failures this line used to excuse do not exist)
 - [ ] `pnpm run migration:revert && pnpm run migration:run` — both succeed
 - [ ] Manual pass: create a dedupe project against a seeded table, estimate, run, review five pairs by keyboard, confirm the Crosswalk has rows and a second run leaves the entity keys unchanged
 
