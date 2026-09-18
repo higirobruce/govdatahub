@@ -6,6 +6,7 @@ import { MatchDecision, MatchEntity, MatchGoldPair, MatchProject, MatchRun } fro
 import { BlockingService } from './blocking.service';
 import { EvalService } from './eval.service';
 import { MatchRunService } from './match-run.service';
+import { MaterializeService } from './materialize.service';
 import { MatchingService } from './matching.service';
 
 /**
@@ -27,6 +28,7 @@ describe('MatchingService', () => {
   const blocking = { estimate: jest.fn() };
   const matchRun = { start: jest.fn() };
   const evalService = { evaluate: jest.fn(), sweep: jest.fn() };
+  const materialize = { workspaceTable: jest.fn((projectId: string, side: string) => `matching.p_${projectId}_${side}`) };
 
   const project = {
     id: 'p1',
@@ -58,6 +60,7 @@ describe('MatchingService', () => {
         { provide: BlockingService, useValue: blocking },
         { provide: MatchRunService, useValue: matchRun },
         { provide: EvalService, useValue: evalService },
+        { provide: MaterializeService, useValue: materialize },
       ],
     }).compile();
 
@@ -533,6 +536,54 @@ describe('MatchingService', () => {
       expect(saved.name).toBe('Only the name changes');
       expect(saved.description).toBe('Original description');
       expect(saved.retentionDays).toBe(30);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // Ruling R36: estimate reads a workspace table a run's own materialize
+  // step creates, and never materializes on demand (see
+  // MatchingService.assertWorkspaceMaterialized) -- copying data early,
+  // before the wizard's step 4 records lawful basis and data owner, would
+  // invert the order this feature is built around. Before a project's
+  // first run, that table does not exist, and this must surface as a
+  // clean, actionable ConflictException rather than a raw Postgres
+  // "relation ... does not exist" error.
+  // ---------------------------------------------------------------------
+
+  describe('Ruling R36: estimate refuses cleanly before the first run', () => {
+    it('throws ConflictException naming the reason when the workspace table does not exist yet', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: null }]);
+
+      let caught: unknown;
+      try {
+        await service.estimate('p1', 'org1');
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeInstanceOf(ConflictException);
+      expect((caught as ConflictException).message).toMatch(/has not run yet/);
+      expect(blocking.estimate).not.toHaveBeenCalled();
+    });
+
+    it('checks existence with to_regclass against the project\'s left workspace table, not by pattern-matching a driver error', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: null }]);
+
+      await expect(service.estimate('p1', 'org1')).rejects.toThrow(ConflictException);
+
+      expect(materialize.workspaceTable).toHaveBeenCalledWith('p1', 'left');
+      expect(dataSource.query).toHaveBeenCalledWith('SELECT to_regclass($1) AS reg', ['matching.p_p1_left']);
+    });
+
+    it('does not throw, and calls through to BlockingService.estimate, once the workspace table exists', async () => {
+      dataSource.query.mockResolvedValueOnce([{ reg: 'matching.p_p1_left' }]);
+      const expected = { perPass: [], totalEstimatedPairs: 0, hasInexactPass: false, exceedsCap: false, refused: false };
+      blocking.estimate.mockResolvedValueOnce(expected);
+
+      const result = await service.estimate('p1', 'org1');
+
+      expect(result).toBe(expected);
+      expect(blocking.estimate).toHaveBeenCalledWith(project);
     });
   });
 });
