@@ -382,6 +382,10 @@ describe('matching engine (integration)', () => {
     expect(finished!.errorMessage).toBeNull();
     expect(finished!.counters.leftRows).toBe(10_000);
     expect(finished!.counters.rightRows).toBe(0);
+    // Asserted, not merely printed: `clusters` is what the stability test
+    // below compares the second run against, so it needs a fixed baseline.
+    expect(finished!.counters.clusters).toBe(300);
+    expect(finished!.counters.flaggedClusters).toBe(0);
     // Ruling R20: a trigram pass makes `estimatedPairs` a lower bound, and
     // the flag that says so must be set from the estimate, never defaulted.
     expect(finished!.counters.hasInexactPass).toBe(true);
@@ -515,6 +519,9 @@ describe('matching engine (integration)', () => {
   it('shows a threshold plateau around the chosen matchAt rather than a knife edge', async () => {
     const sweep = await evalService.sweep(project, firstRunId);
     const window = sweep.filter((p) => p.matchAt >= 0.68 && p.matchAt <= 0.75);
+    // `every` on an empty array is true, so a `sweep()` that returned nothing
+    // would pass the one test named for it.
+    expect(window).toHaveLength(8);
     // eslint-disable-next-line no-console
     console.log(
       `\nthreshold sweep: ` +
@@ -570,8 +577,14 @@ describe('matching engine (integration)', () => {
     const text = plan.map((row) => row['QUERY PLAN']).join('\n');
     // eslint-disable-next-line no-console
     console.log(`\ntrigram pass plan:\n${text}`);
+    // The index name alone would also appear if the index were reached some
+    // other way; what this test exists to defend is that `%` is the
+    // *index-scannable* predicate, so assert on the `Index Cond` itself.
+    expect(text).toMatch(/Index Cond:.*%/);
     expect(text).toContain('bk_name_trgm_trgm_idx');
-    expect(text).not.toContain('Nested Loop  (cost=0.00');
+    // Exactly one sequential scan: the outer side. A second one would mean the
+    // inner side is being scanned in full, i.e. the self cross-product.
+    expect(text.match(/Seq Scan/g) ?? []).toHaveLength(1);
   });
 
   it('refuses a second concurrent run of the same project', async () => {
@@ -607,6 +620,22 @@ describe('matching engine (integration)', () => {
     // brief's polling helper are both really exercised.
     const second = await runService.start(projectId, orgId);
     await waitForStatus(second.id, 'completed', RUN_TIMEOUT_MS);
+
+    // `match_crosswalk` is upsert-only -- `publish` is
+    // `ON CONFLICT ... DO UPDATE` and nothing anywhere deletes from it -- so a
+    // second run that produced ZERO unflagged clusters writes nothing, leaves
+    // every pre-existing row exactly as it was, and would sail through the
+    // snapshot comparison below. "Stable keys" and "the second run silently
+    // did nothing" are indistinguishable from the crosswalk alone. Prove the
+    // run actually re-derived the clusters before comparing anything.
+    const firstRun = await runRepo.findOne({ where: { id: firstRunId } });
+    const secondRun = await runRepo.findOne({ where: { id: second.id } });
+    expect(secondRun!.counters.clusters).toBe(firstRun!.counters.clusters);
+    const [{ entities }] = await dataSource.query(
+      `SELECT count(*)::int AS entities FROM match_entities WHERE run_id = $1`,
+      [second.id],
+    );
+    expect(entities).toBe(firstRun!.counters.clusters);
 
     const after = await dataSource.query(
       `SELECT source_key, entity_key FROM match_crosswalk WHERE project_id = $1 ORDER BY source_key`,
@@ -721,10 +750,27 @@ describe('matching engine (integration)', () => {
     expect(before[0].count).toBeGreaterThan(0);
 
     // Retention is read once in the constructor, so it is overridden on the
-    // instance rather than through the environment.
+    // instance rather than through the environment. A negative value pushes
+    // `cutoffDate` into the future, so every project with runs is expired.
     (cleanupService as unknown as { retentionDays: number }).retentionDays = -1;
-    const result = await cleanupService.cleanupExpiredWorkspaces();
-    expect(result.projectsSwept).toBeGreaterThanOrEqual(1);
+
+    // `cleanupExpiredWorkspaces` calls `projectsRepository.find()` with no
+    // organization filter, so with retention forced negative it would sweep
+    // EVERY match project on this server -- dropping workspace tables and
+    // deleting candidates belonging to whoever else happens to be using the
+    // developer database. Harmless while this feature is unreleased and no
+    // other project exists; silent data loss the first time one does. Scope
+    // the sweep to this suite's own project.
+    const findSpy = jest
+      .spyOn(projectRepo, 'find')
+      .mockResolvedValue([project] as MatchProject[]);
+    let result: { projectsSwept: number };
+    try {
+      result = await cleanupService.cleanupExpiredWorkspaces();
+    } finally {
+      findSpy.mockRestore();
+    }
+    expect(result.projectsSwept).toBe(1);
 
     const after = await dataSource.query(
       `SELECT count(*)::int AS count FROM match_candidates WHERE organization_id = $1`,
