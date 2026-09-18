@@ -1945,7 +1945,7 @@ describe('no_duplicates check', () => {
 - [ ] `cd packages/backend && npx tsc --noEmit` — clean
 - [ ] `cd packages/backend && pnpm test:e2e -- --runTestsByPath test/matching-engine.e2e-spec.ts` — green against docker-compose PostgreSQL
 - [ ] `cd packages/frontend && pnpm build` — exit 0
-- [ ] `cd packages/frontend && npx next lint` — zero errors outside the pre-existing `DataIngestion` failures
+- [ ] `cd packages/frontend && npx next lint` — ZERO errors, no exceptions (see the verified baseline note under Task 16: the `DataIngestion` failures this line used to excuse do not exist)
 - [ ] `pnpm run migration:revert && pnpm run migration:run` — both succeed
 - [ ] Manual pass: create a dedupe project against a seeded table, estimate, run, review five pairs by keyboard, confirm the Crosswalk has rows and a second run leaves the entity keys unchanged
 
