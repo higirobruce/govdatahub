@@ -258,7 +258,16 @@ export class MatchingService {
 
   async listRuns(id: string, organizationId: string): Promise<MatchRun[]> {
     await this.loadProject(id, organizationId);
-    return this.runRepo.find({ where: { projectId: id, organizationId }, order: { startedAt: 'DESC' } });
+    // The secondary sort matches `assertLatestCompletedRun` exactly. Ordering
+    // on `startedAt` alone leaves ties unordered, and PostgreSQL promises
+    // nothing about which row comes first -- so the run this list calls
+    // "latest" and the run the server will accept a review for could differ
+    // whenever two runs share a timestamp. Both orderings are stated once,
+    // identically, rather than left to coincide.
+    return this.runRepo.find({
+      where: { projectId: id, organizationId },
+      order: { startedAt: 'DESC', id: 'DESC' },
+    });
   }
 
   async findRun(runId: string, organizationId: string): Promise<MatchRun> {

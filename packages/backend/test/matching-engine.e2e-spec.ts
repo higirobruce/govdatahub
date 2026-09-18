@@ -21,6 +21,8 @@
  * and the rows are the evidence).
  */
 import { readFileSync } from 'fs';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { PINNED_TZ } = require('./pin-timezone');
 import { join, resolve } from 'path';
 import { config as loadEnv } from 'dotenv';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -201,6 +203,17 @@ describe('matching engine (integration)', () => {
   }
 
   // ------------------------------------------------------------------ setup
+
+  it('runs in the pinned non-UTC zone, so the date gates are not no-ops', () => {
+    // Ruling R59, symmetric canary. jest-e2e.json carries the timezone pin,
+    // but nothing INSIDE this suite noticed if it were ever removed -- and
+    // every date assertion here passes vacuously under UTC, because local
+    // midnight is UTC midnight and the day-shift this suite exists to catch
+    // simply does not occur. Stripping the pin from the config would have
+    // silently disarmed exactly one gate. It now fails out loud instead.
+    expect(process.env.TZ).toBe(PINNED_TZ);
+    expect(new Date().getTimezoneOffset()).not.toBe(0);
+  });
 
   beforeAll(async () => {
     moduleRef = await Test.createTestingModule({
