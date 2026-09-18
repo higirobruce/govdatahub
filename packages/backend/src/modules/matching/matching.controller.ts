@@ -9,6 +9,7 @@ import {
   CreateMatchProjectDto,
   GetCandidatesQueryDto,
   GetClustersQueryDto,
+  RetractDecisionQueryDto,
   SubmitDecisionDto,
   UpdateMatchProjectDto,
 } from './dto';
@@ -105,6 +106,20 @@ export class MatchingController {
   @Roles(...EDITOR_ROLES)
   submitDecision(@Param('id') id: string, @Body() dto: SubmitDecisionDto, @CurrentUser() user: User) {
     return this.service.recordDecision(id, dto, user.organizationId, user.id);
+  }
+
+  /**
+   * Ruling R43 (part 2): retracts a verdict -- it does not assert the
+   * opposite one. Query params (not a route segment) because the pair is
+   * identified by two key values, not a single resource id; NestJS's
+   * ValidationPipe still validates `RetractDecisionQueryDto` the same way
+   * it validates `GetCandidatesQueryDto` elsewhere in this controller.
+   */
+  @Delete('projects/:id/decisions')
+  @Roles(...EDITOR_ROLES)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  retractDecision(@Param('id') id: string, @Query() query: RetractDecisionQueryDto, @CurrentUser() user: User) {
+    return this.service.retractDecision(id, query, user.organizationId);
   }
 
   @Get('runs/:runId/clusters')

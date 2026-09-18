@@ -735,6 +735,19 @@ export const api = {
     submitDecision: (projectId: string, body: SubmitDecisionBody): Promise<void> =>
       request(`/matching/projects/${projectId}/decisions`, { method: 'POST', body: JSON.stringify(body) }),
 
+    /**
+     * Ruling R43 (part 2): retracts a verdict -- it does not assert the
+     * opposite one. Deletes whatever decision row(s) exist for this key
+     * pair (matched in either order, server-side); returning the pair to
+     * the grey band it came from is the actual inverse of
+     * `submitDecision`, not a second verdict.
+     */
+    retractDecision: (projectId: string, leftKey: string, rightKey: string): Promise<void> =>
+      request(
+        `/matching/projects/${projectId}/decisions?leftKey=${encodeURIComponent(leftKey)}&rightKey=${encodeURIComponent(rightKey)}`,
+        { method: 'DELETE' },
+      ),
+
     listClusters: (runId: string, limit = 50, offset = 0): Promise<MatchClusterDto[]> =>
       request(`/matching/runs/${runId}/clusters?limit=${limit}&offset=${offset}`),
 
