@@ -727,16 +727,16 @@ export const api = {
     getRun: (runId: string): Promise<MatchRunDto> =>
       request(`/matching/runs/${runId}`),
 
-    listCandidates: (runId: string, decision: string, limit = 50): Promise<MatchCandidateDto[]> =>
+    listCandidates: (runId: string, decision: string, limit = 50, offset = 0): Promise<MatchCandidateDto[]> =>
       request(
-        `/matching/runs/${runId}/candidates?decision=${encodeURIComponent(decision)}&limit=${limit}`,
+        `/matching/runs/${runId}/candidates?decision=${encodeURIComponent(decision)}&limit=${limit}&offset=${offset}`,
       ),
 
     submitDecision: (projectId: string, body: SubmitDecisionBody): Promise<void> =>
       request(`/matching/projects/${projectId}/decisions`, { method: 'POST', body: JSON.stringify(body) }),
 
-    listClusters: (runId: string): Promise<MatchClusterDto[]> =>
-      request(`/matching/runs/${runId}/clusters`),
+    listClusters: (runId: string, limit = 50, offset = 0): Promise<MatchClusterDto[]> =>
+      request(`/matching/runs/${runId}/clusters?limit=${limit}&offset=${offset}`),
 
     evaluate: (runId: string): Promise<{ metrics: EvalMetrics; sweep: SweepPoint[] }> =>
       request(`/matching/runs/${runId}/evaluate`),
@@ -1048,6 +1048,14 @@ export interface MatchRunDto {
  * One row of match_candidates as read for the review queue — raw SQL, not a
  * TypeORM entity, so the field names stay snake_case exactly as the backend
  * (MatchingService.CandidateRow) returns them.
+ *
+ * Ruling R39: `features` (one score per mapped field, each already numeric
+ * in [0,1] with 1 = identical — Ruling R2, do not rescale) and
+ * `left_record`/`right_record` were added so the review queue can render
+ * more than two opaque keys and a number. Both records are `null` when the
+ * run's materialized workspace table has since been dropped by the
+ * retention sweep — render that as "record values no longer available",
+ * never as an empty/blank record, and collect no verdict for that pair.
  */
 export interface MatchCandidateDto {
   left_key: string;
@@ -1055,6 +1063,9 @@ export interface MatchCandidateDto {
   score: number;
   decision: CandidateDecision;
   blocking_pass: string;
+  features: Record<string, number>;
+  left_record: Record<string, unknown> | null;
+  right_record: Record<string, unknown> | null;
 }
 
 export interface SubmitDecisionBody {

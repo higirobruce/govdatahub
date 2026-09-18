@@ -1,0 +1,337 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useParams, useSearchParams } from 'next/navigation';
+import useSWR from 'swr';
+import { api } from '@/lib/api';
+import type { MatchCandidateDto, MatchProjectDto, MatchRunDto, MatchSourceRef, MatchVerdict } from '@/lib/api';
+import { RecordDiff } from '@/components/Matching/RecordDiff';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/components/ui/toast';
+import { ArrowLeft, Check, ClipboardList, Loader2, SkipForward, Undo2, X } from 'lucide-react';
+
+const PAGE_SIZE = 50;
+
+/**
+ * Mirrors `CrosswalkService.sourceRef` (backend) byte-for-byte -- the
+ * frontend has no other way to produce the exact string `SubmitDecisionDto`
+ * requires, since the candidates endpoint returns only keys, never a
+ * source ref. Phase 1 is dedupe-only, so a candidate's left and right sides
+ * both come from `project.leftSource`.
+ */
+function sourceRef(source: MatchSourceRef): string {
+  if (source.kind === 'connection') {
+    return `connection:${source.connectionId}:${source.schemaName}.${source.tableName}`;
+  }
+  return `staged:${source.stagedDataId}`;
+}
+
+interface LastDecision {
+  candidate: MatchCandidateDto;
+  verdict: MatchVerdict;
+  index: number;
+}
+
+export default function ReviewQueuePage() {
+  const params = useParams<{ id: string }>();
+  const projectId = params.id;
+  // Relies on this page rendering dynamically -- see app/query/page.tsx's
+  // identical note on useSearchParams() and Next's static-prerender rules.
+  const searchParams = useSearchParams();
+  const runId = searchParams.get('runId');
+  const { showToast } = useToast();
+
+  const { data: project } = useSWR<MatchProjectDto>(
+    `/matching/projects/${projectId}`,
+    () => api.matching.getProject(projectId),
+  );
+  const { data: run } = useSWR<MatchRunDto>(runId ? `/matching/runs/${runId}` : null, () =>
+    api.matching.getRun(runId!),
+  );
+
+  const [globalIndex, setGlobalIndex] = useState(0);
+  const [pages, setPages] = useState<Record<number, MatchCandidateDto[]>>({});
+  const [loadingOffset, setLoadingOffset] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [lastDecision, setLastDecision] = useState<LastDecision | null>(null);
+
+  const currentOffset = Math.floor(globalIndex / PAGE_SIZE) * PAGE_SIZE;
+  const currentPage = pages[currentOffset];
+  const localIndex = globalIndex - currentOffset;
+  const currentCandidate = currentPage?.[localIndex];
+  // Only the last page fetched can tell us we've run out of grey pairs: a
+  // page shorter than PAGE_SIZE has no more rows after it.
+  const queueExhausted = !!currentPage && currentPage.length < PAGE_SIZE && localIndex >= currentPage.length;
+
+  useEffect(() => {
+    if (!runId || pages[currentOffset] !== undefined || loadingOffset === currentOffset) return;
+    let cancelled = false;
+    setLoadingOffset(currentOffset);
+    api.matching
+      .listCandidates(runId, 'grey', PAGE_SIZE, currentOffset)
+      .then((data) => {
+        if (!cancelled) setPages((prev) => ({ ...prev, [currentOffset]: data }));
+      })
+      .catch((err: any) => {
+        if (!cancelled) showToast(err.message || 'Failed to load candidates', 'error');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingOffset(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, currentOffset]);
+
+  const leftRef = useMemo(() => (project ? sourceRef(project.leftSource) : null), [project]);
+
+  const moveNext = useCallback(() => setGlobalIndex((idx) => idx + 1), []);
+  const movePrev = useCallback(() => setGlobalIndex((idx) => Math.max(0, idx - 1)), []);
+
+  const decide = useCallback(
+    async (verdict: MatchVerdict, candidate: MatchCandidateDto, index: number) => {
+      if (!leftRef || candidate.left_record === null) return;
+      setSubmitting(true);
+      try {
+        await api.matching.submitDecision(projectId, {
+          leftSourceRef: leftRef,
+          leftKey: candidate.left_key,
+          rightSourceRef: leftRef,
+          rightKey: candidate.right_key,
+          decision: verdict,
+        });
+        setLastDecision({ candidate, verdict, index });
+        setGlobalIndex(index + 1);
+      } catch (err: any) {
+        showToast(err.message || 'Failed to record decision', 'error');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [leftRef, projectId, showToast],
+  );
+
+  const undo = useCallback(async () => {
+    // "Undo" only has something to invert when the very last action was a
+    // decision we haven't already moved away from -- otherwise (the
+    // previous pair was skipped, or this is already the start of the
+    // queue) it degrades to a plain step back, same as `k`.
+    if (!lastDecision || lastDecision.index !== globalIndex - 1 || !leftRef) {
+      movePrev();
+      return;
+    }
+    const opposite: MatchVerdict = lastDecision.verdict === 'match' ? 'no_match' : 'match';
+    setSubmitting(true);
+    try {
+      await api.matching.submitDecision(projectId, {
+        leftSourceRef: leftRef,
+        leftKey: lastDecision.candidate.left_key,
+        rightSourceRef: leftRef,
+        rightKey: lastDecision.candidate.right_key,
+        decision: opposite,
+      });
+      setGlobalIndex(lastDecision.index);
+      setLastDecision(null);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to undo', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [lastDecision, globalIndex, leftRef, projectId, showToast, movePrev]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (submitting || !currentCandidate) return;
+
+      switch (e.key) {
+        case 'j':
+          moveNext();
+          break;
+        case 'k':
+          movePrev();
+          break;
+        case 's':
+          moveNext();
+          break;
+        case 'u':
+          void undo();
+          break;
+        case 'm':
+          void decide('match', currentCandidate, globalIndex);
+          break;
+        case 'n':
+          void decide('no_match', currentCandidate, globalIndex);
+          break;
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentCandidate, globalIndex, submitting, moveNext, movePrev, undo, decide]);
+
+  if (!runId) {
+    return (
+      <div className="w-full">
+        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-8 text-center">
+          <p className="text-sm text-[#1a1a1a] font-medium mb-1">No run selected</p>
+          <p className="text-sm text-[#aaaaaa] mb-4">
+            Open the project page and choose Review from a completed run.
+          </p>
+          <Button asChild>
+            <Link href={`/matching/${projectId}`}>Back to project</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const greyTotal = run?.counters.grey ?? null;
+  const canDecide = !submitting && !!currentCandidate && currentCandidate.left_record !== null;
+
+  return (
+    <div className="w-full">
+      <div className="mb-3">
+        <Link
+          href={`/matching/${projectId}/runs/${runId}`}
+          className="inline-flex items-center gap-1.5 text-sm text-[#777777] hover:text-[#1a1a1a] transition-colors"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to run summary
+        </Link>
+      </div>
+
+      <PageHeader title="Review queue" subtitle="Grey-band pairs, highest score first" icon={ClipboardList} />
+
+      {greyTotal !== null && greyTotal > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between text-sm text-[#555555] mb-1.5">
+            <span>
+              {Math.min(globalIndex, greyTotal).toLocaleString()} of {greyTotal.toLocaleString()} reviewed
+            </span>
+            {submitting && (
+              <span className="text-xs text-[#aaaaaa] flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+              </span>
+            )}
+          </div>
+          <Progress value={Math.min(100, (globalIndex / greyTotal) * 100)} className="h-1.5" />
+        </div>
+      )}
+
+      {greyTotal === 0 && (
+        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-8 text-center">
+          <p className="text-sm text-[#1a1a1a] font-medium">Nothing to review</p>
+          <p className="text-sm text-[#aaaaaa] mt-1">
+            Every candidate pair in this run was resolved automatically — none fell in the grey band.
+          </p>
+        </div>
+      )}
+
+      {greyTotal !== null && greyTotal > 0 && queueExhausted && (
+        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-8 text-center">
+          <p className="text-sm text-[#1a1a1a] font-medium">All caught up</p>
+          <p className="text-sm text-[#aaaaaa] mt-1">
+            You&rsquo;ve stepped past the last grey-band pair returned for this run.
+          </p>
+          <Button variant="outline" className="mt-4" onClick={movePrev}>
+            Step back
+          </Button>
+        </div>
+      )}
+
+      {greyTotal !== null && greyTotal > 0 && !queueExhausted && (
+        <>
+          {!currentCandidate && (
+            <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-8 text-center text-sm text-[#aaaaaa]">
+              Loading…
+            </div>
+          )}
+
+          {currentCandidate && project && (
+            <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="text-[#555555]">
+                    Score <span className="font-semibold text-[#1a1a1a]">{currentCandidate.score.toFixed(3)}</span>
+                  </span>
+                  <span className="text-[#555555]">
+                    Proposed by{' '}
+                    <span className="font-mono text-xs bg-[#f5f5f5] text-[#555555] px-1.5 py-0.5 rounded">
+                      {currentCandidate.blocking_pass}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <RecordDiff
+                fieldMap={project.fieldMap}
+                features={currentCandidate.features}
+                leftRecord={currentCandidate.left_record}
+                rightRecord={currentCandidate.right_record}
+                leftLabel={`Record ${currentCandidate.left_key}`}
+                rightLabel={`Record ${currentCandidate.right_key}`}
+              />
+
+              <div className="flex items-center justify-center gap-3 mt-6">
+                <Button variant="outline" disabled={submitting} onClick={movePrev} title="Previous pair (k)">
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-1.5 border-red-200 text-red-700 hover:bg-red-50"
+                  disabled={!canDecide}
+                  onClick={() => currentCandidate && decide('no_match', currentCandidate, globalIndex)}
+                  title="No match (n)"
+                >
+                  <X className="h-4 w-4" />
+                  No match
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={submitting}
+                  onClick={moveNext}
+                  title="Skip (s)"
+                >
+                  <SkipForward className="h-4 w-4" />
+                  Skip
+                </Button>
+                <Button
+                  className="gap-1.5 bg-green-700 hover:bg-green-800"
+                  disabled={!canDecide}
+                  onClick={() => currentCandidate && decide('match', currentCandidate, globalIndex)}
+                  title="Match (m)"
+                >
+                  <Check className="h-4 w-4" />
+                  Match
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={submitting}
+                  onClick={() => void undo()}
+                  title="Undo (u)"
+                >
+                  <Undo2 className="h-4 w-4" />
+                  Undo
+                </Button>
+              </div>
+
+              <p className="text-center text-xs text-[#aaaaaa] mt-4">
+                Keyboard: <span className="font-mono">m</span> match · <span className="font-mono">n</span> no
+                match · <span className="font-mono">s</span> skip · <span className="font-mono">u</span> undo ·{' '}
+                <span className="font-mono">j</span>/<span className="font-mono">k</span> move
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
