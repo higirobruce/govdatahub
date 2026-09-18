@@ -1823,14 +1823,15 @@ Exported interfaces for every DTO above go at the end of `lib/api.ts`, beside `S
 
 - [ ] **Step 4: Add the sidebar entry** to the `DATA OPERATIONS` section of `components/Sidebar.tsx`, after Data Quality: `{ id: 'matching', label: 'Entity Matching', href: '/matching', icon: <Users /> }`. Import `Users` from `lucide-react` alongside the existing icons.
 
+**Frontend baseline, verified 2026-09-18: `pnpm build` exits 0 and `npx next lint` reports ZERO errors** (warnings only, in pre-existing components). An earlier draft of this plan claimed `react/no-unescaped-entities` errors in `DataIngestion/ColumnMapping.tsx` failed the build; that is no longer true. The gate is therefore absolute rather than "ignore the known failures": any build failure or lint **error** after this task is yours.
+
 - [ ] **Step 5: Gates**
 
 ```bash
 cd packages/frontend && pnpm build && npx next lint
 ```
 
-Expected: build exit 0, lint zero errors. Note the pre-existing `react/no-unescaped-entities` errors in `DataIngestion/ColumnMapping.tsx` — do not fix them here and do not let them be attributed to this task; confirm they are the only failures and that none are in `app/matching/`.
-
+Expected: build exit 0, lint zero errors. 
 - [ ] **Step 6: Commit** — `feat(matching): matching API client, project list and setup wizard`
 
 ---
@@ -1858,7 +1859,6 @@ Expected: build exit 0, lint zero errors. Note the pre-existing `react/no-unesca
 
 - [ ] **Step 5: Build the clusters page.** One card per cluster: entity key, size, members, flagged badge. The golden record section is phase 3 — omit it, do not render an empty one.
 
-- [ ] **Step 6: Gates.** `pnpm build` exit 0, `npx next lint` zero errors, same pre-existing-failures caveat as Task 16.
 
 - [ ] **Step 7: Commit** — `feat(matching): review queue, run summary and cluster pages`
 
