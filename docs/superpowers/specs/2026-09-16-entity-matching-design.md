@@ -489,6 +489,23 @@ appended to `lib/api.ts`, and a sidebar entry labelled "Entity Matching" in the
 - **`[id]/clusters/page.tsx`** — clusters, each with its golden record and the
   source of every field.
 
+**Undo retracts a verdict; it does not assert the opposite (Ruling R43).**
+`match_decisions` carries a `UNIQUE` constraint on the pair, and a stored verdict
+is honoured by scoring *regardless of score* — `'no_match'` becomes `'rejected'`
+for that pair in every later run. Two consequences follow.
+
+First, recording a verdict is an upsert, not an insert. A steward who reaches the
+same pair twice — through undo, a reload, or a second review session — is
+correcting their answer, and a correction must not be a constraint violation.
+The latest verdict replaces the earlier one, with its author and timestamp.
+
+Second, undo *removes* the verdict rather than submitting its opposite. These are
+different claims: "I have no opinion on this pair" leaves it to be scored on its
+merits, while "these are not the same person" suppresses it permanently. A
+mis-keyed keystroke must never be recorded as a certification the steward never
+made, so the queue's undo deletes the decision row and the pair returns to the
+grey band it came from.
+
 **What the review queue is served (Ruling R39).** A pair the queue shows must
 arrive with the data a human needs to judge it, or the screen asks someone to
 certify a match they cannot see. `GET /matching/runs/:runId/candidates`
