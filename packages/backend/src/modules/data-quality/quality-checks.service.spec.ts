@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { MoreThan } from 'typeorm';
 import { QualityChecksService } from './quality-checks.service';
 
 describe('QualityChecksService.suggestChecks (AI-suggested quality checks)', () => {
@@ -192,8 +193,18 @@ describe('QualityChecksService.runCheck no_duplicates check', () => {
   const matchRunRepo = { findOne: jest.fn() };
   const entityRepo = { count: jest.fn() };
 
+  // Ruling R47: the run id is deliberately distinctive (nothing like the
+  // project id or org id) so a regression that threads the wrong id into
+  // entityRepo.count's `runId` filter -- e.g. dropping it, or passing the
+  // project id instead -- fails the assertions below instead of passing by
+  // coincidence.
   const validProject = { id: 'p1', organizationId: 'org1' };
-  const completedRun = { id: 'run-1', projectId: 'p1', organizationId: 'org1', status: 'completed' };
+  const latestCompletedRun = {
+    id: 'run-latest-7c2f',
+    projectId: 'p1',
+    organizationId: 'org1',
+    status: 'completed',
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -214,7 +225,7 @@ describe('QualityChecksService.runCheck no_duplicates check', () => {
     // Happy-path defaults: a valid project, a completed run, a count.
     // Each test below overrides exactly the one mock its title names.
     projectRepo.findOne.mockResolvedValue(validProject);
-    matchRunRepo.findOne.mockResolvedValue(completedRun);
+    matchRunRepo.findOne.mockResolvedValue(latestCompletedRun);
     entityRepo.count.mockResolvedValue(0);
 
     service = new QualityChecksService(
@@ -237,6 +248,27 @@ describe('QualityChecksService.runCheck no_duplicates check', () => {
       config: { matchProjectId: 'p1', maxDuplicateClusters: 5 } } as any, 'org1');
     expect(result.status).toBe('pass');
     expect(result.actualValue).toBe(2);
+
+    // Ruling R47: lock the run-scoping invariant, not just the outcome.
+    // matchRunRepo.findOne must be scoped to this project/org and filtered
+    // to completed runs (ordered so "latest" is well-defined).
+    expect(matchRunRepo.findOne).toHaveBeenCalledWith({
+      where: { projectId: 'p1', organizationId: 'org1', status: 'completed' },
+      order: { startedAt: 'DESC' },
+    });
+    // entityRepo.count must be scoped to this project AND this specific
+    // run (not every historical run of the project) AND this org, and
+    // must filter to clusters with size > 1. Threading the wrong id here
+    // -- or dropping runId entirely -- would silently sum duplicates
+    // across every run of the project instead of just the latest one.
+    expect(entityRepo.count).toHaveBeenCalledWith({
+      where: {
+        projectId: 'p1',
+        runId: 'run-latest-7c2f',
+        organizationId: 'org1',
+        size: MoreThan(1),
+      },
+    });
   });
 
   it('fails when the duplicate cluster count is above the limit', async () => {
