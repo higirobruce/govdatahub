@@ -183,9 +183,10 @@ export function RecordDiff({
       <div className="rounded-lg border border-dashed border-[#dddddd] bg-[#fafafa] p-6 text-center">
         <p className="text-sm font-medium text-[#1a1a1a]">Record values are no longer available</p>
         <p className="text-xs text-[#aaaaaa] mt-1 max-w-md mx-auto">
-          The workspace copy this run compared has been cleared under this project&rsquo;s retention
-          period. The score below is still what the run computed; the field-by-field values behind it
-          cannot be recovered.
+          The values behind this pair are no longer in DataGate&rsquo;s workspace copy &mdash; either it
+          was cleared under this project&rsquo;s retention period, or these rows have changed in the
+          source since the run compared them. The score below is still what the run computed; the
+          field-by-field values behind it cannot be recovered.
         </p>
         <p className="text-xs text-[#aaaaaa] mt-2 max-w-md mx-auto">
           This pair cannot be certified. Press <span className="font-mono">s</span> (or use Skip) to
