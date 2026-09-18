@@ -304,6 +304,117 @@ describe('ClusteringService', () => {
     });
   });
 
+  describe('Ruling R49: an entity key belongs to at most one cluster per run', () => {
+    /**
+     * The steward-split scenario, exactly as the ruling states it.
+     *
+     * Run 1 clustered A, B and C under key E and published all three. A
+     * steward then rejected (A,C) and (B,C), so run 2 produces {A,B} --
+     * two votes for E -- and {C,D} -- one vote for E, since C still
+     * carries E in the crosswalk. Resolving each cluster in isolation
+     * gives BOTH of them E, and publication then puts all four records
+     * under one key: more merged than before the steward intervened, as
+     * a direct result of their correction.
+     */
+    beforeEach(() => {
+      survivorRows = [
+        { left_key: 'A', right_key: 'B', score: 0.95, decision: 'auto_match' },
+        { left_key: 'C', right_key: 'D', score: 0.95, decision: 'auto_match' },
+      ];
+      crosswalkRows = [
+        { source_key: 'A', entity_key: 'E' },
+        { source_key: 'B', entity_key: 'E' },
+        { source_key: 'C', entity_key: 'E' },
+      ];
+      query.mockImplementation(async (sql: string, params?: unknown[]) => {
+        if (sql.includes("decision IN ('auto_match', 'confirmed')")) return survivorRows;
+        if (sql.includes('match_crosswalk')) {
+          // The real statement filters by `source_key = ANY($3)`; the mock
+          // must too, or every cluster would see every other cluster's
+          // votes and this test would prove nothing about the claim set.
+          const members = (params as unknown[])[2] as string[];
+          return crosswalkRows.filter((r) => members.includes(r.source_key));
+        }
+        if (sql.includes('FROM match_candidates')) {
+          return [guardAggregate([{ score: 0.95, decision: 'auto_match' }])];
+        }
+        throw new Error(`Unexpected query: ${sql}`);
+      });
+    });
+
+    it('never gives two clusters of one run the same entity key', async () => {
+      await service.cluster(project, run);
+      const saved = entityRepo.save.mock.calls.map(
+        (c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> },
+      );
+      expect(saved).toHaveLength(2);
+      const keys = saved.map((e) => e.entityKey);
+      expect(new Set(keys).size).toBe(2);
+    });
+
+    it('keeps E on the first cluster in stable order and mints a fresh key for the fragment', async () => {
+      await service.cluster(project, run);
+      const byFirstMember = new Map(
+        entityRepo.save.mock.calls
+          .map((c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> })
+          .map((e) => [e.members.map((m) => m.sourceKey).sort().join(','), e.entityKey]),
+      );
+      // {A,B} sorts first, so it keeps the key its majority voted for.
+      expect(byFirstMember.get('A,B')).toBe('E');
+      // {C,D} voted for E too, but E is taken: a fragment split off from
+      // a merge a steward undid is a NEW identity, not the old one.
+      expect(byFirstMember.get('C,D')).toMatch(/^[0-9a-f-]{36}$/);
+      expect(byFirstMember.get('C,D')).not.toBe('E');
+    });
+
+    it('assigns the same keys however the survivor rows are ordered', async () => {
+      await service.cluster(project, run);
+      const first = entityRepo.save.mock.calls
+        .map((c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> })
+        .filter((e) => e.members.some((m) => m.sourceKey === 'A'))
+        .map((e) => e.entityKey);
+
+      // Same edge list, reversed -- which is all an unordered `SELECT`
+      // has to change for the Map's iteration order to change with it.
+      entityRepo.save.mockClear();
+      survivorRows = [
+        { left_key: 'C', right_key: 'D', score: 0.95, decision: 'auto_match' },
+        { left_key: 'A', right_key: 'B', score: 0.95, decision: 'auto_match' },
+      ];
+      await service.cluster(project, run);
+      const second = entityRepo.save.mock.calls
+        .map((c) => c[0] as { entityKey: string; members: Array<{ sourceKey: string }> })
+        .filter((e) => e.members.some((m) => m.sourceKey === 'A'))
+        .map((e) => e.entityKey);
+
+      expect(second).toEqual(first);
+      expect(second).toEqual(['E']);
+    });
+  });
+
+  describe('Ruling R55: organization scoping on the raw-SQL reads', () => {
+    it('binds organizationId on the survivor read and on the over-merge guard', async () => {
+      survivorRows = [
+        { left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' },
+      ];
+      internalPairs = [{ score: 0.95, decision: 'auto_match' }];
+
+      await service.cluster(project, run);
+
+      const survivor = query.mock.calls.find((c) =>
+        String(c[0]).includes("decision IN ('auto_match', 'confirmed')"),
+      )!;
+      expect(String(survivor[0])).toContain('organization_id');
+      expect(survivor[1]).toContain('org1');
+
+      const guard = query.mock.calls.find(
+        (c) => String(c[0]).includes('FROM match_candidates') && String(c[0]).includes('n_rejected'),
+      )!;
+      expect(String(guard[0])).toContain('organization_id');
+      expect(guard[1]).toContain('org1');
+    });
+  });
+
   describe('members and the golden record', () => {
     it('leaves the golden record empty because survivorship is phase 3', async () => {
       survivorRows = [{ left_key: 'a', right_key: 'b', score: 0.95, decision: 'auto_match' }];

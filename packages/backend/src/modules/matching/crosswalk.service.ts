@@ -103,17 +103,41 @@ export class CrosswalkService {
    * `cluster.entityKey` exactly as `ClusteringService.resolveEntityKey`
    * decided it, which is what keeps the key stable across re-runs.
    *
-   * The whole write is one transaction: `match_crosswalk` is a permanent
-   * table other features join against live, unlike the per-run
-   * workspace table `MaterializeService.insertPage` chunks without one
-   * (that table is dropped and rebuilt every run, so a mid-loop failure
-   * there is harmless). A cluster large enough to need a second chunk
-   * that then fails would otherwise leave the first chunk durably
-   * committed and the published Crosswalk sitting partially updated
-   * until the next successful run -- not data-destructive, since every
-   * statement is an upsert and a retry converges, but a real
-   * inconsistency window in the thing this feature exists to produce.
-   * Wrapping the loop means a mid-loop failure leaves nothing written.
+   * **Publication REPLACES, it does not accumulate (Ruling R48).** Before
+   * the upserts, one `DELETE` withdraws every row of this project's own
+   * source that this run did not publish. Without it a published merge
+   * could never be withdrawn: a steward records `no_match`, the
+   * over-merge guard flags the cluster, this method correctly writes
+   * nothing for it -- and the rows the PREVIOUS run wrote still say those
+   * records are one person. The verdict reached scoring and never reached
+   * the published product, which is the one artefact other systems join
+   * against. The same held for a raised threshold, a deleted source row,
+   * and a cluster that split back into singletons: singletons never reach
+   * the Crosswalk at all (clusters come only from `unionFind` over
+   * surviving pairs), so a re-split record kept a stale merge claim
+   * permanently.
+   *
+   * Replacing is sound precisely because everything upstream is
+   * recomputed from scratch every run -- materialization drops and
+   * reloads the whole workspace -- so the latest run's conclusions are
+   * the complete current picture, not a delta against an older one. A
+   * flagged cluster is deliberately not published and its earlier claim
+   * is therefore withdrawn: the register stops asserting that two people
+   * are one while a human decides, which is the safe direction.
+   *
+   * The whole write is one transaction: the delete and every upsert chunk
+   * commit together or not at all. `match_crosswalk` is a permanent table
+   * other features join against live, unlike the per-run workspace table
+   * `MaterializeService.insertPage` chunks without one (that table is
+   * dropped and rebuilt every run, so a mid-loop failure there is
+   * harmless). A cluster large enough to need a second chunk that then
+   * fails would otherwise leave the first chunk durably committed and the
+   * published Crosswalk sitting partially updated until the next
+   * successful run. With the withdrawal in the same transaction the
+   * stakes are higher still -- a committed delete with uncommitted
+   * upserts would be a published register that had lost rows -- which is
+   * exactly why there is no path here that writes outside the
+   * transaction.
    */
   async publish(project: MatchProject, run: MatchRun): Promise<CrosswalkPublishResult> {
     const clusters = await this.entityRepo.find({
@@ -133,11 +157,19 @@ export class CrosswalkService {
       }
     }
 
-    if (rows.length === 0) return { written: 0 };
+    // Ruling R48: NO early return on an empty row set. A run that
+    // publishes nothing must still withdraw everything it previously
+    // published -- "this run found no duplicates" is a conclusion, not
+    // an absence of one, and the early return that used to sit here was
+    // precisely the path that let a flagged or split cluster keep its
+    // stale merge claim forever.
+    const ownRef = this.sourceRef(project.leftSource);
+    const publishedKeys = rows.filter((row) => row.sourceRef === ownRef).map((row) => row.sourceKey);
 
     const maxRowsPerStatement = Math.max(1, Math.floor(PG_MAX_BOUND_PARAMS / PARAMS_PER_ROW));
     let written = 0;
     await this.dataSource.transaction(async (manager: EntityManager) => {
+      await this.withdrawUnpublished(manager, project.organizationId, project.id, ownRef, publishedKeys);
       for (let offset = 0; offset < rows.length; offset += maxRowsPerStatement) {
         const chunk = rows.slice(offset, offset + maxRowsPerStatement);
         await this.upsertChunk(manager, project.organizationId, project.id, chunk);
@@ -148,10 +180,66 @@ export class CrosswalkService {
     // Counts and the run/project ids only -- a source key is personal
     // data and never goes to the log.
     this.logger.log(
-      `Run ${run.id}: published ${written} crosswalk row(s) from ${clusters.length} unflagged cluster(s)`,
+      `Run ${run.id}: published ${written} crosswalk row(s) from ${clusters.length} unflagged cluster(s); ` +
+        `withdrew every row of ${ownRef} not among them`,
     );
 
     return { written };
+  }
+
+  /**
+   * Ruling R48's withdrawal half: delete every `match_crosswalk` row of
+   * this project's own source whose `source_key` this run did not
+   * publish. Issued on the transaction's manager, before the upserts, so
+   * withdrawal and publication are one atomic replacement.
+   *
+   * **Scoped by `source_ref` as well as organization and project, never
+   * by project alone.** Phase 1 gives a dedupe project exactly one Match
+   * Source, so today the two are the same set of rows; phase 3 adds a
+   * second source, and a project-wide delete would then wipe the other
+   * source's rows every time this one published. The ref used is the
+   * project's own -- `sourceRef(project.leftSource)`, byte-identical to
+   * what `ClusteringService.buildSourceRef` stamps onto each member --
+   * and the keep-set is filtered to that same ref, so a member carrying
+   * some other ref is upserted but never used to keep or withdraw rows
+   * outside this source's slice.
+   *
+   * The keep-set travels as ONE bound parameter -- a `text[]` -- rather
+   * than as N placeholders. That is not an oversight of the 65535
+   * bound-parameter cap the upsert loop chunks against; it is the only
+   * correct shape. A negated set predicate cannot be chunked the way an
+   * `INSERT` can: each chunk would delete the rows every OTHER chunk
+   * means to keep, so a chunked withdrawal of a large key set would
+   * destroy almost the entire published Crosswalk. One array parameter
+   * sidesteps the cap entirely -- four parameters whatever the set size
+   * -- and `NOT EXISTS (SELECT ... FROM unnest(...))` lets PostgreSQL
+   * hash the keep-set into an anti-join instead of re-scanning the array
+   * per row, which `<> ALL(...)` would.
+   *
+   * An empty keep-set is the important case, not a degenerate one: it is
+   * the run that published nothing and must therefore withdraw
+   * everything. `unnest('{}'::text[])` yields no rows, `NOT EXISTS` is
+   * true for every row, and the whole slice is deleted -- which is the
+   * intended behaviour, so this method deliberately has no "nothing to
+   * do" guard on the key set.
+   */
+  private async withdrawUnpublished(
+    manager: EntityManager,
+    organizationId: string,
+    projectId: string,
+    sourceRef: string,
+    publishedKeys: string[],
+  ): Promise<void> {
+    await manager.query(
+      `DELETE FROM "match_crosswalk" AS c ` +
+        `WHERE c."organization_id" = $1::text ` +
+        `AND c."project_id" = $2::text ` +
+        `AND c."source_ref" = $3::text ` +
+        `AND NOT EXISTS (` +
+        `SELECT 1 FROM unnest($4::text[]) AS published(source_key) ` +
+        `WHERE published.source_key = c."source_key")`,
+      [organizationId, projectId, sourceRef, publishedKeys],
+    );
   }
 
   /**

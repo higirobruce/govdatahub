@@ -442,9 +442,9 @@ describe('matching engine (integration)', () => {
   it('scores a pair whose normalized birth date is the empty string, and a 354-byte address', async () => {
     // Two hazards in one cohort, neither of which any other row reaches.
     //
-    // `NormalizationService.normalizeDate` returns '' for a NULL and for an
-    // unparseable string alike, so '' is what the workspace holds for every
-    // missing date. `''::date` is not NULL in PostgreSQL, it is
+    // `NormalizationService.normalizeDate` returns '' for a NULL date, so
+    // '' is what the workspace holds for every missing date. `''::date` is
+    // not NULL in PostgreSQL, it is
     // `invalid input syntax for type date: ""`, and it aborts the whole
     // scoring statement rather than one pair -- so if the presence guard were
     // missing, this run would not have completed at all.
@@ -474,6 +474,49 @@ describe('matching engine (integration)', () => {
     }
     // eslint-disable-next-line no-console
     console.log(`\nmissing-date pair features: ${JSON.stringify(rows[0].features)}`);
+  });
+
+  it('R50: carries a real PostgreSQL `date` column through normalization without shifting the day', async () => {
+    // The defect this locks: node-postgres materializes a `date` column as
+    // a JavaScript `Date` at LOCAL midnight, and `normalizeDate` used to
+    // call `toISOString()` on it. Under any zone east of Greenwich -- the
+    // deployment zone `Africa/Kigali` is UTC+2 -- that lands on the
+    // PREVIOUS calendar day. For 1985-01-01 the YEAR changes too, and
+    // `year(birth_date)` is a blocking key: the duplicate is never even
+    // proposed. Nothing in the run reports an error; the register simply
+    // records a different day than the source holds.
+    //
+    // Only a real `date` column reaches this path -- while the fixture
+    // declared `birth_date text` the driver handed the normalizer a string
+    // and this could not fail. The column is a `date` now, and the
+    // comparison below is against the source's own calendar day as
+    // PostgreSQL renders it, row by row, not against a value this test
+    // recomputes in JavaScript.
+    const workspace = materialize.workspaceTable(projectId, 'left');
+    const [{ mismatches, compared }] = await dataSource.query(
+      `SELECT count(*) FILTER (WHERE w.birth_date <> to_char(c.birth_date, 'YYYY-MM-DD'))::int AS mismatches,
+              count(*)::int AS compared
+         FROM ${workspace} w
+         JOIN matching_fixture.citizens c ON c.id = w.src_key
+        WHERE c.birth_date IS NOT NULL`,
+    );
+    expect(compared).toBeGreaterThan(9_000);
+    expect(mismatches).toBe(0);
+
+    // And the single worst case named explicitly: P000000 is born
+    // 1985-01-01, so a one-day backward shift moves it into 1984 and
+    // changes its blocking key.
+    const [newYear] = await dataSource.query(
+      `SELECT w.birth_date FROM ${workspace} w WHERE w.src_key = 'P000000'`,
+    );
+    expect(newYear.birth_date).toBe('1985-01-01');
+
+    // The blocking key really is derived from that value, so prove the
+    // stored generated column agrees rather than assuming it.
+    const [{ inYear }] = await dataSource.query(
+      `SELECT count(*)::int AS "inYear" FROM ${workspace} WHERE birth_date LIKE '1985-%' AND src_key = 'P000000'`,
+    );
+    expect(inYear).toBe(1);
   });
 
   it('recovers at least 80 percent of the known duplicate pairs', async () => {
@@ -621,13 +664,15 @@ describe('matching engine (integration)', () => {
     const second = await runService.start(projectId, orgId);
     await waitForStatus(second.id, 'completed', RUN_TIMEOUT_MS);
 
-    // `match_crosswalk` is upsert-only -- `publish` is
-    // `ON CONFLICT ... DO UPDATE` and nothing anywhere deletes from it -- so a
-    // second run that produced ZERO unflagged clusters writes nothing, leaves
-    // every pre-existing row exactly as it was, and would sail through the
-    // snapshot comparison below. "Stable keys" and "the second run silently
-    // did nothing" are indistinguishable from the crosswalk alone. Prove the
-    // run actually re-derived the clusters before comparing anything.
+    // Since Ruling R48 a second run that produced ZERO unflagged clusters
+    // would WITHDRAW every pre-existing row rather than leave them, so the
+    // snapshot comparison below would now catch that case on its own. The
+    // check is kept anyway: it is cheap, it distinguishes "re-derived the
+    // same 300 clusters" from "re-derived some other set that happens to
+    // publish the same keys", and a test that only holds because of a
+    // rule in another file is a test that silently stops meaning anything
+    // when that rule moves. Prove the run actually re-derived the clusters
+    // before comparing anything.
     const firstRun = await runRepo.findOne({ where: { id: firstRunId } });
     const secondRun = await runRepo.findOne({ where: { id: second.id } });
     expect(secondRun!.counters.clusters).toBe(firstRun!.counters.clusters);
@@ -642,6 +687,70 @@ describe('matching engine (integration)', () => {
       [projectId],
     );
     expect(after).toEqual(before);
+  }, RUN_TIMEOUT_MS);
+
+  it('R48: withdraws a published merge once a steward rejects it', async () => {
+    // The defect: `publish` only ever upserted, and nothing anywhere
+    // deleted from `match_crosswalk`. A steward records `no_match`, the
+    // pair stops clustering, publication correctly writes nothing for it
+    // -- and the PREVIOUS run's rows still said those two records are one
+    // person. The verdict reached scoring and never reached the published
+    // product, which is the only thing other systems join against.
+    //
+    // Pick a pair the crosswalk currently publishes as merged, rather
+    // than naming one: not every planted duplicate clears matchAt, and a
+    // hard-coded pair that happened not to be published would make this
+    // test pass without ever exercising a withdrawal.
+    const [pair] = await dataSource.query(
+      `SELECT t.left_key, t.right_key, l.entity_key
+         FROM matching_fixture.truth t
+         JOIN match_crosswalk l ON l.project_id = $1 AND l.source_key = t.left_key
+         JOIN match_crosswalk r ON r.project_id = $1 AND r.source_key = t.right_key
+        WHERE t.is_match AND l.entity_key = r.entity_key
+        ORDER BY t.left_key
+        LIMIT 1`,
+      [projectId],
+    );
+    expect(pair).toBeDefined();
+
+    const totalBefore = (
+      await dataSource.query(`SELECT count(*)::int AS c FROM match_crosswalk WHERE project_id = $1`, [projectId])
+    )[0].c;
+
+    const leftRef = `connection:${connectionId}:matching_fixture.citizens`;
+    await dataSource.query(
+      `INSERT INTO match_decisions
+         (id, organization_id, project_id, left_source_ref, left_key, right_source_ref, right_key, decision)
+       VALUES ($1, $2, $3, $4, $5, $4, $6, 'no_match')`,
+      [uuidv4(), orgId, projectId, leftRef, pair.left_key, pair.right_key],
+    );
+
+    const runId = await newRun();
+    await runService.execute(runId, orgId);
+
+    // Both records are singletons now -- a rejected pair is not a
+    // survivor, singletons never enter `unionFind`, and so neither key
+    // is published. Before R48 both rows would still be sitting there
+    // under the old shared entity key.
+    const surviving = await dataSource.query(
+      `SELECT source_key, entity_key FROM match_crosswalk
+        WHERE project_id = $1 AND source_key = ANY($2::text[]) ORDER BY source_key`,
+      [projectId, [pair.left_key, pair.right_key]],
+    );
+    expect(surviving).toEqual([]);
+
+    // And the withdrawal is surgical, not a wipe: everything this run did
+    // publish is still there. A delete scoped to the project alone, or one
+    // that ran with an empty keep-set by mistake, would fail here.
+    const totalAfter = (
+      await dataSource.query(`SELECT count(*)::int AS c FROM match_crosswalk WHERE project_id = $1`, [projectId])
+    )[0].c;
+    // eslint-disable-next-line no-console
+    console.log(
+      `\nR48: withdrew ${pair.left_key}/${pair.right_key} (was entity ${pair.entity_key}); ` +
+        `crosswalk ${totalBefore} -> ${totalAfter} rows`,
+    );
+    expect(totalAfter).toBe(totalBefore - 2);
   }, RUN_TIMEOUT_MS);
 
   it('carries a human verdict onto the candidate, latest verdict winning', async () => {

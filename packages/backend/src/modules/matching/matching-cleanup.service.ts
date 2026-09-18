@@ -9,6 +9,12 @@ import { MaterializeService } from './materialize.service';
 /** PostgreSQL's maximum bound parameters per statement — per protocol limit. */
 const PG_MAX_BOUND_PARAMS = 65535;
 
+/**
+ * Parameters held back from the protocol cap so this statement can gain a
+ * predicate without silently overflowing -- see `cleanupProject`.
+ */
+const BOUND_PARAM_HEADROOM = 64;
+
 @Injectable()
 export class MatchingCleanupService {
   private readonly logger = new Logger(MatchingCleanupService.name);
@@ -111,8 +117,17 @@ export class MatchingCleanupService {
     // Delete match_candidates rows for this project's runs, chunked against
     // PostgreSQL's 65535 bound-parameter limit. Each chunk deletes one or more
     // run IDs, so we chunk by count of run IDs (one parameter per ID).
+    //
+    // The chunk size leaves headroom below the protocol cap rather than
+    // sitting exactly on it, matching `crosswalk.service.ts` and
+    // `materialize.service.ts`. The reserved parameters are for anything
+    // this statement grows besides the run-id list -- an organization_id
+    // predicate, a retention cutoff, a status filter. At exactly 65535 the
+    // first such predicate makes every full chunk one parameter too wide
+    // and the statement fails at runtime, on the largest sweep, which is
+    // the last place that failure is convenient to discover.
     if (runIds.length > 0) {
-      const maxRunIdsPerStatement = Math.max(1, Math.floor(PG_MAX_BOUND_PARAMS));
+      const maxRunIdsPerStatement = Math.max(1, Math.floor(PG_MAX_BOUND_PARAMS - BOUND_PARAM_HEADROOM));
 
       for (let offset = 0; offset < runIds.length; offset += maxRunIdsPerStatement) {
         const chunk = runIds.slice(offset, offset + maxRunIdsPerStatement);

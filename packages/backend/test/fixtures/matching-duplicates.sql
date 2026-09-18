@@ -70,10 +70,10 @@
 --   * indices 4240..4279 -- 20 MISSING-DATE pairs (4240+2k, 4241+2k): the odd
 --     member copies the even member's given name and surname, so the two are
 --     always proposed by the trigram pass and their comparators are therefore
---     always evaluated. Their birth dates are absent -- NULL for half, the
---     unparseable string 'not recorded' for the other half, and for k < 10 on
---     BOTH sides rather than one. `NormalizationService.normalizeDate` turns
---     every one of those into the empty string, which is precisely the value
+--     always evaluated. Their birth dates are absent -- NULL on the odd
+--     member of every pair, and for k < 10 on BOTH sides rather than one.
+--     `NormalizationService.normalizeDate` turns every one of those into
+--     the empty string, which is precisely the value
 --     that makes `''::date` raise `invalid input syntax for type date: ""` --
 --     an error that aborts the whole scoring statement, not one pair. Nothing
 --     else in this fixture produces a missing date, so without this cohort the
@@ -118,9 +118,25 @@ CREATE TABLE matching_fixture.citizens (
   given_name  text NOT NULL,
   surname     text NOT NULL,
   full_name   text NOT NULL,
-  -- Nullable, and sometimes holding an unparseable string: a civil register
-  -- with no absent or malformed date of birth in it is not a civil register.
-  birth_date  text NULL,
+  -- A REAL `date` column, not text (Ruling R50). node-postgres materializes
+  -- a `date` as a JavaScript `Date` at LOCAL midnight, and the old
+  -- `toISOString()` in `NormalizationService.normalizeDate` then moved it
+  -- back a calendar day in every zone east of Greenwich -- changing the
+  -- year, and with it the `year(birth_date)` blocking key. While this
+  -- column was `text` the driver handed the normalizer a string and the
+  -- hazard was never reachable from any gate: the suite passed by
+  -- sidestepping the defect. It is a `date` from now on so that the
+  -- round trip through the real driver is what the run exercises.
+  --
+  -- Still nullable: a civil register with no absent date of birth in it is
+  -- not a civil register. A `date` column cannot hold the unparseable
+  -- string this fixture used to carry alongside the NULLs -- PostgreSQL
+  -- rejects it at INSERT -- so the missing-date cohort below is now NULL
+  -- on both shapes. `normalizeDate` mapped both to '' identically, so the
+  -- '' that reaches the workspace (and therefore the `''::date` hazard the
+  -- e2e suite exists to catch) is unchanged; the unparseable-string branch
+  -- itself is covered by `normalization.service.spec.ts`.
+  birth_date  date NULL,
   phone       text NULL,
   address     text NULL,
   district    text NOT NULL
@@ -176,34 +192,34 @@ FROM (
       ELSE matching_fixture.surname_for(i)
     END AS sn,
     CASE
-      -- missing-date cohort. `bd` is text from here on precisely because two
-      -- of these shapes are not dates at all: a NULL and a string no date
-      -- parser accepts. Both reach the workspace as '' (see normalizeDate).
-      WHEN i >= 4240 AND i < 4280 AND i % 2 = 1 AND ((i - 4241) / 2) % 2 = 0 THEN NULL
-      WHEN i >= 4240 AND i < 4280 AND i % 2 = 1 THEN 'not recorded'
+      -- missing-date cohort: NULL on both sides of the pair for k < 10, and
+      -- on the odd member alone for the rest. NULL reaches the workspace as
+      -- '' (see normalizeDate), which is the value that makes `''::date`
+      -- raise rather than evaluate.
+      WHEN i >= 4240 AND i < 4280 AND i % 2 = 1 THEN NULL
       WHEN i >= 4240 AND i < 4280 AND i % 2 = 0 AND ((i - 4240) / 2) < 10 THEN NULL
       -- empty-surname cohort: every one of them born in 1985, so all 60 share
       -- the single blocking key '|1985'.
-      WHEN i < 60 THEN to_char(DATE '1985-01-01' + ((i * 5) % 364), 'YYYY-MM-DD')
+      WHEN i < 60 THEN DATE '1985-01-01' + ((i * 5) % 364)
       -- hard negatives: even member born 10 January, odd member 60..159 days
       -- later -- far enough to be a real non-match, near enough to stay inside
       -- the same calendar year and therefore inside the same blocking key.
       WHEN i >= 4000 AND i < 4200 AND i % 2 = 0
-        THEN to_char(make_date(1950 + (((i - 4000) / 2) % 50), 1, 10), 'YYYY-MM-DD')
+        THEN make_date(1950 + (((i - 4000) / 2) % 50), 1, 10)
       WHEN i >= 4000 AND i < 4200 AND i % 2 = 1
-        THEN to_char(make_date(1950 + (((i - 4001) / 2) % 50), 1, 10) + (60 + ((i - 4001) / 2)), 'YYYY-MM-DD')
+        THEN make_date(1950 + (((i - 4001) / 2) % 50), 1, 10) + (60 + ((i - 4001) / 2))
       -- low-score blocked pairs: same surname and year, 300 days apart.
       WHEN i >= 4200 AND i < 4240 AND i % 2 = 0
-        THEN to_char(make_date(1960 + ((i - 4200) / 2), 1, 5), 'YYYY-MM-DD')
+        THEN make_date(1960 + ((i - 4200) / 2), 1, 5)
       WHEN i >= 4200 AND i < 4240 AND i % 2 = 1
-        THEN to_char(make_date(1960 + ((i - 4201) / 2), 1, 5) + 300, 'YYYY-MM-DD')
+        THEN make_date(1960 + ((i - 4201) / 2), 1, 5) + 300
       -- 'dob' duplicate sources: forced onto day 12 or 21 so that transposing
       -- the two day digits always yields a valid date in any month.
       WHEN i >= 3000 AND i <= 3990 AND (i - 1000) % 10 = 0
-        THEN to_char(make_date(1950 + (((i - 1000) / 10) % 60),
-                              1 + (((i - 1000) / 10) % 12),
-                              CASE WHEN ((i - 1000) / 10) % 2 = 0 THEN 12 ELSE 21 END), 'YYYY-MM-DD')
-      ELSE to_char(DATE '1940-01-01' + ((i * 7) % 25550), 'YYYY-MM-DD')
+        THEN make_date(1950 + (((i - 1000) / 10) % 60),
+                       1 + (((i - 1000) / 10) % 12),
+                       CASE WHEN ((i - 1000) / 10) % 2 = 0 THEN 12 ELSE 21 END)
+      ELSE DATE '1940-01-01' + ((i * 7) % 25550)
     END AS bd
   FROM generate_series(0, 9699) AS i
 ) AS base;
@@ -236,8 +252,11 @@ FROM (
     END AS surname,
     CASE
       WHEN k < 200 THEN c.birth_date
-      -- transpose the two digits of the day: '...-12' <-> '...-21'.
-      ELSE substr(c.birth_date, 1, 8) || reverse(substr(c.birth_date, 9, 2))
+      -- transpose the two digits of the day: '...-12' <-> '...-21'. Done
+      -- through the text form and cast straight back, now that the column
+      -- is a real `date`.
+      ELSE (substr(to_char(c.birth_date, 'YYYY-MM-DD'), 1, 8)
+            || reverse(substr(to_char(c.birth_date, 'YYYY-MM-DD'), 9, 2)))::date
     END AS birth_date,
     CASE WHEN k % 5 = 0 AND (k < 100 OR k >= 200) THEN NULL ELSE c.phone END AS phone,
     c.address,
