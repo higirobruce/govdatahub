@@ -424,9 +424,37 @@ It fits, tightly. The 30B chat model must not run on this box; it needs about
 **Disk:** roughly 15 to 20 GB per large project — workspace columns, indexes
 and surviving candidates. Retention must reclaim it.
 
-**Estimated run time for 10M x 10M**, to be confirmed on the real hardware:
-materialize 20–60 minutes, block and score 10–40 minutes, cluster a few
-minutes. One to two hours, with no model in the hot path.
+**Estimated run time for 10M x 10M**, still unconfirmed: materialize 20–60
+minutes, block and score 10–40 minutes, cluster a few minutes. One to two
+hours, with no model in the hot path. Nothing below verifies these numbers —
+they remain estimates, and the 10M-scale measurement is still outstanding.
+
+**Measured on 10k rows** (Task 15, `test/matching-engine.e2e-spec.ts`, against
+PostgreSQL 15 on a developer laptop; one dedupe project, 10,000 rows, four
+blocking passes — one trigram, three exact — five mapped fields, 12,021
+candidate pairs seen and 3,124 stored). A complete pipeline run takes **9 to
+10 seconds end to end**, measured over the several full runs the suite
+performs. By stage:
+
+| Stage | Measured at 10k rows |
+|---|---|
+| materialize left (read 10k rows through the connection driver, one page, plus index build) | 0.3–0.4 s |
+| blocking estimate (one histogram query per pass, 4 passes) | ~0.05 s |
+| scoring (count + scored insert per pass, 4 passes) | 8–9 s |
+| cluster + publish crosswalk (300 clusters, 600 crosswalk rows) | 0.6–1.3 s |
+
+Scoring dominates, and within it the single trigram pass dominates: the three
+exact passes are index-equality joins, while the trigram pass probes the GIN
+index once per row. One outlier run measured 135 s of scoring while two other
+runs were executing concurrently on the same laptop, which is machine
+contention rather than a property of the workload — but it is worth recording
+that this stage degrades sharply under CPU pressure.
+
+These are 10k-row numbers on a laptop. They say nothing about the 10M-scale
+estimates above: the costs that dominate at 10M — paging 200 batches through
+the source driver, a candidate set three to four orders of magnitude larger,
+and a workspace that no longer fits in cache — are all absent at this scale.
+Do not extrapolate from this table.
 
 ### 7.6 Retention
 
