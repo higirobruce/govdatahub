@@ -544,6 +544,28 @@ project. Everything else on the project stays editable.
 A full field-level history table is the better long-term answer and is phase-4 work; this
 is the cheap rule that closes the hole now.
 
+**Ruling R36 — the estimate endpoint re-estimates an existing workspace; it is not a pre-flight check.**
+`BlockingService.estimate` reads the materialized workspace table, which only
+`MaterializeService.materialize` creates, and materialization happens inside a run. So
+`POST projects/:id/estimate` cannot work before a project's first run — the plan
+specified a wizard step that was structurally impossible.
+
+The fix is not to have the estimate materialize on demand, and the reason is governance
+rather than cost. **Materializing copies citizen data into DataGate**, and in the wizard
+the lawful basis and data owner are recorded in step 4 — *after* the step-3 estimate.
+Copying the data to answer "how big would this be?" would invert the order the whole
+feature is built around: authority recorded first, data copied second.
+
+So the estimate is a **tuning tool for a project that has already run** — change the
+blocking passes, re-estimate against the workspace that exists, see the new projection.
+Before the first run the wizard says so plainly and leaves "Create and run" enabled,
+because the run pipeline's own `materialize → estimate → refuse` sequence is the real
+gate. That gate is verified end to end: the integration test asserts a refused estimate
+is recorded as a failed run with the advisory lock released.
+
+The endpoint must return a clear 409 naming this when the workspace is absent, not a raw
+`relation "matching.p_..._left" does not exist`.
+
 ## 9. Governance
 
 These are requirements. The data is citizen and business personal data, and
