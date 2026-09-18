@@ -14,6 +14,7 @@ import {
   CreateMatchProjectDto,
   GetCandidatesQueryDto,
   GetClustersQueryDto,
+  RetractDecisionQueryDto,
   SubmitDecisionDto,
   UpdateMatchProjectDto,
 } from './dto';
@@ -47,6 +48,7 @@ describe('MatchingController', () => {
     findRun: jest.Mock;
     listCandidates: jest.Mock;
     recordDecision: jest.Mock;
+    retractDecision: jest.Mock;
     listClusters: jest.Mock;
     evaluate: jest.Mock;
     addGoldPair: jest.Mock;
@@ -87,6 +89,7 @@ describe('MatchingController', () => {
       findRun: jest.fn(),
       listCandidates: jest.fn(),
       recordDecision: jest.fn(),
+      retractDecision: jest.fn(),
       listClusters: jest.fn(),
       evaluate: jest.fn(),
       addGoldPair: jest.fn(),
@@ -161,6 +164,16 @@ describe('MatchingController', () => {
     expect(service.recordDecision).toHaveBeenCalledWith('p1', expect.anything(), 'org1', 'u1');
   });
 
+  // ---------------------------------------------------------------------
+  // Ruling R43 (part 2): retract is a distinct route from submit, and
+  // never carries a decision -- it identifies a pair, not a verdict.
+  // ---------------------------------------------------------------------
+
+  it('retracts a decision, scoped to the caller organization, with no verdict attached', async () => {
+    await controller.retractDecision('p1', { leftKey: 'a', rightKey: 'b' } as any, user);
+    expect(service.retractDecision).toHaveBeenCalledWith('p1', { leftKey: 'a', rightKey: 'b' }, 'org1');
+  });
+
   it('serves the review queue grey band first, ordered by score descending', async () => {
     await controller.getCandidates('r1', { decision: 'grey', limit: 50 } as any, user);
     expect(service.listCandidates).toHaveBeenCalledWith(
@@ -205,6 +218,9 @@ describe('MatchingController', () => {
 
       await controller.addGoldPair('p1', { leftKey: 'a', rightKey: 'b', isMatch: true } as any, user);
       expect(service.addGoldPair).toHaveBeenCalledWith('p1', expect.anything(), 'org1', 'u1');
+
+      await controller.retractDecision('p1', { leftKey: 'a', rightKey: 'b' } as any, user);
+      expect(service.retractDecision).toHaveBeenCalledWith('p1', expect.anything(), 'org1');
     });
   });
 
@@ -225,6 +241,7 @@ describe('MatchingController', () => {
       'estimate',
       'startRun',
       'submitDecision',
+      'retractDecision',
       'addGoldPair',
     ] as const;
 
@@ -327,6 +344,39 @@ describe('MatchingController', () => {
 
     it('has no source-ref columns: an extraneous leftSourceRef is rejected under whitelist validation, not silently accepted', async () => {
       const instance = plainToInstance(AddGoldPairDto, { ...validPair, leftSourceRef: 'left-conn' });
+      const errors = await validate(instance, { whitelist: true, forbidNonWhitelisted: true });
+      expect(errors.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // Ruling R43 (part 2): RetractDecisionQueryDto carries no decision and
+  // no source refs -- retracting removes whatever verdict exists for a
+  // key pair, it does not assert one.
+  // ---------------------------------------------------------------------
+
+  describe('RetractDecisionQueryDto validation', () => {
+    const validRetract = { leftKey: 'a', rightKey: 'b' };
+
+    it('accepts a valid pair', async () => {
+      const errors = await validate(plainToInstance(RetractDecisionQueryDto, validRetract));
+      expect(errors).toHaveLength(0);
+    });
+
+    it('rejects a missing leftKey', async () => {
+      const errors = await validate(
+        plainToInstance(RetractDecisionQueryDto, { ...validRetract, leftKey: undefined }),
+      );
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('rejects an empty rightKey', async () => {
+      const errors = await validate(plainToInstance(RetractDecisionQueryDto, { ...validRetract, rightKey: '' }));
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('has no decision field: an extraneous decision is rejected under whitelist validation, not silently accepted', async () => {
+      const instance = plainToInstance(RetractDecisionQueryDto, { ...validRetract, decision: 'match' });
       const errors = await validate(instance, { whitelist: true, forbidNonWhitelisted: true });
       expect(errors.length).toBeGreaterThan(0);
     });

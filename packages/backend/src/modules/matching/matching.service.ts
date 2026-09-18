@@ -13,6 +13,7 @@ import {
   CreateMatchProjectDto,
   GetCandidatesQueryDto,
   GetClustersQueryDto,
+  RetractDecisionQueryDto,
   SubmitDecisionDto,
   UpdateMatchProjectDto,
 } from './dto';
@@ -336,6 +337,27 @@ export class MatchingService {
    * `match_decisions.decision` exactly as submitted, never remapped to a
    * `CandidateDecision`; that translation happens downstream, once, in
    * `ScoringService`.
+   *
+   * Ruling R43 (part 1): an upsert, not a plain insert. Before this
+   * change, a second submission for the same pair -- reloading the queue
+   * and re-answering it, or the review queue's own undo re-asserting a
+   * verdict -- raised a Postgres unique-violation on
+   * `uq_match_decisions_pair` and surfaced as an unhandled 500. A steward
+   * reaching the same pair twice is *correcting* an answer, and a
+   * correction must not be a constraint violation. `ON CONFLICT ON
+   * CONSTRAINT "uq_match_decisions_pair" DO UPDATE` replaces exactly
+   * `decision`, `user_id` and the timestamp -- not `id`, and not
+   * `prior_score`/`prior_llm_verdict` -- so a correction updates the one
+   * row in place rather than either failing or silently changing the
+   * row's identity. `created_at` moving to the moment of the correction
+   * is what `ScoringService`'s `decisions` CTE relies on when it resolves
+   * multiple rows for a pair by recency (`ORDER BY created_at DESC, id
+   * DESC`).
+   *
+   * This bypasses `decisionRepo` (a plain TypeORM `save()` cannot express
+   * `ON CONFLICT ... DO UPDATE`) in favour of the same raw-SQL pattern the
+   * rest of this service already uses for anything the query builder
+   * cannot say directly.
    */
   async recordDecision(
     projectId: string,
@@ -345,20 +367,79 @@ export class MatchingService {
   ): Promise<MatchDecision> {
     // Ruling R32: an inactive project refuses new decisions.
     await this.loadActiveProject(projectId, organizationId);
-    const decision = this.decisionRepo.create({
-      id: uuidv4(),
-      organizationId,
-      projectId,
-      leftSourceRef: dto.leftSourceRef,
-      leftKey: dto.leftKey,
-      rightSourceRef: dto.rightSourceRef,
-      rightKey: dto.rightKey,
-      decision: dto.decision,
-      userId,
-      priorScore: null,
-      priorLlmVerdict: null,
-    });
-    return this.decisionRepo.save(decision);
+    const rows = await this.dataSource.query(
+      `INSERT INTO "match_decisions" ` +
+        `("id", "organization_id", "project_id", "left_source_ref", "left_key", "right_source_ref", "right_key", ` +
+        `"decision", "user_id", "prior_score", "prior_llm_verdict", "created_at") ` +
+        `VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, NULL, now()) ` +
+        `ON CONFLICT ON CONSTRAINT "uq_match_decisions_pair" ` +
+        `DO UPDATE SET "decision" = EXCLUDED."decision", "user_id" = EXCLUDED."user_id", "created_at" = now() ` +
+        `RETURNING *`,
+      [uuidv4(), organizationId, projectId, dto.leftSourceRef, dto.leftKey, dto.rightSourceRef, dto.rightKey, dto.decision, userId],
+    );
+    return this.mapDecisionRow(rows[0]);
+  }
+
+  /**
+   * Ruling R43 (part 2): undo retracts a verdict -- it does not assert
+   * the opposite. `ScoringService`'s `decisions` CTE honours a stored
+   * verdict regardless of score (Ruling R23) and translates `'no_match'`
+   * to `'rejected'` (Ruling R25): a verdict is a durable override that
+   * suppresses or confirms a pair in every future run, not a note. A
+   * mis-keyed `m` "undone" by submitting `'no_match'` would leave a
+   * permanent, steward-attributed record that two records are *not* the
+   * same entity -- the one thing this screen must never manufacture.
+   * Deleting the decision row is the actual inverse: the pair simply
+   * returns to whatever the score alone would have made it (most often
+   * the grey band it came from) on the run's next scoring pass.
+   *
+   * Matches the pair in either key order, the same way
+   * `ScoringService.scoreStatement`'s `decisions` CTE already normalizes
+   * with `least`/`greatest` when it *reads* a decision (see
+   * `scoring.service.ts` around its `k1`/`k2` projection) -- a verdict
+   * recorded as `(b, a)` must still be retractable from a pair displayed
+   * as `(a, b)`. Deliberately does not filter on source ref either, for
+   * the same reason that CTE does not: it folds every decision row for a
+   * key pair together regardless of source-ref values, so retract must
+   * be able to remove all of them, not just the one matching today's
+   * exact ref values.
+   *
+   * Retracting a pair with no decision row is not an error -- it is the
+   * state the caller asked for -- so this never inspects or reports how
+   * many rows were actually deleted.
+   */
+  async retractDecision(
+    projectId: string,
+    dto: RetractDecisionQueryDto,
+    organizationId: string,
+  ): Promise<void> {
+    // Ruling R32: an inactive project refuses retractions too.
+    await this.loadActiveProject(projectId, organizationId);
+    await this.dataSource.query(
+      `DELETE FROM "match_decisions" ` +
+        `WHERE "organization_id" = $1 AND "project_id" = $2 ` +
+        `AND least("left_key", "right_key") = least($3, $4) ` +
+        `AND greatest("left_key", "right_key") = greatest($3, $4)`,
+      [organizationId, projectId, dto.leftKey, dto.rightKey],
+    );
+  }
+
+  /** Raw-row shape of `RETURNING *` on `match_decisions`, mapped to `MatchDecision`'s camelCase fields. */
+  private mapDecisionRow(row: Record<string, unknown>): MatchDecision {
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      projectId: row.project_id,
+      leftSourceRef: row.left_source_ref,
+      leftKey: row.left_key,
+      rightSourceRef: row.right_source_ref,
+      rightKey: row.right_key,
+      decision: row.decision,
+      userId: row.user_id,
+      priorScore: row.prior_score,
+      priorLlmVerdict: row.prior_llm_verdict,
+      createdAt: row.created_at,
+    } as MatchDecision;
   }
 
   // ─── Clusters ────────────────────────────────────────────────────────

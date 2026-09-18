@@ -31,7 +31,6 @@ function sourceRef(source: MatchSourceRef): string {
 
 interface LastDecision {
   candidate: MatchCandidateDto;
-  verdict: MatchVerdict;
   index: number;
 }
 
@@ -104,7 +103,7 @@ export default function ReviewQueuePage() {
           rightKey: candidate.right_key,
           decision: verdict,
         });
-        setLastDecision({ candidate, verdict, index });
+        setLastDecision({ candidate, index });
         setGlobalIndex(index + 1);
       } catch (err: any) {
         showToast(err.message || 'Failed to record decision', 'error');
@@ -116,24 +115,27 @@ export default function ReviewQueuePage() {
   );
 
   const undo = useCallback(async () => {
-    // "Undo" only has something to invert when the very last action was a
+    // Ruling R43 (part 2): "undo" RETRACTS the previous pair's decision --
+    // it does not submit the opposite verdict. `ScoringService` honours a
+    // stored verdict regardless of score (R23) and turns `'no_match'` into
+    // a permanent `'rejected'` state (R25): a verdict is a durable
+    // override, not a note. Submitting the opposite here would turn a
+    // mis-keyed `m` into a steward-attributed certification that two
+    // records are NOT the same entity -- exactly what this screen must
+    // never manufacture. Retracting deletes the decision row instead, so
+    // the pair returns to whatever the score alone makes it.
+    //
+    // Retracting only has something to do when the very last action was a
     // decision we haven't already moved away from -- otherwise (the
     // previous pair was skipped, or this is already the start of the
     // queue) it degrades to a plain step back, same as `k`.
-    if (!lastDecision || lastDecision.index !== globalIndex - 1 || !leftRef) {
+    if (!lastDecision || lastDecision.index !== globalIndex - 1) {
       movePrev();
       return;
     }
-    const opposite: MatchVerdict = lastDecision.verdict === 'match' ? 'no_match' : 'match';
     setSubmitting(true);
     try {
-      await api.matching.submitDecision(projectId, {
-        leftSourceRef: leftRef,
-        leftKey: lastDecision.candidate.left_key,
-        rightSourceRef: leftRef,
-        rightKey: lastDecision.candidate.right_key,
-        decision: opposite,
-      });
+      await api.matching.retractDecision(projectId, lastDecision.candidate.left_key, lastDecision.candidate.right_key);
       setGlobalIndex(lastDecision.index);
       setLastDecision(null);
     } catch (err: any) {
@@ -141,7 +143,7 @@ export default function ReviewQueuePage() {
     } finally {
       setSubmitting(false);
     }
-  }, [lastDecision, globalIndex, leftRef, projectId, showToast, movePrev]);
+  }, [lastDecision, globalIndex, projectId, showToast, movePrev]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -316,7 +318,7 @@ export default function ReviewQueuePage() {
                   className="gap-1.5"
                   disabled={submitting}
                   onClick={() => void undo()}
-                  title="Undo (u)"
+                  title="Retract the previous decision -- returns it to the grey band, does not reverse it (u)"
                 >
                   <Undo2 className="h-4 w-4" />
                   Undo

@@ -134,16 +134,40 @@ describe('MatchingService', () => {
 
   // ---------------------------------------------------------------------
   // Ruling R25: a decision stores the submitted MatchVerdict verbatim
+  // Ruling R43 (part 1): recording a decision is an upsert, not a plain
+  // insert -- a second submission for the same pair replaces it in
+  // place rather than throwing a unique-violation.
   // ---------------------------------------------------------------------
 
   it('records a decision with the submitted MatchVerdict, unmodified, and the reviewing user', async () => {
-    await service.recordDecision(
+    dataSource.query.mockResolvedValueOnce([
+      {
+        id: 'd1',
+        organization_id: 'org1',
+        project_id: 'p1',
+        left_source_ref: 'left',
+        left_key: 'a',
+        right_source_ref: 'right',
+        right_key: 'b',
+        decision: 'no_match',
+        user_id: 'u1',
+        prior_score: null,
+        prior_llm_verdict: null,
+        created_at: new Date('2026-01-01T00:00:00Z'),
+      },
+    ]);
+
+    const result = await service.recordDecision(
       'p1',
       { leftSourceRef: 'left', leftKey: 'a', rightSourceRef: 'right', rightKey: 'b', decision: 'no_match' },
       'org1',
       'u1',
     );
-    expect(decisionRepo.save).toHaveBeenCalledWith(
+
+    const [sql, params] = dataSource.query.mock.calls[0];
+    expect(sql).toContain('INSERT INTO "match_decisions"');
+    expect(params).toEqual([expect.any(String), 'org1', 'p1', 'left', 'a', 'right', 'b', 'no_match', 'u1']);
+    expect(result).toEqual(
       expect.objectContaining({
         organizationId: 'org1',
         projectId: 'p1',
@@ -153,6 +177,35 @@ describe('MatchingService', () => {
         userId: 'u1',
       }),
     );
+  });
+
+  it('upserts on the pair\'s unique constraint, replacing decision/user/timestamp rather than every column', async () => {
+    dataSource.query.mockResolvedValueOnce([{}]);
+    await service.recordDecision(
+      'p1',
+      { leftSourceRef: 'left', leftKey: 'a', rightSourceRef: 'right', rightKey: 'b', decision: 'match' },
+      'org1',
+      'u1',
+    );
+    const [sql] = dataSource.query.mock.calls[0];
+    expect(sql).toContain('ON CONFLICT ON CONSTRAINT "uq_match_decisions_pair"');
+    expect(sql).toContain('DO UPDATE SET "decision" = EXCLUDED."decision", "user_id" = EXCLUDED."user_id", "created_at" = now()');
+  });
+
+  it('does not throw on a second submission for the same pair -- a steward correcting an earlier verdict', async () => {
+    dataSource.query.mockResolvedValueOnce([{}]);
+    dataSource.query.mockResolvedValueOnce([{}]);
+    const submit = (decision: 'match' | 'no_match') =>
+      service.recordDecision(
+        'p1',
+        { leftSourceRef: 'left', leftKey: 'a', rightSourceRef: 'right', rightKey: 'b', decision },
+        'org1',
+        'u1',
+      );
+
+    await expect(submit('match')).resolves.toBeDefined();
+    await expect(submit('no_match')).resolves.toBeDefined();
+    expect(dataSource.query).toHaveBeenCalledTimes(2);
   });
 
   it('rejects recording a decision against a project outside the caller organization', async () => {
@@ -165,7 +218,70 @@ describe('MatchingService', () => {
         'u1',
       ),
     ).rejects.toThrow(NotFoundException);
-    expect(decisionRepo.save).not.toHaveBeenCalled();
+    expect(dataSource.query).not.toHaveBeenCalled();
+  });
+
+  // ---------------------------------------------------------------------
+  // Ruling R43 (part 2): undo retracts a verdict; it does not assert the
+  // opposite one. Retracting deletes the decision row(s), matched in
+  // either key order the same way ScoringService's decisions CTE reads
+  // them.
+  // ---------------------------------------------------------------------
+
+  describe('retractDecision', () => {
+    it('deletes the decision row scoped by organization and project, normalized to either key order', async () => {
+      dataSource.query.mockResolvedValueOnce([]);
+      await service.retractDecision('p1', { leftKey: 'a', rightKey: 'b' }, 'org1');
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('DELETE FROM "match_decisions"');
+      expect(sql).toContain('"organization_id" = $1 AND "project_id" = $2');
+      expect(sql).toContain('least("left_key", "right_key") = least($3, $4)');
+      expect(sql).toContain('greatest("left_key", "right_key") = greatest($3, $4)');
+      expect(params).toEqual(['org1', 'p1', 'a', 'b']);
+    });
+
+    it('issues the identical query when the caller passes the pair in the opposite order -- order-independence lives in SQL least/greatest, not app logic', async () => {
+      dataSource.query.mockResolvedValueOnce([]);
+      await service.retractDecision('p1', { leftKey: 'b', rightKey: 'a' }, 'org1');
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('least("left_key", "right_key") = least($3, $4)');
+      expect(sql).toContain('greatest("left_key", "right_key") = greatest($3, $4)');
+      // The JS layer does not itself sort leftKey/rightKey -- it passes
+      // them straight through positionally, and relies on least()/
+      // greatest() at the database layer to make the match
+      // order-independent. Confirming that means confirming this call's
+      // params carry the arguments in the order given, unmodified.
+      expect(params).toEqual(['org1', 'p1', 'b', 'a']);
+    });
+
+    it('does not filter on source ref -- it removes every decision row for the key pair, the same way the scoring CTE reads them', async () => {
+      dataSource.query.mockResolvedValueOnce([]);
+      await service.retractDecision('p1', { leftKey: 'a', rightKey: 'b' }, 'org1');
+      const [sql] = dataSource.query.mock.calls[0];
+      expect(sql).not.toContain('source_ref');
+    });
+
+    it('succeeds without error when there is no decision row for the pair -- that is the state the caller asked for, not an error', async () => {
+      dataSource.query.mockResolvedValueOnce([]);
+      await expect(service.retractDecision('p1', { leftKey: 'a', rightKey: 'b' }, 'org1')).resolves.toBeUndefined();
+    });
+
+    it('rejects retracting against a project outside the caller organization, and never issues the delete', async () => {
+      projectRepo.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.retractDecision('p1', { leftKey: 'a', rightKey: 'b' }, 'other-org'),
+      ).rejects.toThrow(NotFoundException);
+      expect(dataSource.query).not.toHaveBeenCalled();
+    });
+
+    it('refuses to retract on an inactive project (Ruling R32 applies to retraction too)', async () => {
+      const inactiveProject = { ...project, status: 'inactive' } as unknown as MatchProject;
+      projectRepo.findOne.mockResolvedValueOnce(inactiveProject);
+      await expect(
+        service.retractDecision('p1', { leftKey: 'a', rightKey: 'b' }, 'org1'),
+      ).rejects.toThrow(ConflictException);
+      expect(dataSource.query).not.toHaveBeenCalled();
+    });
   });
 
   // ---------------------------------------------------------------------
@@ -383,7 +499,7 @@ describe('MatchingService', () => {
           'u1',
         ),
       ).rejects.toThrow(ConflictException);
-      expect(decisionRepo.save).not.toHaveBeenCalled();
+      expect(dataSource.query).not.toHaveBeenCalled();
     });
 
     it('refuses to add a gold pair on an inactive project', async () => {
