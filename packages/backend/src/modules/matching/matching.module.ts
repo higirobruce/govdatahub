@@ -16,9 +16,16 @@ import { MatchingController } from './matching.controller';
 import { ConnectionsModule } from '../connections/connections.module';
 import { SettingsModule } from '../settings/settings.module';
 
+// Exported on their own so other modules (e.g. DataQualityModule's
+// no_duplicates check) can read match projects/runs/entities without ever
+// gaining access to MatchRunService — which can start a two-hour job and
+// must never be reachable from a quality check.
+const matchReadRepos = TypeOrmModule.forFeature([MatchProject, MatchRun, MatchEntity]);
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MatchProject, MatchRun, MatchEntity, MatchDecision, MatchGoldPair, StagedData]),
+    matchReadRepos,
+    TypeOrmModule.forFeature([MatchDecision, MatchGoldPair, StagedData]),
     ConnectionsModule,
     SettingsModule,
   ],
@@ -36,6 +43,6 @@ import { SettingsModule } from '../settings/settings.module';
     MatchRunService,
     MatchingService,
   ],
-  exports: [MatchRunService],
+  exports: [matchReadRepos],
 })
 export class MatchingModule {}

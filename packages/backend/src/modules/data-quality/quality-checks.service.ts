@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import {
   IsString,
@@ -10,7 +10,14 @@ import {
   IsIn,
   MaxLength,
 } from 'class-validator';
-import { QualityCheck, QualityCheckRun, ColumnProfile } from '../../database/entities';
+import {
+  QualityCheck,
+  QualityCheckRun,
+  ColumnProfile,
+  MatchProject,
+  MatchRun,
+  MatchEntity,
+} from '../../database/entities';
 import { ConnectionsService } from '../connections/connections.service';
 import { ProfilingService } from './profiling.service';
 import { AiService } from '../ai/ai.service';
@@ -26,7 +33,7 @@ export class CreateQualityCheckDto {
   @IsString() @IsNotEmpty() @MaxLength(256) name: string;
   @IsOptional() @IsString() @MaxLength(2000) description?: string;
   @IsString()
-  @IsIn(['not_null', 'unique', 'min_rows', 'max_rows', 'freshness', 'custom_sql'])
+  @IsIn(['not_null', 'unique', 'min_rows', 'max_rows', 'freshness', 'custom_sql', 'no_duplicates'])
   checkType: string;
   @IsObject() config: Record<string, any>;
 }
@@ -74,6 +81,15 @@ export class QualityChecksService {
     private aiService: AiService,
     private aiAudit: AiAuditService,
     private settingsService: SettingsService,
+    // Read-only. Deliberately NOT MatchRunService: a quality check must be
+    // able to read a match project's latest completed run, but must never
+    // be able to start one (that can be a two-hour job).
+    @InjectRepository(MatchProject)
+    private matchProjectRepo: Repository<MatchProject>,
+    @InjectRepository(MatchRun)
+    private matchRunRepo: Repository<MatchRun>,
+    @InjectRepository(MatchEntity)
+    private matchEntityRepo: Repository<MatchEntity>,
   ) {}
 
   async create(dto: CreateQualityCheckDto, organizationId: string): Promise<QualityCheck> {
@@ -140,6 +156,13 @@ export class QualityChecksService {
       throw new BadRequestException('Cannot run an inactive quality check.');
     }
 
+    // no_duplicates never touches a source connection: it reads the match
+    // project's latest completed run from the metadata DB directly, so it
+    // skips the connection/driver machinery below entirely.
+    if (check.checkType === 'no_duplicates') {
+      return this.runNoDuplicatesCheck(check, organizationId);
+    }
+
     const { connection } = await this.connectionsService.getConnectionConfig(
       check.connectionId,
       organizationId,
@@ -188,6 +211,89 @@ export class QualityChecksService {
     await this.checksRepo.save(check);
 
     return saved;
+  }
+
+  /**
+   * Executes a `no_duplicates` check. Unlike every other check type, this
+   * never opens a connection driver: it counts `match_entities` rows with
+   * `size > 1` for the configured match project's latest completed run,
+   * read directly from the metadata DB via MatchProject/MatchRun/MatchEntity.
+   *
+   * The three unusable states below (project in another org, project never
+   * completed a run, malformed config) are all reported as `error`, not
+   * `fail` — the check could not be evaluated, which is a different claim
+   * from "the data has too many duplicate clusters."
+   */
+  private async runNoDuplicatesCheck(
+    check: QualityCheck,
+    organizationId: string,
+  ): Promise<QualityCheckRun> {
+    const run = this.runsRepo.create({
+      id: uuidv4(),
+      checkId: check.id,
+      organizationId,
+      status: 'error',
+      ranAt: new Date(),
+    });
+
+    const start = Date.now();
+    try {
+      const actualValue = await this.countDuplicateClusters(check.config, organizationId);
+      run.actualValue = actualValue;
+      run.expectedDesc = `≤ ${check.config?.maxDuplicateClusters ?? 0} duplicate cluster(s)`;
+      run.status = this.evaluate(check, actualValue) ? 'pass' : 'fail';
+    } catch (err: any) {
+      this.logger.warn(`Quality check ${check.id} (no_duplicates) failed: ${err.message}`);
+      run.status = 'error';
+      run.errorMessage = err.message;
+    } finally {
+      run.durationMs = Date.now() - start;
+    }
+
+    const saved = await this.runsRepo.save(run);
+
+    check.lastRunAt = saved.ranAt;
+    check.lastRunStatus = saved.status;
+    check.lastRunValue = saved.actualValue ?? null;
+    await this.checksRepo.save(check);
+
+    return saved;
+  }
+
+  private async countDuplicateClusters(
+    config: Record<string, any>,
+    organizationId: string,
+  ): Promise<number> {
+    const matchProjectId = config?.matchProjectId;
+    const maxDuplicateClusters = config?.maxDuplicateClusters;
+    if (
+      typeof matchProjectId !== 'string' ||
+      matchProjectId.length === 0 ||
+      typeof maxDuplicateClusters !== 'number'
+    ) {
+      throw new Error(
+        'no_duplicates check requires config.matchProjectId (string) and config.maxDuplicateClusters (number)',
+      );
+    }
+
+    const project = await this.matchProjectRepo.findOne({
+      where: { id: matchProjectId, organizationId },
+    });
+    if (!project) {
+      throw new Error(`Match project ${matchProjectId} was not found in this organization`);
+    }
+
+    const latestRun = await this.matchRunRepo.findOne({
+      where: { projectId: project.id, organizationId, status: 'completed' },
+      order: { startedAt: 'DESC' },
+    });
+    if (!latestRun) {
+      throw new Error(`Match project ${matchProjectId} has never completed a run`);
+    }
+
+    return this.matchEntityRepo.count({
+      where: { projectId: project.id, runId: latestRun.id, organizationId, size: MoreThan(1) },
+    });
   }
 
   async runAllForTable(
@@ -383,6 +489,8 @@ Respond as JSON: {"suggestions": [{"checkType": "...", "columnName": "...", "con
         return actualValue <= (cfg.maxRows ?? Infinity);
       case 'freshness':
         return actualValue <= (cfg.maxAgeHours ?? 24);
+      case 'no_duplicates':
+        return actualValue <= (cfg.maxDuplicateClusters ?? 0);
       case 'custom_sql': {
         const threshold = Number(cfg.threshold ?? 0);
         switch (cfg.operator) {
