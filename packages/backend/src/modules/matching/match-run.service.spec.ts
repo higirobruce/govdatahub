@@ -623,4 +623,73 @@ describe('MatchRunService', () => {
     expect(runnerRelease).toHaveBeenCalledTimes(1);
     expect(lastSaved().status).toBe('completed');
   });
+
+  describe('Ruling R54: abandoning a run stranded in a non-terminal status', () => {
+    /** A run left mid-pipeline long enough to count as stranded. */
+    const strandedRun = (status = 'scoring'): MatchRun =>
+      ({ ...baseRun(new Date(Date.now() - 60 * 60 * 1000)), status }) as unknown as MatchRun;
+
+    it('records the run as failed, naming the status it was stranded at', async () => {
+      runRepo.findOne.mockResolvedValue(strandedRun('materializing'));
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      const out = await service.abandon('r1', 'org1');
+
+      expect(out.status).toBe('failed');
+      expect(out.finishedAt).toBeInstanceOf(Date);
+      expect(out.errorMessage).toContain('Abandoned by an operator');
+      // The status it died at is the only clue to where it died, so it
+      // must survive into the message rather than being overwritten first.
+      expect(out.errorMessage).toContain('materializing');
+      expect(lastSaved().status).toBe('failed');
+    });
+
+    it('refuses while the project lock is still held -- a live pipeline is not a stranded run', async () => {
+      runRepo.findOne.mockResolvedValue(strandedRun());
+      runnerQuery.mockResolvedValue([{ locked: false }]);
+
+      await expect(service.abandon('r1', 'org1')).rejects.toBeInstanceOf(ConflictException);
+      // Nothing was written: the run is still whatever it was.
+      expect(runRepo.save).not.toHaveBeenCalled();
+      // And the connection went straight back to the pool.
+      expect(runnerRelease).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives the lock straight back -- abandoning never runs a stage', async () => {
+      runRepo.findOne.mockResolvedValue(strandedRun());
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await service.abandon('r1', 'org1');
+
+      const statements = runnerQuery.mock.calls.map((c) => String(c[0]));
+      expect(statements.some((sql) => sql.includes('pg_try_advisory_lock'))).toBe(true);
+      expect(statements.some((sql) => sql.includes('pg_advisory_unlock'))).toBe(true);
+      expect(runnerRelease).toHaveBeenCalledTimes(1);
+      expect(materialize.materialize).not.toHaveBeenCalled();
+      expect(clustering.cluster).not.toHaveBeenCalled();
+    });
+
+    it('refuses a run that already reached a terminal status', async () => {
+      runRepo.findOne.mockResolvedValue({ ...strandedRun(), status: 'completed' } as unknown as MatchRun);
+      await expect(service.abandon('r1', 'org1')).rejects.toThrow(/nothing to abandon/);
+      expect(runRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('refuses a run young enough to still be starting -- `start` leaves it pending for a moment', async () => {
+      runRepo.findOne.mockResolvedValue({
+        ...baseRun(new Date(Date.now() - 2_000)),
+        status: 'pending',
+      } as unknown as MatchRun);
+
+      await expect(service.abandon('r1', 'org1')).rejects.toThrow(/stranded/);
+      expect(runRepo.save).not.toHaveBeenCalled();
+      // The lock was never probed: nothing here should touch the pool.
+      expect(runnerQuery).not.toHaveBeenCalled();
+    });
+
+    it('404s a run belonging to another organization', async () => {
+      runRepo.findOne.mockResolvedValue(null);
+      await expect(service.abandon('r1', 'org1')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
 });

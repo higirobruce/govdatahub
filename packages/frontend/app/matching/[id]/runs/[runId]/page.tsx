@@ -60,6 +60,14 @@ export default function MatchRunSummaryPage() {
     `/matching/runs/${runId}/clusters?summary`,
     () => api.matching.listClusters(runId, SUMMARY_CLUSTER_SAMPLE, 0),
   );
+  // Ruling R52: Review is only honest on the latest completed run, so
+  // this page needs to know which run that is before it offers the link.
+  const { data: runs } = useSWR<MatchRunDto[]>(`/matching/projects/${projectId}/runs`, () =>
+    api.matching.listRuns(projectId),
+  );
+  // Runs come back startedAt DESC, so the first completed one is the latest.
+  const latestCompletedRun = runs?.find((r) => r.status === 'completed') ?? null;
+  const isLatestCompleted = !!latestCompletedRun && latestCompletedRun.id === runId;
 
   const histogram = useMemo(() => {
     if (!clusters) return [];
@@ -106,12 +114,38 @@ export default function MatchRunSummaryPage() {
         actions={
           run && (
             <>
-              <Button asChild variant="outline" className="gap-1.5">
-                <Link href={`/matching/${projectId}/review?runId=${run.id}`}>
+              {/*
+                Ruling R52: the match workspace is per PROJECT and every run
+                drops and rebuilds it, so the record values Review renders are
+                always the CURRENT ones. Opening Review on an older run would
+                put today's field values beside that run's old score and ask a
+                steward to certify a pair against data the score was never
+                computed from -- and the verdict they record is permanent.
+                Versioned workspaces are phase-3 work; until then the link is
+                offered only where it is truthful.
+              */}
+              {isLatestCompleted ? (
+                <Button asChild variant="outline" className="gap-1.5">
+                  <Link href={`/matching/${projectId}/review?runId=${run.id}`}>
+                    <ClipboardList className="h-4 w-4" />
+                    Review queue
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  disabled
+                  className="gap-1.5"
+                  title={
+                    run.status === 'completed'
+                      ? 'Review is only available on the latest completed run — the workspace it reads was rebuilt by a later run'
+                      : 'Review becomes available once this run completes'
+                  }
+                >
                   <ClipboardList className="h-4 w-4" />
                   Review queue
-                </Link>
-              </Button>
+                </Button>
+              )}
               <Button asChild variant="outline" className="gap-1.5">
                 <Link href={`/matching/${projectId}/clusters?runId=${run.id}`}>
                   <Layers className="h-4 w-4" />
@@ -134,6 +168,22 @@ export default function MatchRunSummaryPage() {
             {run.errorMessage && <span className="text-sm text-red-700">{run.errorMessage}</span>}
           </div>
 
+          {/* Ruling R52: say why, where the person who just found Review greyed out is looking. */}
+          {run.status === 'completed' && !isLatestCompleted && latestCompletedRun && (
+            <div className="mb-4 rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-4 py-3 text-xs text-[#555555]">
+              Review is disabled for this run. The match workspace is rebuilt from scratch by every run, so the
+              record values Review shows are the current ones — beside this run&rsquo;s older scores, they would
+              ask you to certify a pair against data the score was never computed from.{' '}
+              <Link
+                href={`/matching/${projectId}/runs/${latestCompletedRun.id}`}
+                className="text-[#1a1a1a] underline"
+              >
+                Open the latest completed run
+              </Link>{' '}
+              to review. Everything else on this page is this run&rsquo;s own record and is unaffected.
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
             <StatCard name="Rows" subtitle="Materialized from source" value={run.counters.leftRows.toLocaleString()} icon={Database} iconColor="blue" />
             <StatCard
@@ -145,10 +195,38 @@ export default function MatchRunSummaryPage() {
             />
             <StatCard name="Auto-matched" subtitle="Score at or above match threshold" value={run.counters.autoMatch.toLocaleString()} icon={CheckCircle2} iconColor="green" />
             <StatCard name="Grey band" subtitle="Awaiting human review" value={run.counters.grey.toLocaleString()} icon={ClipboardList} iconColor="orange" />
-            <StatCard name="Rejected" subtitle="Score below reject threshold" value={run.counters.autoReject.toLocaleString()} icon={ThumbsDown} iconColor="red" />
+            {/*
+              Ruling R51: this counter is NOT "rejected". `MatchRunCounters.autoReject`,
+              `ScoreResult.autoReject` and `MatchRunService.scoreOnePass` each say so
+              explicitly, and each requires the definition to travel with the number:
+              it is candidate pairs SEEN minus rows NEWLY INSERTED, summed over the
+              run's passes. Because the scoring insert is `ON CONFLICT DO NOTHING`, a
+              pair an earlier blocking pass already stored is counted by a later pass's
+              total and skipped by its insert, so it lands here alongside the genuinely
+              low-scoring pairs. Separating the two would need a third statement per
+              pass over hundreds of millions of rows, which Ruling P9 forbids. The
+              caveat below the grid is part of the label, not decoration.
+            */}
+            <StatCard
+              name="Pairs not stored"
+              subtitle="Seen minus newly stored"
+              value={run.counters.autoReject.toLocaleString()}
+              icon={ThumbsDown}
+              iconColor="gray"
+            />
             <StatCard name="Clusters" subtitle="Entities resolved" value={run.counters.clusters.toLocaleString()} icon={Layers} iconColor="blue" />
             <StatCard name="Flagged" subtitle="Held back from the Crosswalk" value={run.counters.flaggedClusters.toLocaleString()} icon={Flag} iconColor="red" />
           </div>
+
+          {/* Ruling R51: the definition travels with the number, per all three source comments. */}
+          <p className="text-xs text-[#aaaaaa] mb-2">
+            &ldquo;Pairs not stored&rdquo; counts candidate pairs this run saw minus rows it newly stored. Most
+            of them scored below the reject threshold, but a pair an earlier blocking pass already stored is
+            counted here too, so it is not a count of rejections. It also does not partition the candidate
+            pairs: a pair carrying a human verdict is stored as confirmed or rejected and appears in neither
+            &ldquo;Auto-matched&rdquo; nor &ldquo;Grey band&rdquo;, so those three will not add up to
+            &ldquo;Candidate pairs&rdquo; once anyone has reviewed anything.
+          </p>
 
           {/*
             Ruling R20: a trigram blocking pass's pair projection is a

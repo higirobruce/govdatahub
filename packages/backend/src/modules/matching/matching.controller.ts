@@ -93,6 +93,18 @@ export class MatchingController {
     return this.service.findRun(runId, user.organizationId);
   }
 
+  /**
+   * Ruling R54: mark a run stranded in a non-terminal status as failed,
+   * so "Run now" is not disabled forever. Refused with a 409 unless the
+   * project's advisory lock is free -- see `MatchRunService.abandon`.
+   */
+  @Post('runs/:runId/abandon')
+  @Roles(...EDITOR_ROLES)
+  @HttpCode(HttpStatus.OK)
+  abandonRun(@Param('runId') runId: string, @CurrentUser() user: User) {
+    return this.service.abandonRun(runId, user.organizationId);
+  }
+
   @Get('runs/:runId/candidates')
   getCandidates(
     @Param('runId') runId: string,

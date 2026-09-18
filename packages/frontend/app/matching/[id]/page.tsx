@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, ClipboardList, Clock, Layers, Play, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ClipboardList, Clock, Layers, Play, Users } from 'lucide-react';
 
 const MODE_LABELS: Record<string, string> = { dedupe: 'Dedupe', link: 'Link' };
 
@@ -42,6 +42,15 @@ const ACTIVE_STATUSES: MatchRunStatus[] = [
   'clustering',
 ];
 
+/**
+ * Ruling R54: how long a run must have sat in a non-terminal status
+ * before this page calls it stranded and offers a way out. Matches
+ * `ABANDON_AFTER_MS` in `match-run.service.ts`, which is the authority --
+ * the server refuses an earlier abandon, so a shorter value here would
+ * only offer a button that 409s.
+ */
+const STRANDED_AFTER_MS = 15 * 60 * 1000;
+
 function formatDateTime(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleString();
@@ -63,6 +72,7 @@ export default function MatchProjectDetailPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const [starting, setStarting] = useState(false);
+  const [abandoning, setAbandoning] = useState(false);
 
   const { data: project, error: projectError } = useSWR<MatchProjectDto>(
     `/matching/projects/${projectId}`,
@@ -76,7 +86,38 @@ export default function MatchProjectDetailPage() {
   // Runs are ordered startedAt DESC by the backend, so the first match of
   // each kind is the most recent one of that kind.
   const latestCompletedRun = runs?.find((r) => r.status === 'completed') ?? null;
-  const hasActiveRun = runs?.some((r) => ACTIVE_STATUSES.includes(r.status)) ?? false;
+  const activeRun = runs?.find((r) => ACTIVE_STATUSES.includes(r.status)) ?? null;
+  const hasActiveRun = !!activeRun;
+  /*
+    Ruling R54: a run whose process died between statuses -- a restart
+    mid-stage, a dropped connection before the terminal write -- leaves its
+    row at `scoring` forever. `hasActiveRun` then reads it as "a run is in
+    progress" and disables Run now permanently, and nothing in the product
+    could clear it: the only writer of a terminal status was the pipeline
+    that already died. After the same threshold the server uses, the run is
+    surfaced with an explanation and a way out rather than being left as a
+    silent dead end.
+  */
+  const strandedRun =
+    activeRun && Date.now() - new Date(activeRun.startedAt).getTime() > STRANDED_AFTER_MS ? activeRun : null;
+
+  async function abandonStranded() {
+    if (!strandedRun) return;
+    setAbandoning(true);
+    try {
+      await api.matching.abandonRun(strandedRun.id);
+      await mutate(`/matching/projects/${projectId}/runs`);
+      showToast('Stranded run recorded as failed — you can run this project again', 'success');
+    } catch (err: any) {
+      // The server refuses unless the project's advisory lock is free, so
+      // a 409 here means the run really is still executing. Surfacing that
+      // message verbatim is the point -- it is the only thing that
+      // distinguishes "stuck" from "slow".
+      showToast(err.message || 'Failed to abandon the run', 'error');
+    } finally {
+      setAbandoning(false);
+    }
+  }
 
   async function runNow() {
     setStarting(true);
@@ -146,6 +187,39 @@ export default function MatchProjectDetailPage() {
           </>
         }
       />
+
+      {strandedRun && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-4 w-4 text-amber-700 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-[#1a1a1a]">
+                A run has been stuck at &ldquo;{strandedRun.status}&rdquo; since{' '}
+                {formatDateTime(strandedRun.startedAt)}
+              </p>
+              <p className="text-xs text-[#555555] mt-1">
+                While a run is in a non-terminal status this project cannot start another one. A run that
+                stops reporting — its process restarted mid-stage, or its database connection dropped before
+                it could record the outcome — never reaches one on its own. Abandoning records it as failed
+                so the project can run again; it is refused if the run turns out to still be executing, so
+                it is safe to try.{' '}
+                <Link href={`/matching/${projectId}/runs/${strandedRun.id}`} className="text-[#1a1a1a] underline">
+                  Open the run
+                </Link>{' '}
+                first if you want to see how far it got.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-3 h-8 text-xs"
+                onClick={abandonStranded}
+                disabled={abandoning}
+              >
+                {abandoning ? 'Abandoning…' : 'Abandon this run'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {project && (
         <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-5 mb-6">

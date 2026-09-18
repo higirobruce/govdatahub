@@ -727,6 +727,15 @@ export const api = {
     getRun: (runId: string): Promise<MatchRunDto> =>
       request(`/matching/runs/${runId}`),
 
+    /**
+     * Ruling R54: mark a run stranded in a non-terminal status as failed,
+     * so it stops blocking "Run now" forever. The server refuses with a
+     * 409 unless the project's advisory lock is free -- i.e. unless no
+     * pipeline can possibly still be working on it.
+     */
+    abandonRun: (runId: string): Promise<MatchRunDto> =>
+      request(`/matching/runs/${runId}/abandon`, { method: 'POST' }),
+
     listCandidates: (runId: string, decision: string, limit = 50, offset = 0): Promise<MatchCandidateDto[]> =>
       request(
         `/matching/runs/${runId}/candidates?decision=${encodeURIComponent(decision)}&limit=${limit}&offset=${offset}`,
@@ -751,6 +760,14 @@ export const api = {
     listClusters: (runId: string, limit = 50, offset = 0): Promise<MatchClusterDto[]> =>
       request(`/matching/runs/${runId}/clusters?limit=${limit}&offset=${offset}`),
 
+    /**
+     * Ruling R53: `evaluate` and `addGoldPair` have no callers and there
+     * is no gold-set UI to give them one. They are left in place
+     * deliberately -- the evaluation screen is the first phase-2 item and
+     * these are the endpoints it will use -- but nothing in the product
+     * may instruct an operator to act on numbers only these can produce.
+     * The wizard's threshold copy was corrected accordingly.
+     */
     evaluate: (runId: string): Promise<{ metrics: EvalMetrics; sweep: SweepPoint[] }> =>
       request(`/matching/runs/${runId}/evaluate`),
 

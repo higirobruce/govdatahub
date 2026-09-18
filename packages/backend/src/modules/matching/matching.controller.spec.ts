@@ -46,6 +46,7 @@ describe('MatchingController', () => {
     startRun: jest.Mock;
     listRuns: jest.Mock;
     findRun: jest.Mock;
+    abandonRun: jest.Mock;
     listCandidates: jest.Mock;
     recordDecision: jest.Mock;
     retractDecision: jest.Mock;
@@ -87,6 +88,7 @@ describe('MatchingController', () => {
       startRun: jest.fn(),
       listRuns: jest.fn(),
       findRun: jest.fn(),
+      abandonRun: jest.fn(),
       listCandidates: jest.fn(),
       recordDecision: jest.fn(),
       retractDecision: jest.fn(),
@@ -210,6 +212,9 @@ describe('MatchingController', () => {
       await controller.getRun('r1', user);
       expect(service.findRun).toHaveBeenCalledWith('r1', 'org1');
 
+      await controller.abandonRun('r1', user);
+      expect(service.abandonRun).toHaveBeenCalledWith('r1', 'org1');
+
       await controller.getClusters('r1', {} as any, user);
       expect(service.listClusters).toHaveBeenCalledWith('r1', 'org1', {});
 
@@ -240,6 +245,7 @@ describe('MatchingController', () => {
       'deleteProject',
       'estimate',
       'startRun',
+      'abandonRun',
       'submitDecision',
       'retractDecision',
       'addGoldPair',
