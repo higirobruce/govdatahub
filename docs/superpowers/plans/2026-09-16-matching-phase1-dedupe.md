@@ -1580,7 +1580,19 @@ Notes that matter:
 - Modify: `src/modules/matching/matching.module.ts`
 
 **Interfaces:**
-- Produces these routes, all under `@Controller('api/matching')` with `@UseGuards(JwtAuthGuard, RolesGuard)`:
+- Produces these routes, all under `@Controller('matching')` with `@UseGuards(JwtAuthGuard, RolesGuard)`.
+
+**Ruling R35 — the controller path is bare, because `main.ts` already sets a global prefix.**
+`app.setGlobalPrefix('api')` means every controller in this codebase declares a bare path:
+`@Controller('connections')`, `@Controller('query')`, `@Controller('saved-queries')`. An
+earlier draft of this plan specified `@Controller('api/matching')`, which resolves to
+`/api/api/matching/...`, and *also* specified frontend calls to `/matching/...` on top
+of an `API_BASE_URL` already ending in `/api`. **Two errors that cancel.** The feature
+would work while being the only route in the codebase with a doubled prefix — wrong in
+Swagger, wrong for any external consumer, and broken the moment someone corrects either
+side or adds a route following the house convention. Nothing caught it: the integration
+test calls services directly and the controller spec tests handler methods, not routes.
+Backend: `@Controller('matching')`. Frontend: `apiFetch('/matching/...')`.
 
 | Method | Path | Roles | Returns |
 |---|---|---|---|
@@ -1785,26 +1797,26 @@ Append a short "Measured on 10k rows" note to the spec's section 7.5 with the ac
 
 ```typescript
 matching: {
-  listProjects: () => apiFetch<MatchProjectDto[]>('/api/matching/projects'),
-  getProject: (id: string) => apiFetch<MatchProjectDto>(`/api/matching/projects/${id}`),
+  listProjects: () => apiFetch<MatchProjectDto[]>('/matching/projects'),
+  getProject: (id: string) => apiFetch<MatchProjectDto>(`/matching/projects/${id}`),
   createProject: (body: CreateMatchProjectBody) =>
-    apiFetch<MatchProjectDto>('/api/matching/projects', { method: 'POST', body: JSON.stringify(body) }),
+    apiFetch<MatchProjectDto>('/matching/projects', { method: 'POST', body: JSON.stringify(body) }),
   updateProject: (id: string, body: Partial<CreateMatchProjectBody>) =>
-    apiFetch<MatchProjectDto>(`/api/matching/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    apiFetch<MatchProjectDto>(`/matching/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteProject: (id: string) =>
-    apiFetch<void>(`/api/matching/projects/${id}`, { method: 'DELETE' }),
-  estimate: (id: string) => apiFetch<BlockingEstimate>(`/api/matching/projects/${id}/estimate`, { method: 'POST' }),
-  startRun: (id: string) => apiFetch<MatchRunDto>(`/api/matching/projects/${id}/runs`, { method: 'POST' }),
-  listRuns: (id: string) => apiFetch<MatchRunDto[]>(`/api/matching/projects/${id}/runs`),
-  getRun: (runId: string) => apiFetch<MatchRunDto>(`/api/matching/runs/${runId}`),
+    apiFetch<void>(`/matching/projects/${id}`, { method: 'DELETE' }),
+  estimate: (id: string) => apiFetch<BlockingEstimate>(`/matching/projects/${id}/estimate`, { method: 'POST' }),
+  startRun: (id: string) => apiFetch<MatchRunDto>(`/matching/projects/${id}/runs`, { method: 'POST' }),
+  listRuns: (id: string) => apiFetch<MatchRunDto[]>(`/matching/projects/${id}/runs`),
+  getRun: (runId: string) => apiFetch<MatchRunDto>(`/matching/runs/${runId}`),
   listCandidates: (runId: string, decision: string, limit = 50) =>
-    apiFetch<MatchCandidateDto[]>(`/api/matching/runs/${runId}/candidates?decision=${decision}&limit=${limit}`),
+    apiFetch<MatchCandidateDto[]>(`/matching/runs/${runId}/candidates?decision=${decision}&limit=${limit}`),
   submitDecision: (projectId: string, body: SubmitDecisionBody) =>
-    apiFetch<void>(`/api/matching/projects/${projectId}/decisions`, { method: 'POST', body: JSON.stringify(body) }),
-  listClusters: (runId: string) => apiFetch<MatchClusterDto[]>(`/api/matching/runs/${runId}/clusters`),
-  evaluate: (runId: string) => apiFetch<{ metrics: EvalMetrics; sweep: SweepPoint[] }>(`/api/matching/runs/${runId}/evaluate`),
+    apiFetch<void>(`/matching/projects/${projectId}/decisions`, { method: 'POST', body: JSON.stringify(body) }),
+  listClusters: (runId: string) => apiFetch<MatchClusterDto[]>(`/matching/runs/${runId}/clusters`),
+  evaluate: (runId: string) => apiFetch<{ metrics: EvalMetrics; sweep: SweepPoint[] }>(`/matching/runs/${runId}/evaluate`),
   addGoldPair: (projectId: string, body: AddGoldPairBody) =>
-    apiFetch<void>(`/api/matching/projects/${projectId}/gold-pairs`, { method: 'POST', body: JSON.stringify(body) }),
+    apiFetch<void>(`/matching/projects/${projectId}/gold-pairs`, { method: 'POST', body: JSON.stringify(body) }),
 },
 ```
 
