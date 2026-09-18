@@ -5,7 +5,13 @@ interface RecordDiffProps {
   fieldMap: FieldMapping[];
   /** The candidate's `features` — one score per `<column>_<comparator>`, already in [0,1] (Ruling R2, never rescale). */
   features: Record<string, number>;
-  /** `null` when the run's materialized workspace has since been cleared — renders an explanation, not a blank diff. */
+  /**
+   * `null` when the workspace copy no longer holds this row — either the
+   * retention sweep cleared the whole workspace, or this row alone is gone
+   * because the source changed since the run compared it. The two arrive
+   * identically here, so neither this doc nor the panel may assert which
+   * one happened (Ruling R46). Renders an explanation, not a blank diff.
+   */
   leftRecord: Record<string, unknown> | null;
   rightRecord: Record<string, unknown> | null;
   leftLabel?: string;
