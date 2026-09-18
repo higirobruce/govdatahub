@@ -265,6 +265,18 @@ export class MatchingService {
     return this.loadRun(runId, organizationId);
   }
 
+  /**
+   * Ruling R54. Deliberately routed through `loadProject`, not
+   * `loadActiveProject`: a project soft-deleted while one of its runs was
+   * stranded would otherwise keep that run non-terminal forever, and
+   * clearing it copies no data, records no authority and starts nothing
+   * -- the same reasoning `deleteProject` records. `MatchRunService.abandon`
+   * does the org-scoped load and the liveness proof.
+   */
+  async abandonRun(runId: string, organizationId: string): Promise<MatchRun> {
+    return this.matchRun.abandon(runId, organizationId);
+  }
+
   // ─── Review queue ────────────────────────────────────────────────────
 
   /**

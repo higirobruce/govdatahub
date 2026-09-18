@@ -987,13 +987,30 @@ export default function NewMatchProjectPage() {
                   />
                 </div>
               </div>
+              {/*
+                Ruling R53: this copy used to end "set thresholds using the precision and
+                recall you measure against a gold set". `api.matching.evaluate` and
+                `api.matching.addGoldPair` have zero callers and there is no gold-set
+                screen, so that sentence directed the operator to a number the product
+                cannot show them. Building the evaluation UI is the first phase-2 item,
+                not a copy fix; what belongs here in the meantime is what they can
+                actually do today.
+              */}
               <p className="text-xs text-[#777777] mt-3 leading-relaxed">
                 Scores are a weighted average across every mapped field&apos;s weight — not just the
                 fields present on a given pair. A pair missing a field can never score above 1 minus that
                 field&apos;s share, shown next to its weight in step 2 — however well the rest agree, a
                 field at a 20% share caps a pair missing it at 0.80, whatever the field&apos;s raw weight
-                number happens to be. Set thresholds using the precision and recall you measure against a
-                gold set, not by assuming every field is always populated.
+                number happens to be. Allow for that when you pick these two numbers: thresholds set as if
+                every field were always populated will push complete-but-sparse records into the grey band.
+              </p>
+              <p className="text-xs text-[#777777] mt-2 leading-relaxed">
+                There is no precision or recall measurement in the product yet, so treat these as a
+                starting point rather than a tuned setting. Run the project, then read the run summary and
+                work through the grey band in the review queue: how many pairs land above the match
+                threshold, how many fall into the grey band, and how many of the ones you open are
+                genuinely the same person are the evidence you have today. Both thresholds can be changed
+                and the project re-run — nothing here is permanent except the verdicts you record.
               </p>
             </div>
 

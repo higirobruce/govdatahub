@@ -50,6 +50,14 @@ export default function ReviewQueuePage() {
   const { data: run, error: runError } = useSWR<MatchRunDto>(runId ? `/matching/runs/${runId}` : null, () =>
     api.matching.getRun(runId!),
   );
+  // Ruling R52: this page may only serve the latest completed run -- see
+  // the refusal block below for why -- so it has to know which that is.
+  const { data: runs } = useSWR<MatchRunDto[]>(`/matching/projects/${projectId}/runs`, () =>
+    api.matching.listRuns(projectId),
+  );
+  // Runs come back startedAt DESC, so the first completed one is the latest.
+  const latestCompletedRun = runs?.find((r) => r.status === 'completed') ?? null;
+  const isStaleRun = !!runId && !!runs && (!latestCompletedRun || latestCompletedRun.id !== runId);
 
   const [globalIndex, setGlobalIndex] = useState(0);
   const [pages, setPages] = useState<Record<number, MatchCandidateDto[]>>({});
@@ -211,6 +219,56 @@ export default function ReviewQueuePage() {
     return (
       <div className="w-full">
         <div className="p-6 text-sm text-red-700">Failed to load run: {runError.message}</div>
+      </div>
+    );
+  }
+
+  /*
+    Ruling R52: the match workspace is keyed by PROJECT, not by run, and
+    every run drops and rebuilds it. The record values `RecordDiff` renders
+    are therefore always the newest ones, whatever run the score beside them
+    came from. Serving an older run here would show current field values
+    next to a stale score and ask a steward to certify a pair against data
+    that score was never computed from -- and a verdict is permanent
+    (Ruling R25), so there is no cheap way to unwind one made on a false
+    premise. Versioning workspaces per run is phase-3 work; refusing the
+    stale run, and saying why, is the honest fix available now.
+
+    The guard waits for `runs` to load (`isStaleRun` is false until then)
+    rather than refusing optimistically, so a slow list never flashes a
+    refusal at someone who opened the right run.
+  */
+  if (isStaleRun) {
+    return (
+      <div className="w-full">
+        <div className="mb-3">
+          <Link
+            href={`/matching/${projectId}/runs/${runId}`}
+            className="inline-flex items-center gap-1.5 text-sm text-[#777777] hover:text-[#1a1a1a] transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to run summary
+          </Link>
+        </div>
+        <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-8 text-center">
+          <p className="text-sm text-[#1a1a1a] font-medium mb-1">Review is only open on the latest completed run</p>
+          <p className="text-sm text-[#aaaaaa] mb-4 max-w-xl mx-auto">
+            Every run rebuilds this project&rsquo;s match workspace from scratch, so the record values on this
+            screen are always the current ones. Beside an older run&rsquo;s scores they would ask you to certify
+            a pair against data the score was never computed from, and a verdict cannot be un-recorded.
+          </p>
+          {latestCompletedRun ? (
+            <Button asChild>
+              <Link href={`/matching/${projectId}/review?runId=${latestCompletedRun.id}`}>
+                Review the latest completed run
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild variant="outline">
+              <Link href={`/matching/${projectId}`}>Back to project</Link>
+            </Button>
+          )}
+        </div>
       </div>
     );
   }

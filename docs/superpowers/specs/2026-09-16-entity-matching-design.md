@@ -758,9 +758,10 @@ the reason.
 This is a pre-existing driver gap, not a matching defect, and fixing it means
 threading each client's own binding API (BigQuery named parameters, Snowflake
 `binds`) and testing against three hosted services — its own piece of work,
-deliberately not bolted onto this feature. Phase 1 supports six of the nine
+deliberately not bolted onto this feature. Phase 1 supports five of the nine
 connection types plus staged data — postgres, mysql, redshift, sql-server and
-sqlite.
+sqlite (Ruling R58: the count said six while the list named five; five is the
+number that matches the four refusals above).
 
 ## 14. Risks
 

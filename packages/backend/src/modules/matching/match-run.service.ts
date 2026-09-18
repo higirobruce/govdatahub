@@ -28,6 +28,21 @@ import { CrosswalkService } from './crosswalk.service';
 const MATCH_RUN_LOCK_CLASS_ID = 0x4d41; // 'MA'
 
 /**
+ * How long a run must have sat in a non-terminal status before
+ * `abandon` will touch it (Ruling R54).
+ *
+ * `start` creates the run row and only then hands the pipeline to
+ * `setImmediate`, so for a brief moment a perfectly healthy run is
+ * `pending` and holds no advisory lock. Without this floor, an operator
+ * clicking "abandon" inside that window would mark a run failed that is
+ * about to start and then overwrite its own status -- a worse state than
+ * the stuck run they were trying to clear. Fifteen minutes is far longer
+ * than that window and far shorter than the patience of someone whose
+ * project cannot run at all.
+ */
+const ABANDON_AFTER_MS = 15 * 60 * 1000;
+
+/**
  * Empty counters, written when the run is created so a `pending` run
  * already has every field a summary reads rather than `{}`.
  */
@@ -137,6 +152,70 @@ export class MatchRunService {
     });
 
     return run as MatchRun;
+  }
+
+  /**
+   * Ruling R54: the operator's way out of a run stranded in a
+   * non-terminal status.
+   *
+   * A run that dies between statuses -- the process restarts mid-stage,
+   * the database connection drops before `finish` can write -- leaves its
+   * row at `materializing` or `scoring` forever. The project page reads
+   * any such row as "a run is in progress" and disables "Run now"
+   * permanently, and nothing in the product could clear it: the only
+   * writer of a terminal status was the pipeline that already died.
+   *
+   * This refuses to guess. A live pipeline holds the project's advisory
+   * lock for the whole of `runStages`, so if the lock can be taken here,
+   * no pipeline is working on this project -- which is proof, not
+   * inference, that the run is dead. `acquireProjectLock` raises its own
+   * 409 when the lock is held, and its wording ("already running -- wait
+   * for it to finish") is exactly the right answer to an abandon request
+   * too. The lock is released immediately; this method never runs any
+   * stage.
+   *
+   * The run is recorded as `failed`, not deleted and not `completed`: it
+   * did not finish, whatever it wrote is partial, and the audit trail
+   * must say so. `errorMessage` names abandonment as the cause rather
+   * than inventing a stage error, because no stage reported one -- what
+   * actually happened is that the run stopped reporting.
+   */
+  async abandon(runId: string, organizationId: string): Promise<MatchRun> {
+    const run = await this.loadRun(runId, organizationId);
+
+    if (run.status === 'completed' || run.status === 'failed') {
+      throw new ConflictException(
+        `Match run ${runId} already finished as "${run.status}", so there is nothing to abandon.`,
+      );
+    }
+
+    const startedAt = new Date(run.startedAt);
+    const age = Date.now() - startedAt.getTime();
+    if (age < ABANDON_AFTER_MS) {
+      throw new ConflictException(
+        `Match run ${runId} started ${Math.round(age / 1000)}s ago and may simply still be working. A run is ` +
+          `only treated as stranded after ${Math.round(ABANDON_AFTER_MS / 60000)} minutes without reaching a ` +
+          `terminal status.`,
+      );
+    }
+
+    const runner = await this.acquireProjectLock(run.projectId);
+    await this.releaseProjectLock(runner, run.projectId);
+
+    // Read before the status is overwritten -- the status it was stranded
+    // at is the only clue to where it died, and it exists nowhere else.
+    const strandedAt = run.status;
+    const finishedAt = new Date();
+    run.status = 'failed';
+    run.finishedAt = finishedAt;
+    run.durationMs = finishedAt.getTime() - startedAt.getTime();
+    run.errorMessage =
+      `Abandoned by an operator: the run was left at "${strandedAt}" with no process holding this project's ` +
+      `lock, so it could not have still been executing. Anything it wrote is partial; start a fresh run.`;
+    await this.persist(run);
+
+    this.logger.warn(`Match run ${runId} of project ${run.projectId} abandoned by an operator`);
+    return run;
   }
 
   /**
