@@ -442,7 +442,7 @@ describe('MatchingService', () => {
       await service.listClusters('r1', 'org1', {});
       expect(entityRepo.find).toHaveBeenCalledWith({
         where: { runId: 'r1', organizationId: 'org1' },
-        order: { flagged: 'DESC', size: 'DESC' },
+        order: { flagged: 'DESC', size: 'DESC', id: 'ASC' },
         take: 50,
         skip: 0,
       });

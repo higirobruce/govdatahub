@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
 import type { MatchCandidateDto, MatchProjectDto, MatchRunDto, MatchSourceRef, MatchVerdict } from '@/lib/api';
-import { RecordDiff } from '@/components/Matching/RecordDiff';
+import { RecordDiff, isRecordPairUnavailable } from '@/components/Matching/RecordDiff';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -47,7 +47,7 @@ export default function ReviewQueuePage() {
     `/matching/projects/${projectId}`,
     () => api.matching.getProject(projectId),
   );
-  const { data: run } = useSWR<MatchRunDto>(runId ? `/matching/runs/${runId}` : null, () =>
+  const { data: run, error: runError } = useSWR<MatchRunDto>(runId ? `/matching/runs/${runId}` : null, () =>
     api.matching.getRun(runId!),
   );
 
@@ -56,6 +56,13 @@ export default function ReviewQueuePage() {
   const [loadingOffset, setLoadingOffset] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastDecision, setLastDecision] = useState<LastDecision | null>(null);
+  // Ruling R44: `globalIndex` is cursor position in the queue, not a count
+  // of certified decisions -- it advances on skip too, and resets to 0 on
+  // reload while already-certified pairs are still re-served (recording a
+  // decision does not change `match_candidates.decision`). This counter is
+  // the only thing on this screen that actually counts decisions made, and
+  // it is intentionally session-scoped rather than a fake "reviewed" total.
+  const [sessionDecisionCount, setSessionDecisionCount] = useState(0);
 
   const currentOffset = Math.floor(globalIndex / PAGE_SIZE) * PAGE_SIZE;
   const currentPage = pages[currentOffset];
@@ -93,7 +100,7 @@ export default function ReviewQueuePage() {
 
   const decide = useCallback(
     async (verdict: MatchVerdict, candidate: MatchCandidateDto, index: number) => {
-      if (!leftRef || candidate.left_record === null) return;
+      if (!leftRef || isRecordPairUnavailable(candidate.left_record, candidate.right_record)) return;
       setSubmitting(true);
       try {
         await api.matching.submitDecision(projectId, {
@@ -104,6 +111,7 @@ export default function ReviewQueuePage() {
           decision: verdict,
         });
         setLastDecision({ candidate, index });
+        setSessionDecisionCount((c) => c + 1);
         setGlobalIndex(index + 1);
       } catch (err: any) {
         showToast(err.message || 'Failed to record decision', 'error');
@@ -149,6 +157,12 @@ export default function ReviewQueuePage() {
     function handleKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      // OS/browser chords (Cmd+M minimize, Ctrl+N new window, Alt+M, ...)
+      // deliver the same `e.key` as the bare letter. Without this check
+      // one of those chords records a permanent, steward-attributed
+      // verdict -- exactly the mis-keyed-press risk this screen's retract
+      // design already exists to mitigate.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (submitting || !currentCandidate) return;
 
       switch (e.key) {
@@ -193,8 +207,27 @@ export default function ReviewQueuePage() {
     );
   }
 
+  if (runError) {
+    return (
+      <div className="w-full">
+        <div className="p-6 text-sm text-red-700">Failed to load run: {runError.message}</div>
+      </div>
+    );
+  }
+
   const greyTotal = run?.counters.grey ?? null;
-  const canDecide = !submitting && !!currentCandidate && currentCandidate.left_record !== null;
+  const recordsUnavailable =
+    !!currentCandidate && isRecordPairUnavailable(currentCandidate.left_record, currentCandidate.right_record);
+  const canDecide = !submitting && !!currentCandidate && !!leftRef && !recordsUnavailable;
+  // Why Match/No match are disabled, for the button `title`s below -- a
+  // disabled control with no explanation ("Match (m)") is as opaque as no
+  // control at all. `submitting` isn't listed: that state is momentary and
+  // self-explanatory (the "Saving…" indicator already covers it).
+  const decideDisabledReason = recordsUnavailable
+    ? 'Record values are no longer available for this pair -- press s to skip it'
+    : !leftRef
+      ? 'Waiting for the project to finish loading'
+      : null;
 
   return (
     <div className="w-full">
@@ -214,15 +247,27 @@ export default function ReviewQueuePage() {
         <div className="mb-4">
           <div className="flex items-center justify-between text-sm text-[#555555] mb-1.5">
             <span>
-              {Math.min(globalIndex, greyTotal).toLocaleString()} of {greyTotal.toLocaleString()} reviewed
+              Pair {Math.min(globalIndex + 1, greyTotal).toLocaleString()} of {greyTotal.toLocaleString()} in the
+              grey band
             </span>
-            {submitting && (
-              <span className="text-xs text-[#aaaaaa] flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+            <div className="flex items-center gap-3">
+              {/* Ruling R44: this is the only "reviewed" count on the page that is
+                  actually true -- decisions recorded this session. `globalIndex`
+                  above is cursor position (it advances on skip, and resets on
+                  reload while certified pairs are re-served), so it cannot stand
+                  in for progress without overstating it. */}
+              <span className="text-xs text-[#aaaaaa]">
+                {sessionDecisionCount.toLocaleString()} decision{sessionDecisionCount === 1 ? '' : 's'} made this
+                session
               </span>
-            )}
+              {submitting && (
+                <span className="text-xs text-[#aaaaaa] flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+                </span>
+              )}
+            </div>
           </div>
-          <Progress value={Math.min(100, (globalIndex / greyTotal) * 100)} className="h-1.5" />
+          <Progress value={Math.min(100, ((globalIndex + 1) / greyTotal) * 100)} className="h-1.5" />
         </div>
       )}
 
@@ -289,7 +334,7 @@ export default function ReviewQueuePage() {
                   className="gap-1.5 border-red-200 text-red-700 hover:bg-red-50"
                   disabled={!canDecide}
                   onClick={() => currentCandidate && decide('no_match', currentCandidate, globalIndex)}
-                  title="No match (n)"
+                  title={decideDisabledReason ?? 'No match (n)'}
                 >
                   <X className="h-4 w-4" />
                   No match
@@ -308,7 +353,7 @@ export default function ReviewQueuePage() {
                   className="gap-1.5 bg-green-700 hover:bg-green-800"
                   disabled={!canDecide}
                   onClick={() => currentCandidate && decide('match', currentCandidate, globalIndex)}
-                  title="Match (m)"
+                  title={decideDisabledReason ?? 'Match (m)'}
                 >
                   <Check className="h-4 w-4" />
                   Match
