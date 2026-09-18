@@ -15,6 +15,25 @@ interface RecordDiffProps {
 type DiffSegment = { text: string; changed: boolean };
 
 /**
+ * True when either side of the pair is missing and this component will
+ * refuse to render a diff (see the guard in `RecordDiff` below). Callers
+ * that gate their own controls on record availability -- the review
+ * queue's `decide()`/`canDecide` -- MUST derive their check from this
+ * exact predicate rather than re-testing `left_record`/`right_record`
+ * themselves, so the disabled state on those controls can never drift
+ * from what this component actually renders. This is the fix for the
+ * finding that only `left_record` was checked: a pair whose *right* row
+ * was missing rendered this "no longer available" panel while Match/No
+ * match stayed armed.
+ */
+export function isRecordPairUnavailable(
+  leftRecord: Record<string, unknown> | null,
+  rightRecord: Record<string, unknown> | null,
+): boolean {
+  return leftRecord === null || rightRecord === null;
+}
+
+/**
  * The FIRST comparator PostgreSQL's `comparatorExprs` returns for a role is
  * the one `weightedScoreExpr` actually uses for the candidate's own score
  * (backend: `blocking-sql.ts:weightedScoreExpr`, `const [primary] =
@@ -159,7 +178,7 @@ export function RecordDiff({
   leftLabel = 'Left record',
   rightLabel = 'Right record',
 }: RecordDiffProps) {
-  if (!leftRecord || !rightRecord) {
+  if (isRecordPairUnavailable(leftRecord, rightRecord)) {
     return (
       <div className="rounded-lg border border-dashed border-[#dddddd] bg-[#fafafa] p-6 text-center">
         <p className="text-sm font-medium text-[#1a1a1a]">Record values are no longer available</p>
@@ -168,9 +187,21 @@ export function RecordDiff({
           period. The score below is still what the run computed; the field-by-field values behind it
           cannot be recovered.
         </p>
+        <p className="text-xs text-[#aaaaaa] mt-2 max-w-md mx-auto">
+          This pair cannot be certified. Press <span className="font-mono">s</span> (or use Skip) to
+          move on.
+        </p>
       </div>
     );
   }
+
+  // `isRecordPairUnavailable` (a plain boolean check, not a TS type
+  // predicate -- it also has to narrow nothing when called from the
+  // review queue, which only ever passes it a boolean) already ruled out
+  // null above; these two lines just carry that fact into the type
+  // checker without duplicating the null test itself.
+  const leftValues = leftRecord as Record<string, unknown>;
+  const rightValues = rightRecord as Record<string, unknown>;
 
   return (
     <div className="rounded-lg border border-[#e8e8e8] overflow-hidden">
@@ -182,8 +213,8 @@ export function RecordDiff({
       </div>
       <div className="divide-y divide-[#eeeeee]">
         {fieldMap.map((field) => {
-          const leftValue = formatValue(leftRecord[field.left]);
-          const rightValue = formatValue(rightRecord[field.left]);
+          const leftValue = formatValue(leftValues[field.left]);
+          const rightValue = formatValue(rightValues[field.left]);
           const { left, right } = diffChars(leftValue, rightValue);
           const comparator = primaryComparatorName(field.role);
           const score = features[`${field.left}_${comparator}`];

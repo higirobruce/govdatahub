@@ -457,9 +457,15 @@ export class MatchingService {
     await this.loadRun(runId, organizationId);
     const take = Math.min(query.limit ?? DEFAULT_CLUSTERS_LIMIT, MAX_CLUSTERS_LIMIT);
     const skip = query.offset ?? 0;
+    // Ties on `flagged`/`size` are common (many clusters share a size),
+    // and ORDER BY + take/skip over an untied column is not a stable
+    // pagination order: a steward paging the clusters view could see the
+    // same cluster twice and never see another one at all. `id` is a
+    // unique tiebreaker, same precedent as `listCandidates`'s `left_key,
+    // right_key`.
     return this.entityRepo.find({
       where: { runId, organizationId },
-      order: { flagged: 'DESC', size: 'DESC' },
+      order: { flagged: 'DESC', size: 'DESC', id: 'ASC' },
       take,
       skip,
     });
