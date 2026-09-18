@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { QualityChecksService } from './quality-checks.service';
 
 describe('QualityChecksService.suggestChecks (AI-suggested quality checks)', () => {
@@ -21,6 +22,11 @@ describe('QualityChecksService.suggestChecks (AI-suggested quality checks)', () 
   const provider = {
     generateJson: jest.fn(),
   };
+  // Unused by suggestChecks — the service constructor now also takes the
+  // three match-repository dependencies used by the no_duplicates check.
+  const projectRepo = {};
+  const matchRunRepo = {};
+  const entityRepo = {};
 
   const settings = {
     aiProvider: 'local',
@@ -59,6 +65,9 @@ describe('QualityChecksService.suggestChecks (AI-suggested quality checks)', () 
       aiService as any,
       aiAudit as any,
       settingsService as any,
+      projectRepo as any,
+      matchRunRepo as any,
+      entityRepo as any,
     );
   });
 
@@ -130,5 +139,131 @@ describe('QualityChecksService.suggestChecks (AI-suggested quality checks)', () 
     ).rejects.toThrow('Profile the table first');
 
     expect(aiService.getProvider).not.toHaveBeenCalled();
+  });
+
+  // Ruling R40: ALLOWED_SUGGESTION_CHECK_TYPES is a module-private const and
+  // is not exported, so we test the guarantee behaviorally instead of
+  // reaching into that data structure. If the AI provider suggests
+  // no_duplicates anyway (it has no way to invent a matchProjectId), the
+  // suggestion must be dropped while a legitimate suggestion survives.
+  it('drops a no_duplicates suggestion even if the AI provider returns one, because it needs a match project', async () => {
+    profilingService.getLatestProfile.mockResolvedValue(profile);
+    provider.generateJson.mockResolvedValue({
+      suggestions: [
+        {
+          checkType: 'not_null',
+          columnName: 'email',
+          config: { maxNullPercent: 1 },
+          rationale: '99.9% non-null, expect near-zero nulls',
+        },
+        {
+          checkType: 'no_duplicates',
+          config: { matchProjectId: 'p1', maxDuplicateClusters: 0 },
+          rationale: 'invented — no suggestion can know a match project id',
+        },
+      ],
+    });
+
+    const result = await service.suggestChecks('org-1', {
+      connectionId: 'conn-1',
+      schemaName: 'public',
+      tableName: 'customers',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(
+      expect.objectContaining({ checkType: 'not_null', columnName: 'email' }),
+    );
+    expect(result.some((s) => s.checkType === 'no_duplicates')).toBe(false);
+  });
+});
+
+describe('QualityChecksService.runCheck no_duplicates check', () => {
+  let service: QualityChecksService;
+
+  const checksRepo = { findOne: jest.fn(), save: jest.fn() };
+  const runsRepo = { create: jest.fn(), save: jest.fn() };
+  const connectionsService = {};
+  const profilingService = {};
+  const aiService = {};
+  const aiAudit = {};
+  const settingsService = {};
+  const projectRepo = { findOne: jest.fn() };
+  const matchRunRepo = { findOne: jest.fn() };
+  const entityRepo = { count: jest.fn() };
+
+  const validProject = { id: 'p1', organizationId: 'org1' };
+  const completedRun = { id: 'run-1', projectId: 'p1', organizationId: 'org1', status: 'completed' };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // The three error-path tests below deliberately hit this.logger.warn();
+    // suppress it so it doesn't spill into pristine test output (same
+    // convention as match-run.service.spec.ts).
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined as any);
+
+    // runCheck's first argument in these tests IS the check object (not an
+    // id) — checksRepo.findOne is a pass-through stand-in for the real
+    // lookup, echoing back whatever was passed as `id`, so the tests can
+    // hand runCheck a fully-formed check directly.
+    checksRepo.findOne.mockImplementation(({ where }: any) => Promise.resolve(where.id));
+    checksRepo.save.mockResolvedValue(undefined);
+    runsRepo.create.mockImplementation((r: any) => r);
+    runsRepo.save.mockImplementation((r: any) => Promise.resolve(r));
+
+    // Happy-path defaults: a valid project, a completed run, a count.
+    // Each test below overrides exactly the one mock its title names.
+    projectRepo.findOne.mockResolvedValue(validProject);
+    matchRunRepo.findOne.mockResolvedValue(completedRun);
+    entityRepo.count.mockResolvedValue(0);
+
+    service = new QualityChecksService(
+      checksRepo as any,
+      runsRepo as any,
+      connectionsService as any,
+      profilingService as any,
+      aiService as any,
+      aiAudit as any,
+      settingsService as any,
+      projectRepo as any,
+      matchRunRepo as any,
+      entityRepo as any,
+    );
+  });
+
+  it('passes when the duplicate cluster count is at or below the limit', async () => {
+    entityRepo.count.mockResolvedValue(2);
+    const result = await service.runCheck({ checkType: 'no_duplicates',
+      config: { matchProjectId: 'p1', maxDuplicateClusters: 5 } } as any, 'org1');
+    expect(result.status).toBe('pass');
+    expect(result.actualValue).toBe(2);
+  });
+
+  it('fails when the duplicate cluster count is above the limit', async () => {
+    entityRepo.count.mockResolvedValue(9);
+    const result = await service.runCheck({ checkType: 'no_duplicates',
+      config: { matchProjectId: 'p1', maxDuplicateClusters: 5 } } as any, 'org1');
+    expect(result.status).toBe('fail');
+  });
+
+  it('errors when the referenced match project belongs to another organization', async () => {
+    projectRepo.findOne.mockResolvedValue(null);
+    const result = await service.runCheck({ checkType: 'no_duplicates',
+      config: { matchProjectId: 'p-other', maxDuplicateClusters: 5 } } as any, 'org1');
+    expect(result.status).toBe('error');
+  });
+
+  it('errors when the match project has never completed a run', async () => {
+    matchRunRepo.findOne.mockResolvedValue(null);
+    const result = await service.runCheck({ checkType: 'no_duplicates',
+      config: { matchProjectId: 'p1', maxDuplicateClusters: 5 } } as any, 'org1');
+    expect(result.status).toBe('error');
+  });
+
+  it('errors, rather than fails, on a malformed config (missing matchProjectId)', async () => {
+    const result = await service.runCheck({ checkType: 'no_duplicates',
+      config: { maxDuplicateClusters: 5 } } as any, 'org1');
+    expect(result.status).toBe('error');
+    expect(projectRepo.findOne).not.toHaveBeenCalled();
   });
 });
