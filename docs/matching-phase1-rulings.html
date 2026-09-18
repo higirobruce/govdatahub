@@ -1,0 +1,709 @@
+<title>Matching Phase 1 Rulings</title>
+<style>
+  :root {
+    --paper:        #EEF2F7;
+    --paper-2:      #E3EAF3;
+    --paper-3:      #D2DCE8;
+    --card:         #F7FAFD;
+    --ink:          #16181D;
+    --ink-2:        #353A43;
+    --ink-3:        #626973;
+    --ink-4:        #939AA5;
+
+    --azure:        #2E5FA8;
+    --azure-soft:   #C5D5EC;
+    --azure-deep:   #14355F;
+
+    --amber:        #8A5A1C;
+    --amber-soft:   #F0E2CC;
+    --rust:         #9B3A2E;
+    --rust-soft:    #F0D8D4;
+    --moss:         #3F6B45;
+    --moss-soft:    #D6E4D8;
+
+    --line:         #D3DCE7;
+    --line-strong:  #B5C2D2;
+    --highlight:    #DCE7F5;
+
+    --font-display: "Tiempos", "Iowan Old Style", "Georgia", serif;
+    --font-sans:    "Söhne", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    --font-mono:    "JetBrains Mono", "SF Mono", "Menlo", monospace;
+
+    --t-12: 0.75rem;   --t-13: 0.8125rem; --t-14: 0.875rem;
+    --t-16: 1rem;      --t-18: 1.125rem;  --t-22: 1.375rem;
+    --t-28: 1.75rem;   --t-36: 2.25rem;   --t-52: 3.25rem;
+
+    --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+    --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px; --s-9: 96px;
+
+    --wrap: 860px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--t-16);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--s-5); }
+
+  /* ---------- masthead ---------- */
+  header.mast {
+    border-bottom: 1px solid var(--line-strong);
+    background: var(--paper-2);
+    padding: var(--s-9) 0 var(--s-7);
+  }
+  .eyebrow {
+    font-size: var(--t-12);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--azure);
+    font-weight: 600;
+    margin: 0 0 var(--s-4);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: var(--t-52);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    margin: 0 0 var(--s-5);
+    text-wrap: balance;
+    font-weight: 600;
+  }
+  .standfirst {
+    font-size: var(--t-18);
+    color: var(--ink-2);
+    max-width: 62ch;
+    margin: 0;
+  }
+  .standfirst strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- stat band ---------- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin: var(--s-7) 0 0;
+  }
+  .stat { background: var(--paper-2); padding: var(--s-4) var(--s-4) var(--s-5); }
+  .stat dt {
+    font-size: var(--t-12);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 var(--s-2);
+  }
+  .stat dd {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--t-28);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .stat dd small { font-size: var(--t-13); color: var(--ink-3); font-family: var(--font-sans); }
+
+  /* ---------- sections ---------- */
+  section { padding: var(--s-8) 0; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: 0; }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: var(--t-36);
+    letter-spacing: -0.015em;
+    margin: 0 0 var(--s-3);
+    font-weight: 600;
+    text-wrap: balance;
+  }
+  h2 + .lede { color: var(--ink-3); margin: 0 0 var(--s-6); max-width: 64ch; }
+
+  h3 {
+    font-size: var(--t-18);
+    margin: var(--s-7) 0 var(--s-3);
+    font-weight: 600;
+  }
+
+  p { max-width: 68ch; }
+
+  /* ---------- key ruling cards ---------- */
+  .key {
+    border: 1px solid var(--line-strong);
+    background: var(--card);
+    padding: var(--s-5);
+    margin: 0 0 var(--s-4);
+  }
+  .key-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--s-3);
+  }
+  .rid {
+    font-family: var(--font-mono);
+    font-size: var(--t-13);
+    font-weight: 600;
+    color: var(--azure-deep);
+    background: var(--highlight);
+    border: 1px solid var(--azure-soft);
+    padding: 1px var(--s-2);
+    white-space: nowrap;
+  }
+  .key-title { font-weight: 600; font-size: var(--t-18); flex: 1 1 18ch; }
+
+  .chip {
+    font-size: var(--t-12);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 2px var(--s-2);
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .chip-gov  { color: var(--rust);  border-color: var(--rust-soft);  background: var(--rust-soft); }
+  .chip-mine { color: var(--amber); border-color: var(--amber-soft); background: var(--amber-soft); }
+  .chip-scale{ color: var(--moss);  border-color: var(--moss-soft);  background: var(--moss-soft); }
+
+  .key p { margin: 0 0 var(--s-3); }
+  .key p:last-child { margin-bottom: 0; }
+
+  .failmode {
+    border-left: 3px solid var(--rust);
+    padding: var(--s-2) 0 var(--s-2) var(--s-4);
+    margin: var(--s-3) 0;
+    color: var(--ink-2);
+    background: linear-gradient(90deg, var(--rust-soft) 0%, transparent 60%);
+  }
+  .failmode .lbl {
+    display: block;
+    font-size: var(--t-12);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--rust);
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .cost {
+    font-size: var(--t-14);
+    color: var(--ink-3);
+    border-top: 1px dashed var(--line-strong);
+    padding-top: var(--s-3);
+    margin-top: var(--s-3);
+  }
+  .cost b { color: var(--ink-2); font-weight: 600; }
+
+  /* ---------- table ---------- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; font-size: var(--t-14); min-width: 560px; }
+  caption {
+    text-align: left;
+    font-weight: 600;
+    padding: var(--s-3) var(--s-4);
+    background: var(--paper-3);
+    border-bottom: 1px solid var(--line-strong);
+    font-size: var(--t-14);
+  }
+  caption span { font-weight: 400; color: var(--ink-3); }
+  th, td { text-align: left; padding: var(--s-3) var(--s-4); vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { background: var(--paper-2); font-size: var(--t-12); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:nth-child(even) { background: var(--card); }
+  td.idcell { white-space: nowrap; font-family: var(--font-mono); font-size: var(--t-13); font-weight: 600; color: var(--azure-deep); }
+  td.idcell em { display: block; font-family: var(--font-sans); font-style: normal; font-size: var(--t-12); font-weight: 600; color: var(--amber); letter-spacing: 0.04em; margin-top: 2px; }
+
+  code { font-family: var(--font-mono); font-size: 0.9em; background: var(--paper-3); padding: 1px 4px; }
+
+  ul.plain { padding-left: var(--s-5); max-width: 68ch; }
+  ul.plain li { margin-bottom: var(--s-3); }
+
+  .callout {
+    border: 1px solid var(--azure-soft);
+    background: var(--highlight);
+    padding: var(--s-5);
+    margin: var(--s-5) 0;
+  }
+  .callout h3 { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  footer {
+    background: var(--azure-deep);
+    color: var(--paper);
+    padding: var(--s-7) 0;
+    font-size: var(--t-14);
+  }
+  footer .wrap p { max-width: 68ch; margin: 0 0 var(--s-3); color: var(--azure-soft); }
+  footer .wrap p:last-child { margin-bottom: 0; }
+  footer strong { color: #fff; }
+
+  @media (max-width: 640px) {
+    h1 { font-size: var(--t-36); }
+    h2 { font-size: var(--t-28); }
+    header.mast { padding: var(--s-7) 0 var(--s-6); }
+  }
+</style>
+
+<header class="mast">
+  <div class="wrap">
+    <p class="eyebrow">Entity Matching · Phase 1 · Decision record</p>
+    <h1>Rulings made on your behalf</h1>
+    <p class="standfirst">
+      Executing the phase-1 plan autonomously meant deciding 68 questions without asking you.
+      This is the complete record. <strong>Over half of them correct defects in my own plan or
+      spec</strong> — that is the honest headline, and the reason this page exists rather than a
+      summary saying the work went well.
+    </p>
+
+    <dl class="stats">
+      <div class="stat"><dt>Rulings</dt><dd>68</dd></div>
+      <div class="stat"><dt>Tasks</dt><dd>18</dd></div>
+      <div class="stat"><dt>Commits</dt><dd>79</dd></div>
+      <div class="stat"><dt>Unit tests</dt><dd>583</dd></div>
+      <div class="stat"><dt>Integration</dt><dd>19 <small>live PG</small></dd></div>
+      <div class="stat"><dt>Model calls</dt><dd>0 <small>by design</small></dd></div>
+    </dl>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <h2>What a ruling is, and why you are seeing them now</h2>
+  <p class="lede">
+    A plan running autonomously cannot stop and wait for you on every conflict. The process I
+    followed requires me to decide, record the decision with its reasoning and its cost if wrong,
+    and keep going — then surface the whole list at the end.
+  </p>
+  <p>
+    Each ruling below was a real fork: the spec said one thing and the plan another, or a reviewer
+    found something the plan mandated, or an implementer hit an instruction that could not be
+    carried out. Every one is reversible. The ones worth your attention are the handful where a
+    different answer would produce a materially different product, and those are first.
+  </p>
+  <p>
+    One pattern is worth naming before the list. The defects that survived longest were never
+    syntax errors or failing tests. They were pieces that each read correctly, compiled, and passed
+    their own tests — and were wrong only where two of them met. Several rulings below exist
+    because a reviewer or an implementer noticed a seam rather than a bug.
+  </p>
+</section>
+
+<section>
+  <h2>Five caught while building</h2>
+  <p class="lede">
+    These surfaced during the eighteen task reviews. Each would have shipped a system that looked
+    correct and behaved wrongly on real citizen data.
+  </p>
+
+  <div class="key">
+    <div class="key-head">
+      <span class="rid">R25</span>
+      <span class="key-title">The column storing a human's verdict used the wrong vocabulary</span>
+      <span class="chip chip-mine">my defect</span>
+    </div>
+    <p>
+      <code>MatchDecision.decision</code> was typed with the <em>candidate-state</em> enum
+      (<code>auto_match / grey / confirmed / rejected</code>) while every human-facing path
+      submitted a <em>verdict</em> (<code>match / no_match</code>). Four separate tasks were each
+      internally consistent, each compiled, each passed its own tests.
+    </p>
+    <div class="failmode">
+      <span class="lbl">Failure scenario</span>
+      The first time a steward records a real verdict, the scoring join matches nothing. Every
+      human decision becomes invisible, the review queue re-asks every question forever, and no
+      error is raised anywhere.
+    </div>
+    <p class="cost"><b>If the ruling is wrong:</b> it is not — this was a straightforward
+      contract mismatch. The cost was four tasks of latency before it surfaced.</p>
+  </div>
+
+  <div class="key">
+    <div class="key-head">
+      <span class="rid">R20</span>
+      <span class="key-title">A trigram pass's pair projection is a lower bound, not an estimate</span>
+      <span class="chip chip-scale">scale</span>
+    </div>
+    <p>
+      The safety gate that refuses impossibly large jobs computed pairs as
+      <code>sum(n·(n−1)/2)</code> — which counts <em>exactly equal</em> keys. A trigram pass
+      proposes every pair above a similarity threshold, a strict superset.
+    </p>
+    <div class="failmode">
+      <span class="lbl">Failure scenario</span>
+      On a near-unique key — a surname, a phone number, precisely what trigram passes are for —
+      the histogram is almost all singletons, so the projection reads near zero. The gate clears
+      the job, and the query it clears is a quadratic self-join that never returns. The gate reads
+      safe on the one query it exists to stop.
+    </div>
+    <p class="cost"><b>If wrong:</b> the fix was honesty rather than a better formula — the
+      projection is flagged inexact and every consumer must render "at least N". Properly
+      estimating a similarity join needs sampling; that is phase-4 work.</p>
+  </div>
+
+  <div class="key">
+    <div class="key-head">
+      <span class="rid">R43</span>
+      <span class="key-title">Undo must retract a verdict, not assert the opposite</span>
+      <span class="chip chip-gov">governance</span>
+      <span class="chip chip-mine">my defect</span>
+    </div>
+    <p>
+      My plan specified that the review queue's undo key "re-submits the opposite decision". A
+      stored verdict is not advisory: scoring honours it regardless of score and maps
+      <code>no_match</code> to <code>rejected</code> in every future run.
+    </p>
+    <div class="failmode">
+      <span class="lbl">Failure scenario</span>
+      A steward fat-fingers <code>m</code> and presses undo. The system permanently records, in
+      their name, a certification that two people are <em>not</em> the same person. "I have no
+      opinion" and "these are different people" are different claims, and a keystroke slip
+      converted one into the other. It also threw a constraint violation on every undo.
+    </div>
+    <p class="cost"><b>If wrong:</b> phase 2 may want a soft retraction with an audit trail
+      instead of a delete. The pair-level unique constraint already makes this table a record of
+      current verdicts rather than an append-only log, so the fix follows the existing grain.</p>
+  </div>
+
+  <div class="key">
+    <div class="key-head">
+      <span class="rid">R31 · R32 · R33</span>
+      <span class="key-title">Deleting a project destroyed the authority but kept every act</span>
+      <span class="chip chip-gov">governance</span>
+      <span class="chip chip-mine">my defect</span>
+    </div>
+    <p>
+      No foreign key constrains <code>project_id</code> on any child table, so a hard delete does
+      not fail — it silently orphans runs, decisions, clusters and crosswalk rows. The project row
+      is what carries the lawful basis and the accountable data owner.
+    </p>
+    <div class="failmode">
+      <span class="lbl">Failure scenario</span>
+      Deletion removes the recorded justification for copying citizen data while retention
+      deliberately keeps the results forever. Orphaned crosswalk rows stay live and joinable while
+      pointing at a project that no longer exists. My first fix (R31) defined what a soft delete
+      <em>stores</em> and never what it <em>prevents</em> — so a "deleted" project still started
+      runs and materialized fresh citizen data (R32). Editing was the same hole: widening the
+      column allow-list after a run retroactively changes the legal boundary of what the system was
+      permitted to copy, with nothing recording that it moved (R33).
+    </div>
+    <p class="cost"><b>If wrong:</b> a field-level history table is the better long-term answer
+      and is phase-4 work. Immutability-from-first-run is the cheap rule that closes it now.</p>
+  </div>
+
+  <div class="key">
+    <div class="key-head">
+      <span class="rid">R7</span>
+      <span class="key-title">The guard keeping personal data on-premises failed open</span>
+      <span class="chip chip-gov">governance</span>
+      <span class="chip chip-mine">my defect</span>
+    </div>
+    <p>
+      I specified the check as a block-list of known cloud providers. The provider column is an
+      unconstrained <code>varchar(50)</code> with no database enum or constraint.
+    </p>
+    <div class="failmode">
+      <span class="lbl">Failure scenario</span>
+      Any value not on the list — a new provider added to the enum later, or a typo like
+      <code>locall</code> — returns normally and is treated as local. The spec's own wording was
+      "local, or custom pointed at a private host, <em>only</em>"; the enumeration I wrote
+      undermined the word that carried the rule.
+    </div>
+    <p class="cost"><b>If wrong:</b> an allow-list is strictly narrower. The only risk is a
+      legitimate future local provider being refused until it is added — which fails closed and is
+      immediately visible.</p>
+  </div>
+</section>
+
+<section>
+  <h2>What only the whole-branch review could see</h2>
+  <p class="lede">
+    Eighteen task reviews passed. The broad review then found two Criticals that no task review
+    could have caught, because each task's own code is correct — the defect lived in what
+    accumulates <em>across</em> runs. Both were in publication: the crosswalk other government
+    systems join against.
+  </p>
+
+  <div class="key">
+    <div class="key-head">
+      <span class="rid">R48</span>
+      <span class="key-title">A published merge could never be withdrawn</span>
+      <span class="chip chip-gov">governance</span>
+      <span class="chip chip-mine">my spec gap</span>
+    </div>
+    <p>
+      Nothing in the entire backend deleted from the crosswalk — publication was insert-or-update
+      only. Everything upstream is recomputed each run; only this table accumulated.
+    </p>
+    <div class="failmode">
+      <span class="lbl">Failure scenario</span>
+      A steward records <em>no match</em>. The guard flags the cluster. Publication correctly
+      writes nothing — and the earlier run's rows still say those two people are one person. The
+      verdict reaches scoring and never reaches the published product. The same held for a raised
+      threshold, a deleted source row, and a cluster that split back into singletons, which never
+      re-enter the crosswalk at all.
+    </div>
+    <p class="cost"><b>Resolution:</b> publication now replaces rather than accumulates, in one
+      transaction. Sound because every run reloads the full source, so the latest run's
+      conclusions are the complete current picture. A run that publishes nothing still withdraws —
+      "no duplicates found" is a conclusion, not an absence of one.</p>
+  </div>
+
+  <div class="key">
+    <div class="key-head">
+      <span class="rid">R49 · R60</span>
+      <span class="key-title">A steward's correction could merge more records, not fewer</span>
+      <span class="chip chip-gov">governance</span>
+    </div>
+    <p>
+      Entity keys were resolved by majority vote over existing crosswalk rows, with no record of
+      what the same run had already assigned — so two clusters could claim one key.
+    </p>
+    <div class="failmode">
+      <span class="lbl">Failure scenario</span>
+      A steward splits an over-merged entity. The larger fragment keeps the key by majority; the
+      smaller fragment votes for it too. Both publish under the same key — <strong>more merged
+      than before the steward intervened, as a direct result of their correction.</strong>
+    </div>
+    <p class="cost"><b>Resolution:</b> a key is claimed once per run, and the largest fragment
+      keeps it. I overruled the implementer here: it argued the tie-break was arbitrary, but
+      fewest-published-identities-change is a real correctness criterion for a key other systems
+      join on. Under the old rule a five-record split churned four identities; now it churns
+      one.</p>
+  </div>
+
+  <div class="key">
+    <div class="key-head">
+      <span class="rid">R50 · R59</span>
+      <span class="key-title">Dates shifted a day earlier — and the test for it did nothing in UTC</span>
+      <span class="chip chip-scale">silent corruption</span>
+    </div>
+    <p>
+      Date normalization round-tripped through UTC. In <strong>Kigali, the deployment
+      timezone</strong>, a date column holding <code>1990-01-01</code> became
+      <code>1989-12-31</code> — the year changes, so the blocking key changes, so the duplicate is
+      never proposed. No gate caught it because the test fixture declared that column as text.
+    </p>
+    <div class="failmode">
+      <span class="lbl">The second failure, one layer up</span>
+      After the fix, the re-review restored the bug and ran the tests under five timezones:
+      <strong>UTC gave zero failures</strong> (Kigali 7, Tokyo 14). Nothing pinned the timezone,
+      so both gates were no-ops in any container — which is what CI runs. The same defect shape as
+      the original: a test passing by sidestepping the hazard. The string branch also still
+      shifted, reachable on SQLite, whose canonical date storage is exactly the affected format.
+    </div>
+    <p class="cost"><b>Resolution:</b> the deployment timezone is now pinned in both test
+      configs, with a guard asserting the offset is non-zero so the pin cannot be silently
+      dropped. A counterfactual mutation proved it: with the pin, restoring the bug fails 7 tests
+      in UTC; without it, only 3 — every day-shift assertion had been passing vacuously.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Governance and the legal boundary</h2>
+  <p class="lede">
+    Rulings about what the system is permitted to copy, who may act on it, and what it may claim.
+  </p>
+  <div class="tablewrap">
+  <table>
+    <caption>Governance rulings <span>— the allow-list, authority, and refusals</span></caption>
+    <thead><tr><th style="width:9ch">Ruling</th><th>Decision and reason</th></tr></thead>
+    <tbody>
+      <tr><td class="idcell">P4 · R10<em>my defect</em></td><td>The primary key must appear on the column allow-list like any other column; the setup wizard adds it automatically. The allow-list is the auditable record of every column the feature may touch — if the reader silently adds a column, the record stops matching what was read, and the one rule an auditor can check stops being true.</td></tr>
+      <tr><td class="idcell">R11 · R13</td><td>Matching refuses Snowflake, BigQuery, ClickHouse and MongoDB sources. Four of nine drivers ignore bound parameters — MongoDB is not a SQL engine at all. Phase 1 supports five connection types plus staged data, and refuses the rest with a named reason rather than silently interpolating values into SQL.</td></tr>
+      <tr><td class="idcell">R34</td><td>Repeat deletion returns success, not conflict. A retry after a network timeout must not report a conflict; substantively a second delete copies no data and changes no authority. "Every mutating route" means every route that acts on data or authority, not every HTTP verb that writes.</td></tr>
+      <tr><td class="idcell">R39<em>my defect</em></td><td>The review queue is served both records and the per-field scores. As planned it had neither — a steward would have been shown two opaque keys and asked to certify a match. Where the workspace copy is gone, records return null and <strong>the queue collects no verdict</strong>: an unseen pair must never be certifiable.</td></tr>
+      <tr><td class="idcell">R36<em>my defect</em></td><td>The wizard's size estimate refuses cleanly before a project's first run rather than materializing on demand. Materializing copies citizen data, and the wizard records the lawful basis one step <em>later</em> — copying data to answer a question about size would invert the authority-then-data order the feature is built around.</td></tr>
+      <tr><td class="idcell">P5<em>my defect</em></td><td>The project edit and delete endpoints gain callers in the UI. They had none anywhere in the plan, and a user who cannot delete a project holding copied citizen data is a governance gap, not a usability one.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Correctness at scale</h2>
+  <p class="lede">
+    The plan targets ten million rows per side. These rulings are where code that is correct on
+    three rows fails on ten million.
+  </p>
+  <div class="tablewrap">
+  <table>
+    <caption>Scale and correctness rulings <span>— all found before production</span></caption>
+    <thead><tr><th style="width:9ch">Ruling</th><th>Decision and reason</th></tr></thead>
+    <tbody>
+      <tr><td class="idcell">R21</td><td>The trigram join must emit the <code>%</code> operator alongside the similarity test. Only <code>%</code> maps to the index the materializer builds; the similarity function alone cannot use it, so the planner falls back to a full cross-product — a <em>correct</em> result that never returns, invisible to any assertion on SQL text. Verified by query plan against a live database.</td></tr>
+      <tr><td class="idcell">R22</td><td>The key histogram aggregates server-side. Returning one row per distinct key means ten million rows buffered plus a second ten-million-object array in memory — gigabytes of heap, dying on exactly the input size it was written for.</td></tr>
+      <tr><td class="idcell">R23<em>my defect</em></td><td>Scoring must keep any pair carrying a human verdict, regardless of its score. Filtering on score alone drops the pair before the decision join can honour it — and stewards confirm precisely the pairs the score is unsure about, so confirmed pairs skew low-scoring <em>by construction</em>. The filter discarded human verdicts exactly where they carry the most information.</td></tr>
+      <tr><td class="idcell">R26</td><td>The over-merge guard reads decisions as well as scores. Once R23 began storing human-decided pairs regardless of score, a steward-confirmed pair could sit below the threshold — so the guard would flag a cluster as over-merged <em>because</em> a human confirmed it, withholding that match from the crosswalk.</td></tr>
+      <tr><td class="idcell">R19</td><td>The degenerate-key threshold becomes <code>max(50, 0.5%)</code>. On a thousand-row table a bare 0.5% discards a surname shared by six people — ordinary data, lost invisibly. A key with fifty rows contributes 1,225 pairs, nothing against the cap, so excluding it buys no protection and costs recall.</td></tr>
+      <tr><td class="idcell">R2 · R3</td><td>Every comparator returns a number in [0,1], and one presence guard wraps all of them. Three findings shared one root cause: an empty string cast to a date aborts the whole query, null comparators poison the summed score so the pair falls out of both sides of the grey band silently, and two records that both lack a phone number scored as identical on that field.</td></tr>
+      <tr><td class="idcell">R15</td><td>The reader's page ceiling is 100,000 rows, and my reasoning-by-analogy was wrong. The limit I copied caps what an ad-hoc query hands to a browser; this is an internal batch loader whose pages never reach a user.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Where I overruled a reviewer, or ratified a deviation</h2>
+  <p class="lede">
+    Implementers and reviewers disagreed with the plan several times. These are the cases where
+    they were right, or where I judged the plan's literal text should not win.
+  </p>
+  <div class="tablewrap">
+  <table>
+    <caption>Accepted deviations <span>— the plan's authorship does not grade its own work</span></caption>
+    <thead><tr><th style="width:9ch">Ruling</th><th>Decision and reason</th></tr></thead>
+    <tbody>
+      <tr><td class="idcell">R45<em>my defect</em></td><td>The duplicate check does not go through the normal execution path. That path sends its SQL to the <em>user's external database</em>, while this check reads DataGate's own metadata. Following my brief literally would have queried the wrong database entirely. The implementer refused and escalated; it was right.</td></tr>
+      <tr><td class="idcell">R2a<em>my defect</em></td><td>My guard regex was wrong and the implementer's replacement was adopted. Mine matched both the broken form and the fixed form — it would have failed against correct code, and a guard that always fails is one the next person deletes.</td></tr>
+      <tr><td class="idcell">R12</td><td>Accepted one guard at a shared choke point rather than the two copies I instructed. Coverage verified before accepting: one definition beats two that can drift.</td></tr>
+      <tr><td class="idcell">R8</td><td>Accepted a narrow structural type over the whole entity my brief named. A compliance guard should not import an entity, and the narrower type is trivially testable.</td></tr>
+      <tr><td class="idcell">R28<em>my defect</em></td><td>The gold-pair table gets an entity; my spec classified it with the bulk raw-SQL tables. Those are written millions of rows at a time; the gold set is small, read wholesale, and written one row at a time. The plan's own test code already assumed the entity the spec said not to build.</td></tr>
+      <tr><td class="idcell">R30</td><td>Accepted that a concurrent second run fails as a recorded failed run rather than an immediate HTTP conflict. The alternative — a racy probe that takes and releases the lock — trades a correct-but-late error for a sometimes-wrong-but-early one.</td></tr>
+      <tr><td class="idcell">R1</td><td>Upheld a reviewer against my own dispatch note. I had said invisible characters in a report were harmless; they are not, because the report <em>demonstrates</em> the corrected form, so a reader sees the defect while believing they see the fix.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Copy that was true and still misleading</h2>
+  <p class="lede">
+    Three rulings are about words rather than code. This is a governance interface operated by
+    civil servants; a sentence that overstates what the system knows is a defect in it.
+  </p>
+  <div class="tablewrap">
+  <table>
+    <caption>Interface copy rulings</caption>
+    <thead><tr><th style="width:9ch">Ruling</th><th>Decision and reason</th></tr></thead>
+    <tbody>
+      <tr><td class="idcell">R42</td><td>Show each field's weight <em>share</em>, don't just reword the warning. The threshold warning was mathematically correct but its worked example held only when weights sum to 1 — which nothing enforced and the interface never displayed. The fix puts the number on screen so the sentence names something the reader can see.</td></tr>
+      <tr><td class="idcell">R46</td><td>The unavailable-records panel must not assert a cause it cannot know. It blamed the retention sweep, but a missing <em>table</em> and a missing <em>row</em> arrive identically — and the second means the source data changed, a different fact with a different response.</td></tr>
+      <tr><td class="idcell">R44<em>my defect</em></td><td>The queue shows position, not progress. "X of Y reviewed" counted cursor position: it incremented on skip, reset on reload, and re-served already-certified pairs from zero. A number labelled "reviewed" that counts skips and forgets completed work overstates certified progress.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Process rulings</h2>
+  <p class="lede">
+    Lower stakes, listed for completeness. These concern how the work was executed rather than what
+    it does.
+  </p>
+  <div class="tablewrap">
+  <table>
+    <caption>Remaining rulings <span>— plan mechanics, wiring, typing, and deferrals</span></caption>
+    <thead><tr><th style="width:9ch">Ruling</th><th>Decision</th></tr></thead>
+    <tbody>
+      <tr><td class="idcell">P0 – P9</td><td>Ten defects found by scanning my own plan for internal contradictions <em>before</em> any task was dispatched: an invisible-character regex, two untyped interfaces between tasks, a task depending on a function a later task produces, contradictory test fixtures, endpoints with no caller, unstated module wiring, and two cases where a task's prose and its own tests disagreed about how many queries it issues.</td></tr>
+      <tr><td class="idcell">R4 · R16 · R18 · R24 · R27 · R29</td><td>Deliberate carries and acceptances: an unused field kept because removing and re-adding it costs a migration; materialization stays unconditional in phase 1; two counters given accurate definitions rather than new queries; a nullable column phase 1 has nothing to write to.</td></tr>
+      <tr><td class="idcell">R5 · R9</td><td>Process: resumed an implementer after a transport error rather than dispatching fresh, and repaired a commit history where an implementer amended a commit that was not theirs — verified by tree-hash identity that nothing was lost.</td></tr>
+      <tr><td class="idcell">R14 · R17</td><td>A caller-supplied limit is bounded before reaching SQL; the reader takes its projection and its allow-list as separate arguments so the check between them is real rather than tautological.</td></tr>
+      <tr><td class="idcell">R6 · R35 · R37 · R38 · R40 · R41 · R47</td><td>Corrections to my own briefs: a doubled URL prefix that existed nowhere else in the codebase, a dropped build-gate step, client methods missing the pagination the backend already accepted, a test importing a private constant, tests with no baseline defaults, and an untested scoping invariant on the one check that counts across runs.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Where it stands</h2>
+  <p class="lede">
+    What is finished, what was deliberately left, and what needs your decision.
+  </p>
+
+  <div class="callout">
+    <h3>All gates green at HEAD</h3>
+    <p>
+      583 backend unit tests, 19 integration tests against live PostgreSQL, type-check clean,
+      frontend build and lint clean, and the migration reverts and re-runs cleanly. The
+      engine's own quality is unchanged through every fix: precision and recall 1.0000 against
+      the seeded fixture, all 300 planted duplicates sharing an entity key.
+    </p>
+    <p>
+      That figure is <strong>not an accuracy claim</strong>. The fixture's perturbations —
+      swapped name order, one-character typos, transposed birth-date digits — are exactly the
+      cases the comparators were designed for. It proves the pipeline executes correctly end to
+      end, not that it will perform this way on real registry data.
+    </p>
+  </div>
+
+  <h3>Both items previously marked required are now fixed</h3>
+  <ul class="plain">
+    <li>
+      The docstring that claimed an invariant the code did not hold has been corrected, and the
+      reasoning for the deliberate exception now lives <em>in the code</em> — with a tripwire
+      noting what would have to change if anything non-repeatable is ever added to that method.
+      It previously existed only in a working file that is deleted when the plan finishes.
+    </li>
+    <li>
+      The bound-parameter budget that sat exactly on PostgreSQL's 65,535 limit now reserves
+      headroom, matching its sibling files.
+    </li>
+  </ul>
+
+  <h3>Deliberately deferred — recorded, not forgotten</h3>
+  <ul class="plain">
+    <li>
+      <strong>No evaluation surface.</strong> The precision/recall sweep and gold-set API are
+      fully built and have zero callers, because there is no UI to manage a gold set. Building
+      one is a task, not a fix. What I <em>did</em> fix was the wizard telling operators to set
+      thresholds from numbers the product cannot show them. This is the first phase-2 item.
+    </li>
+    <li>
+      <strong>No frontend test infrastructure exists in this repository</strong> — no runner, no
+      specs anywhere. The most serious review-queue defect found was exactly what a frontend test
+      would pin. Standing one up is a project decision, not something a fix round should
+      improvise.
+    </li>
+    <li>
+      Two rules are hand-duplicated across the codebase — the source-reference format in three
+      places, the comparator-ordering rule in three. Accurate today; drift would fail silently.
+      This is the same class as the defect that cost most on this branch.
+    </li>
+    <li>
+      The review queue re-serves pairs that already carry a verdict. Harmless, since a second
+      verdict overwrites the first, but wasteful; honest filtering needs a count the API does not
+      expose.
+    </li>
+    <li>
+      Smaller: the reviewer-role permission is unimplemented; dropped blocking keys and the
+      job-size warning have no visible surface; the source can still be repointed after runs
+      exist.
+    </li>
+  </ul>
+
+  <h3>One thing to decide</h3>
+  <p>
+    Phase 1 supports <strong>five of the nine</strong> connection types, plus staged data.
+    Snowflake, BigQuery, ClickHouse and MongoDB are refused with a named reason, because four of
+    those drivers ignore bound parameters — a pre-existing defect in shared code, not something
+    this branch introduced. Fixing them means threading each vendor's own binding API and testing
+    against three hosted services. Whether that is phase-2 work or stays refused is a scope call
+    that is yours, not mine.
+  </p>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <p>
+      <strong>Every ruling on this page is reversible.</strong> Each was recorded with its
+      reasoning and its cost if wrong at the moment it was made, not reconstructed afterwards.
+      Where I judged wrongly, the cost is rework you can see and undo.
+    </p>
+    <p>
+      The source of record is the spec at
+      <code>docs/superpowers/specs/2026-09-16-entity-matching-design.md</code>, amended by the
+      rulings that changed it. Phase 1 makes no model calls by design: every governance control is
+      built and proven before any AI enters the system in phase 2.
+    </p>
+  </div>
+</footer>
