@@ -137,22 +137,34 @@ export class ClusteringService {
   ) {}
 
   async cluster(project: MatchProject, run: MatchRun): Promise<ClusterResult> {
+    // Ruling R55: `organization_id` is bound even though `run_id` alone
+    // already identifies this run's rows uniquely. Every other raw-SQL
+    // access on this feature carries the organization predicate, and the
+    // one query that does not is the one a future refactor will trust --
+    // the moment a run id arrives from anywhere but an org-scoped load,
+    // this is the statement that would silently read another tenant's
+    // candidates.
     const survivorRows: CandidateRow[] = await this.dataSource.query(
       `SELECT left_key, right_key, score, decision FROM match_candidates ` +
-        `WHERE run_id = $1 AND decision IN ('auto_match', 'confirmed')`,
-      [run.id],
+        `WHERE run_id = $1 AND organization_id = $2 AND decision IN ('auto_match', 'confirmed')`,
+      [run.id, project.organizationId],
     );
 
     const pairs: Array<[string, string]> = survivorRows.map((row) => [row.left_key, row.right_key]);
     const groups = unionFind(pairs);
     const sourceRef = this.buildSourceRef(project);
+    const orderedClusters = this.inStableOrder(groups);
+
+    // Ruling R49: an entity key belongs to at most one cluster per run.
+    const claimedKeys = new Set<string>();
 
     let flaggedCount = 0;
-    for (const members of groups.values()) {
-      const flagged = await this.isOverMerged(run.id, members, project.thresholds.rejectAt);
+    for (const members of orderedClusters) {
+      const flagged = await this.isOverMerged(project, run.id, members, project.thresholds.rejectAt);
       if (flagged) flaggedCount += 1;
 
-      const entityKey = await this.resolveEntityKey(project, members);
+      const entityKey = await this.resolveEntityKey(project, members, claimedKeys);
+      claimedKeys.add(entityKey);
 
       await this.entityRepo.save({
         id: uuidv4(),
@@ -172,6 +184,29 @@ export class ClusteringService {
     );
 
     return { clusters: groups.size, flagged: flaggedCount };
+  }
+
+  /**
+   * Ruling R49 needs a deterministic processing order, because which
+   * cluster gets to keep a contested entity key is now decided by which
+   * one is reached first. `unionFind` returns a `Map` keyed by whichever
+   * node happened to become the root, iterated in insertion order --
+   * which is the order `match_candidates` rows arrived in, and an
+   * unordered `SELECT` gives PostgreSQL no obligation to repeat that.
+   * Two runs over identical data could therefore have assigned the same
+   * two clusters each other's keys.
+   *
+   * So: members sorted within a cluster, clusters sorted by their first
+   * (therefore smallest) member. Every cluster is disjoint, so no two
+   * clusters share a smallest member and the ordering is total. Sorting
+   * the members also makes the persisted `members` array itself stable
+   * run to run, which nothing depended on before and several things read
+   * now.
+   */
+  private inStableOrder(groups: Map<string, string[]>): string[][] {
+    const clusters = [...groups.values()].map((members) => [...members].sort());
+    clusters.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    return clusters;
   }
 
   /**
@@ -208,17 +243,27 @@ export class ClusteringService {
    * happens. The guard is `O(1)` in returned data regardless of cluster
    * size.
    */
-  private async isOverMerged(runId: string, members: string[], rejectAt: number): Promise<boolean> {
+  private async isOverMerged(
+    project: MatchProject,
+    runId: string,
+    members: string[],
+    rejectAt: number,
+  ): Promise<boolean> {
     if (members.length < 2) return false;
 
     const expectedPairs = (members.length * (members.length - 1)) / 2;
+    // Ruling R55: organization-scoped, for the same reason as the
+    // survivor read above. It is bound as `$4` rather than inserted
+    // earlier so the members array stays `$2` -- this guard is the
+    // statement whose parameter positions the tests route on.
     const rows: GuardCountRow[] = await this.dataSource.query(
       `SELECT count(*) AS total,\n` +
         `       count(*) FILTER (WHERE decision = 'rejected') AS n_rejected,\n` +
         `       count(*) FILTER (WHERE decision <> 'confirmed' AND score < $3::double precision) AS n_low\n` +
         `FROM match_candidates\n` +
-        `WHERE run_id = $1 AND left_key = ANY($2::text[]) AND right_key = ANY($2::text[])`,
-      [runId, members, rejectAt],
+        `WHERE run_id = $1 AND organization_id = $4 ` +
+        `AND left_key = ANY($2::text[]) AND right_key = ANY($2::text[])`,
+      [runId, members, rejectAt, project.organizationId],
     );
 
     const row = rows[0];
@@ -246,18 +291,42 @@ export class ClusteringService {
 
   /**
    * The `entity_key` a re-run keeps: whichever key the cluster's previous
-   * members held in the majority, tied broken to the lexicographically
+   * members held in the majority, ties broken to the lexicographically
    * smallest key so the result is deterministic regardless of row order.
-   * Mints a fresh `uuidv4()` only when none of the members has ever
-   * appeared in the crosswalk.
+   * Mints a fresh `uuidv4()` when none of the members has ever appeared
+   * in the crosswalk.
+   *
+   * **A key is claimed by at most one cluster per run (Ruling R49).**
+   * `claimedKeys` carries what this same run has already assigned, and a
+   * cluster whose majority winner is already in it mints a fresh key
+   * instead. Without that record two clusters of one run could both take
+   * the same key, and the case where they do is the worst possible one:
+   * run 1 clusters A, B and C under key E; a steward rejects (A,C) and
+   * (B,C); run 2 produces {A,B} (two votes for E) and {C,D} (one vote for
+   * E), both resolve to E, and all four records publish under one key --
+   * MORE merged than before the steward intervened, as a direct result of
+   * their correction. Minting for the loser is not a fallback, it is the
+   * right answer: a fragment that has just been split off is a new
+   * identity, and the alternative -- reusing a key some other cluster
+   * holds -- is the merge the split existed to undo.
+   *
+   * Which cluster keeps the contested key is therefore load-bearing, and
+   * `cluster` fixes it by processing clusters in `inStableOrder`. The
+   * larger fragment does not automatically win; the first one in that
+   * order does. That is deliberate: "largest wins" would be a different
+   * rule that still has to break its own ties, and neither rule is more
+   * correct than the other -- what matters is that the same input always
+   * produces the same assignment.
    *
    * Scoped by `organization_id` and `project_id` only -- not `source_ref`
-   * -- per the ruling in the brief: a dedupe project has exactly one
-   * Match Source, so project scoping is sufficient, and this keeps this
-   * task independent of `CrosswalkService.sourceRef()` (Task 10), which
-   * does not exist yet.
+   * -- because a dedupe project has exactly one Match Source, so project
+   * scoping selects the same rows.
    */
-  private async resolveEntityKey(project: MatchProject, members: string[]): Promise<string> {
+  private async resolveEntityKey(
+    project: MatchProject,
+    members: string[],
+    claimedKeys: Set<string>,
+  ): Promise<string> {
     const rows: CrosswalkRow[] = await this.dataSource.query(
       `SELECT source_key, entity_key FROM match_crosswalk ` +
         `WHERE organization_id = $1 AND project_id = $2 AND source_key = ANY($3::text[])`,
@@ -279,7 +348,8 @@ export class ClusteringService {
         bestCount = count;
       }
     }
-    return best as string;
+    if (best === null || claimedKeys.has(best)) return uuidv4();
+    return best;
   }
 
   /**

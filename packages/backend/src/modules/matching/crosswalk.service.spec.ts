@@ -29,6 +29,28 @@ describe('CrosswalkService', () => {
   const dataSource = { query: jest.fn(), transaction: jest.fn() };
   const entityRepo = { find: jest.fn() };
 
+  /**
+   * Ruling R48 put a `DELETE` in front of the upserts, so no test may
+   * index `mock.calls[0]` and assume it is the insert. These two pick a
+   * statement by what it is, and fail loudly rather than returning
+   * `undefined` if it never ran -- a missing withdrawal is the whole
+   * defect R48 is about, so "no such call" must never read as a pass.
+   */
+  function callsMatching(fragment: string): Array<[string, unknown[]]> {
+    return dataSource.query.mock.calls.filter((c) => String(c[0]).includes(fragment)) as Array<
+      [string, unknown[]]
+    >;
+  }
+  function onlyCall(fragment: string): [string, unknown[]] {
+    const found = callsMatching(fragment);
+    if (found.length !== 1) {
+      throw new Error(`expected exactly one statement containing "${fragment}", saw ${found.length}`);
+    }
+    return found[0];
+  }
+  const insertCalls = (): Array<[string, unknown[]]> => callsMatching('INSERT INTO "match_crosswalk"');
+  const deleteCall = (): [string, unknown[]] => onlyCall('DELETE FROM "match_crosswalk"');
+
   const CONNECTION_REF = 'connection:c1:public.citizens';
   const STAGED_REF = 'staged:s1';
 
@@ -148,13 +170,128 @@ describe('CrosswalkService', () => {
     ]);
     const out = await service.publish(project, run);
     expect(out.written).toBe(0);
-    expect(dataSource.query).not.toHaveBeenCalled();
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(insertCalls()).toHaveLength(0);
+  });
+
+  describe('Ruling R48: publication replaces, it does not accumulate', () => {
+    it('withdraws every row of this source that the run did not publish', async () => {
+      entityRepo.find.mockResolvedValue([
+        {
+          entityKey: 'E1',
+          flagged: false,
+          size: 2,
+          members: [
+            { sourceRef: CONNECTION_REF, sourceKey: 'a' },
+            { sourceRef: CONNECTION_REF, sourceKey: 'b' },
+          ],
+        },
+      ]);
+      await service.publish(project, run);
+
+      const [sql, params] = deleteCall();
+      expect(sql).toContain('DELETE FROM "match_crosswalk"');
+      expect(sql).toContain('NOT EXISTS');
+      // The keep-set is exactly what this run published, so a key that
+      // used to be in the crosswalk and is absent here is deleted.
+      expect(params).toEqual(['org1', 'p1', CONNECTION_REF, ['a', 'b']]);
+    });
+
+    it('withdraws even when the run published nothing at all -- the case the old early return skipped', async () => {
+      // A steward recorded `no_match`, the over-merge guard flagged the
+      // only cluster, so this run publishes zero rows. Before R48 the
+      // method returned early here and the PREVIOUS run's rows stayed --
+      // still asserting that those records are one person, which is
+      // exactly the verdict the steward had just overturned.
+      entityRepo.find.mockResolvedValue([
+        {
+          entityKey: 'E1',
+          flagged: true,
+          size: 2,
+          members: [
+            { sourceRef: CONNECTION_REF, sourceKey: 'a' },
+            { sourceRef: CONNECTION_REF, sourceKey: 'b' },
+          ],
+        },
+      ]);
+
+      const out = await service.publish(project, run);
+      expect(out.written).toBe(0);
+
+      const [, params] = deleteCall();
+      // An EMPTY keep-set: `NOT EXISTS (SELECT ... unnest('{}'))` is true
+      // for every row, so the whole slice goes. Nothing is inserted.
+      expect(params).toEqual(['org1', 'p1', CONNECTION_REF, []]);
+      expect(insertCalls()).toHaveLength(0);
+    });
+
+    it('withdraws when this run found no clusters at all', async () => {
+      entityRepo.find.mockResolvedValue([]);
+      const out = await service.publish(project, run);
+      expect(out.written).toBe(0);
+      expect(deleteCall()[1]).toEqual(['org1', 'p1', CONNECTION_REF, []]);
+    });
+
+    it('scopes the withdrawal to this source ref, not to the project -- phase 3 adds a second source', async () => {
+      entityRepo.find.mockResolvedValue([
+        {
+          entityKey: 'E1',
+          flagged: false,
+          size: 2,
+          members: [
+            { sourceRef: CONNECTION_REF, sourceKey: 'a' },
+            // A member from a DIFFERENT source. It is still published,
+            // but it must not appear in this source's keep-set and its
+            // own slice must not be touched by this delete.
+            { sourceRef: STAGED_REF, sourceKey: 'b' },
+          ],
+        },
+      ]);
+      await service.publish(project, run);
+
+      const [sql, params] = deleteCall();
+      expect(sql).toContain('c."source_ref" = $3::text');
+      expect(params[2]).toBe(CONNECTION_REF);
+      expect(params[3]).toEqual(['a']);
+      // Only one delete ran -- the other source's rows were never in scope.
+      expect(callsMatching('DELETE FROM "match_crosswalk"')).toHaveLength(1);
+    });
+
+    it('withdraws inside the same transaction as the upserts, before them', async () => {
+      const managerQuery = jest.fn().mockResolvedValue(undefined);
+      dataSource.transaction.mockImplementation(
+        async (cb: (manager: { query: jest.Mock }) => Promise<unknown>) => cb({ query: managerQuery }),
+      );
+      await service.publish(project, run);
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      // A committed delete with uncommitted inserts is a register that
+      // lost rows, so nothing may run outside the transaction manager.
+      expect(dataSource.query).not.toHaveBeenCalled();
+      expect(String(managerQuery.mock.calls[0][0])).toContain('DELETE FROM "match_crosswalk"');
+      expect(String(managerQuery.mock.calls[1][0])).toContain('INSERT INTO "match_crosswalk"');
+    });
+
+    it('binds the keep-set as one array parameter, whatever its size', async () => {
+      // A negated set predicate cannot be chunked -- each chunk would
+      // delete what the others keep -- so the withdrawal must stay a
+      // single statement, which means the keep-set must not consume one
+      // bound parameter per key.
+      const members = Array.from({ length: 20000 }, (_, i) => ({
+        sourceRef: CONNECTION_REF,
+        sourceKey: `k${i}`,
+      }));
+      entityRepo.find.mockResolvedValue([{ entityKey: 'BIG', flagged: false, size: members.length, members }]);
+
+      await service.publish(project, run);
+      const [, params] = deleteCall();
+      expect(params).toHaveLength(4);
+      expect(params[3]).toHaveLength(20000);
+    });
   });
 
   it('upserts so a re-run updates rather than duplicating', async () => {
     await service.publish(project, run);
-    const sql = String(dataSource.query.mock.calls[0][0]);
+    const sql = insertCalls()[0][0];
     expect(sql).toContain('ON CONFLICT ("organization_id", "project_id", "source_ref", "source_key")');
     expect(sql).toContain('DO UPDATE SET');
   });
@@ -172,8 +309,7 @@ describe('CrosswalkService', () => {
       },
     ]);
     await service.publish(project, run);
-    const sql = String(dataSource.query.mock.calls[0][0]);
-    const params = dataSource.query.mock.calls[0][1] as unknown[];
+    const [sql, params] = insertCalls()[0];
     expect(sql).toContain('$6::double precision');
     // Six bound params per row (org, project, source_ref, source_key,
     // entity_key, confidence); the sixth slot in each group of six is
@@ -203,7 +339,7 @@ describe('CrosswalkService', () => {
         where: expect.objectContaining({ organizationId: 'org1', projectId: 'p1', runId: 'run1' }),
       }),
     );
-    const params = dataSource.query.mock.calls[0][1] as unknown[];
+    const params = insertCalls()[0][1];
     // entity_key values bound are exactly the cluster's own key -- nothing
     // minted fresh, nothing reordered.
     expect(params).toContain('stable-key');
@@ -227,7 +363,7 @@ describe('CrosswalkService', () => {
       },
     ]);
     await service.publish(project, run);
-    const params = dataSource.query.mock.calls[0][1] as unknown[];
+    const params = insertCalls()[0][1];
     // 6 params/row: org, project, source_ref, source_key, entity_key, confidence.
     expect(params[2]).toBe(CONNECTION_REF);
     expect(params[8]).toBe(STAGED_REF);
@@ -271,6 +407,7 @@ describe('CrosswalkService', () => {
     entityRepo.find.mockResolvedValue([{ entityKey: 'BIG', flagged: false, size: members.length, members }]);
 
     const managerQuery = jest.fn();
+    managerQuery.mockResolvedValueOnce(undefined); // the R48 withdrawal
     managerQuery.mockResolvedValueOnce(undefined); // chunk 1 succeeds
     managerQuery.mockRejectedValueOnce(new Error('boom')); // chunk 2 fails mid-loop
 
@@ -281,7 +418,8 @@ describe('CrosswalkService', () => {
     await expect(service.publish(project, run)).rejects.toThrow('boom');
 
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-    expect(managerQuery).toHaveBeenCalledTimes(2);
+    // The withdrawal plus two insert chunks, the second of which threw.
+    expect(managerQuery).toHaveBeenCalledTimes(3);
     // Nothing ever went through the non-transactional path -- every
     // statement this publish issued was on the transaction's own manager.
     expect(dataSource.query).not.toHaveBeenCalled();
@@ -300,10 +438,10 @@ describe('CrosswalkService', () => {
       const out = await service.publish(project, run);
       expect(out.written).toBe(20000);
       // 20,000 > 10,922 rows/statement, so this genuinely crosses a chunk
-      // boundary -- more than one `dataSource.query` call is issued below.
-      expect(dataSource.query.mock.calls.length).toBeGreaterThan(1);
-      for (const call of dataSource.query.mock.calls) {
-        const params = call[1] as unknown[];
+      // boundary -- more than one INSERT statement is issued below.
+      expect(insertCalls().length).toBeGreaterThan(1);
+      for (const call of insertCalls()) {
+        const params = call[1];
         expect(params.length).toBeLessThanOrEqual(65535);
         for (let i = 5; i < params.length; i += 6) {
           expect(params[i]).toBeNull();

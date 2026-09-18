@@ -171,6 +171,19 @@ export class MatchingService {
    * the project's `lawfulBasis`/`dataOwner` -- the recorded authority for
    * decisions and clusters the retention sweep otherwise keeps forever.
    * The HTTP contract is unchanged: this still returns 204.
+   *
+   * This is the one mutating method that calls `loadProject` rather than
+   * `loadActiveProject`, and the exception is deliberate, not an
+   * oversight: a second DELETE of an already-inactive project must stay
+   * retry-safe. A client whose first DELETE timed out on the network has
+   * no way to know whether it landed, and answering its retry with a 409
+   * turns a successful deletion into a visible failure. The repeat is
+   * genuinely harmless in a way no other mutation is -- it copies no
+   * data, records no new authority, starts no run, and leaves the row in
+   * exactly the state the first call put it in -- which is what makes
+   * idempotence the right answer here and a refusal the right answer
+   * everywhere else. Anything added to this method that is NOT harmless
+   * to repeat needs `loadActiveProject` back.
    */
   async deleteProject(id: string, organizationId: string): Promise<void> {
     const project = await this.loadProject(id, organizationId);
@@ -517,8 +530,10 @@ export class MatchingService {
   }
 
   /**
-   * Ruling R32: every *mutating* method calls this instead of
-   * `loadProject`. A soft-deleted (`status: 'inactive'`) project must
+   * Ruling R32: every mutating method calls this instead of `loadProject`
+   * -- with one deliberate exception, `deleteProject`, whose own comment
+   * records why (a repeat DELETE must stay retry-safe). A soft-deleted
+   * (`status: 'inactive'`) project must
    * refuse further mutation -- otherwise deletion is cosmetic: the run
    * orchestrator checks `mode`, never `status`, so without this guard a
    * "deleted" project could still materialize fresh citizen data into a
