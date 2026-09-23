@@ -10,8 +10,6 @@ import { DataSource, QueryRunner, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { MatchProject, MatchRun } from '../../database/entities';
 import type { BlockingPass, MatchRunCounters, MatchRunStatus, RunDroppedKeys } from '../../database/entities';
-import { SettingsService } from '../settings/settings.service';
-import { assertLocalProvider } from './matching-governance';
 import { MaterializeService } from './materialize.service';
 import { BlockingService, PassEstimate } from './blocking.service';
 import { ScoringService } from './scoring.service';
@@ -84,9 +82,10 @@ function emptyCounters(): MatchRunCounters {
  *     written on the success path *and* the failure path, so a run never
  *     sits in a non-terminal status after the process has given up on it.
  *
- * Phase 1 is dedupe-only and makes zero model calls: `assertLocalProvider`
- * refuses the run outright if the organization's AI provider is hosted,
- * before any personal data is copied anywhere.
+ * Phase 1 is dedupe-only and makes ZERO model calls, so nothing here
+ * asserts the organization's AI provider. That check belongs at the call
+ * site a model call is actually made from -- see `assertLocalProvider` and
+ * `start()` below for why asserting it here was wrong.
  */
 @Injectable()
 export class MatchRunService {
@@ -96,7 +95,6 @@ export class MatchRunService {
     private readonly dataSource: DataSource,
     @InjectRepository(MatchRun) private readonly runRepo: Repository<MatchRun>,
     @InjectRepository(MatchProject) private readonly projectRepo: Repository<MatchProject>,
-    private readonly settings: SettingsService,
     private readonly materialize: MaterializeService,
     private readonly blocking: BlockingService,
     private readonly scoring: ScoringService,
@@ -117,11 +115,18 @@ export class MatchRunService {
    * `pending` with nothing in the log.
    */
   async start(projectId: string, organizationId: string): Promise<MatchRun> {
-    const settings = await this.settings.getOrganizationSettings(organizationId);
-    // Before anything is created, and long before any personal data is
-    // copied into a workspace table.
-    assertLocalProvider(settings);
-
+    // No provider assertion here, deliberately. Phase 1 makes ZERO model
+    // calls, so gating a run on the AI provider setting demanded a local
+    // model for a feature that never uses one -- and since the check is
+    // satisfied by a dropdown rather than by a model actually existing, it
+    // protected nothing while refusing every organization by default
+    // (`organization_settings.ai_provider` defaults to `openai`).
+    //
+    // `assertLocalProvider` has moved to where it is true: the call site.
+    // Phase 2's adjudication asserts immediately before it hands a record
+    // pair to a model. A guard that sits next to the thing it guards cannot
+    // be forgotten, and cannot demand a setting on behalf of code that does
+    // not exist yet.
     const project = await this.loadProject(projectId, organizationId);
     if (project.mode !== 'dedupe') {
       throw new BadRequestException(
@@ -258,12 +263,6 @@ export class MatchRunService {
     run.counters = { ...emptyCounters(), ...(run.counters ?? {}) };
 
     try {
-      // Re-checked here, not only in `start`: `execute` is public, the
-      // integration test calls it directly, and a governance gate that
-      // only one of two entry points enforces is a gate that can be walked
-      // around by construction. It costs one indexed read per run.
-      assertLocalProvider(await this.settings.getOrganizationSettings(organizationId));
-
       // Inside the try: a project deleted between `start` and here must
       // leave the run `failed`, not `pending` forever.
       const project = await this.loadProject(run.projectId, organizationId);

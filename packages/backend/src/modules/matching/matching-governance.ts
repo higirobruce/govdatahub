@@ -9,6 +9,25 @@ import { IDENT } from './blocking-sql';
  * database enum or CHECK constraint. A block-list would fail open on typos,
  * future additions to the enum, or hand-edited rows — violating the core
  * requirement that personal data must never leave the server.
+ *
+ * **Nothing calls this today, and that is deliberate.** Phase 1 makes zero
+ * model calls, so there is nothing for it to guard. It was originally
+ * asserted at run start, which demanded a local AI provider for a feature
+ * that never used one -- and because the check is satisfied by changing a
+ * dropdown rather than by a local model existing, it protected nothing while
+ * refusing every organization by default (`ai_provider` defaults to
+ * `openai`).
+ *
+ * **Phase 2 must call it immediately before each model call** -- the
+ * adjudication request, the normalization request, the embedding request --
+ * not at the start of whatever operation contains them. Asserted next to the
+ * call, it is true wherever it appears and cannot be bypassed by a second
+ * entry point. Asserted anywhere earlier, it is a proxy for "a model may be
+ * called later", and proxies drift.
+ *
+ * Keep this function and its tests even while uncalled: the allow-list shape
+ * is the load-bearing part, and re-deriving it later risks reintroducing the
+ * block-list that failed open.
  */
 export function assertLocalProvider(settings: { aiProvider: AiProvider }): void {
   if (
