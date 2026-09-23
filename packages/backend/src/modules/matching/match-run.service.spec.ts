@@ -158,15 +158,22 @@ describe('MatchRunService', () => {
 
   // ---------------------------------------------------------------- start
 
-  it('refuses to start when the organization uses a hosted AI provider', async () => {
+  // Phase 1 makes zero model calls, so a hosted AI provider is irrelevant to
+  // it. These two pin that: the run starts regardless. Asserting the provider
+  // here demanded a local model for a feature that never calls one, and
+  // refused every organization by default -- `ai_provider` defaults to
+  // `openai`, which is what all three real organizations carry. The guard
+  // now belongs at phase 2's model call sites; see `assertLocalProvider`.
+  it('starts even when the organization uses a hosted AI provider, because phase 1 calls no model', async () => {
     settings.getOrganizationSettings.mockResolvedValue({ aiProvider: AiProvider.OPENAI });
-    await expect(service.start('p1', 'org1')).rejects.toThrow(BadRequestException);
+    await expect(service.start('p1', 'org1')).resolves.toBeDefined();
+    expect(runRepo.save).toHaveBeenCalled();
   });
 
-  it('creates no run at all when the provider check fails', async () => {
+  it('does not read the AI provider setting at all when starting a run', async () => {
     settings.getOrganizationSettings.mockResolvedValue({ aiProvider: AiProvider.ANTHROPIC });
-    await expect(service.start('p1', 'org1')).rejects.toThrow(BadRequestException);
-    expect(runRepo.save).not.toHaveBeenCalled();
+    await service.start('p1', 'org1');
+    expect(settings.getOrganizationSettings).not.toHaveBeenCalled();
   });
 
   it('refuses to start a project belonging to another organization', async () => {
@@ -537,11 +544,11 @@ describe('MatchRunService', () => {
     expect(runRepo.save).not.toHaveBeenCalled();
   });
 
-  it('re-checks the local-provider gate on execute, not only on start', async () => {
+  it('executes a run under a hosted AI provider, because phase 1 calls no model', async () => {
     settings.getOrganizationSettings.mockResolvedValue({ aiProvider: AiProvider.OPENAI });
-    await expect(service.execute('r1', 'org1')).rejects.toThrow(BadRequestException);
-    expect(materialize.materialize).not.toHaveBeenCalled();
-    expect(lastSaved().status).toBe('failed');
+    await service.execute('r1', 'org1');
+    expect(materialize.materialize).toHaveBeenCalled();
+    expect(settings.getOrganizationSettings).not.toHaveBeenCalled();
   });
 
   it('completes the run even when releasing the connection throws', async () => {

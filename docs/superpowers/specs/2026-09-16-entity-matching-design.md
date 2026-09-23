@@ -796,6 +796,23 @@ the two differ, `CONTEXT.md` wins.
 | **Decision** | A person's permanent verdict on one pair |
 | **Gold set** | Hand-labelled pairs used to measure precision and recall |
 
+**The local-provider guard asserts at the model call site, not before it.**
+Personal data must never reach a hosted model, and the check is an allow-list
+so an unrecognised provider fails closed. But phase 1 asserted it at the start
+of every run, and phase 1 makes no model calls — so it demanded a local model
+for a feature that never used one, and refused every organization by default,
+since `organization_settings.ai_provider` defaults to `openai`. It also
+protected nothing: the check is satisfied by changing a dropdown, not by a
+local model existing.
+
+The guard therefore belongs immediately before each model call — adjudication,
+normalization, embedding — where the condition it asserts is actually true and
+where a second entry point cannot route around it. Asserted any earlier it is
+a proxy for "a model may be called later", and a proxy drifts from the thing
+it stands for. Phase 1 consequently calls it nowhere; the function and its
+tests stay, because the allow-list shape is the load-bearing part and
+re-deriving it later risks reintroducing a block-list that fails open.
+
 ---
 
 ## Appendix: carried out of phase 1
