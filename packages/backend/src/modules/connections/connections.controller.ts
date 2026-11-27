@@ -12,18 +12,18 @@ import {
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { ConnectionsService } from './connections.service';
 import { CreateConnectionDto } from './dto/create-connection.dto';
 import { ConnectionResponseDto } from './dto/connection-response.dto';
 import { TestConnectionResponseDto } from './dto/test-connection.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User } from '../../database/entities';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole } from '../../database/entities';
 
 @ApiTags('connections')
 @Controller('connections')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ConnectionsController {
   private readonly logger = new Logger(ConnectionsController.name);
@@ -47,6 +47,7 @@ export class ConnectionsController {
   }
 
   @Post()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
   @ApiOperation({
     summary: 'Create a new database connection',
     description: 'Add a new database connection with encrypted credentials',
@@ -119,6 +120,7 @@ export class ConnectionsController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete a connection',

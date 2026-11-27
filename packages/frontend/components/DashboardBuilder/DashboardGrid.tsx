@@ -5,7 +5,6 @@ import GridLayout, { Layout } from 'react-grid-layout';
 import { ChartWidget, DashboardLayout } from './types';
 import { WidgetCard } from './WidgetCard';
 import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
 
 interface DashboardGridProps {
   widgets: ChartWidget[];

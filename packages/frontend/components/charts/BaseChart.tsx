@@ -9,15 +9,33 @@ interface BaseChartProps {
   height?: string;
   className?: string;
   onChartReady?: (chart: echarts.ECharts) => void;
+  /**
+   * Fires when the user clicks a data point (bar, slice, marker).
+   * The argument is the category/name string (params.name from ECharts).
+   * Use for cross-filter behavior — see SavedQueryWidget.
+   */
+  onValueClick?: (name: string) => void;
 }
 
 /**
  * Base chart component using Apache ECharts
  * Provides a foundation for all chart types
  */
-export function BaseChart({ option, height = '400px', className = '', onChartReady }: BaseChartProps) {
+export function BaseChart({
+  option,
+  height = '400px',
+  className = '',
+  onChartReady,
+  onValueClick,
+}: BaseChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
+  // Keep the latest handler in a ref so the chart effect doesn't re-init
+  // on every parent re-render that produces a new function identity.
+  const clickHandlerRef = useRef<typeof onValueClick>(onValueClick);
+  useEffect(() => {
+    clickHandlerRef.current = onValueClick;
+  }, [onValueClick]);
 
   useEffect(() => {
     if (!chartRef.current) return;
@@ -28,6 +46,16 @@ export function BaseChart({ option, height = '400px', className = '', onChartRea
 
     // Set option
     chart.setOption(option);
+
+    // Forward click events. ECharts gives us { name, value, dataIndex, ... }.
+    // We use `name` since it matches the x-axis category (bar/line/area) or
+    // the slice label (pie). Pointer is set via the cursor style below.
+    chart.on('click', (params: { name?: string }) => {
+      const fn = clickHandlerRef.current;
+      if (fn && typeof params.name === 'string') {
+        fn(params.name);
+      }
+    });
 
     // Notify parent component
     if (onChartReady) {
@@ -54,5 +82,11 @@ export function BaseChart({ option, height = '400px', className = '', onChartRea
     }
   }, [option]);
 
-  return <div ref={chartRef} style={{ height }} className={className} />;
+  return (
+    <div
+      ref={chartRef}
+      style={{ height, cursor: onValueClick ? 'pointer' : undefined }}
+      className={className}
+    />
+  );
 }

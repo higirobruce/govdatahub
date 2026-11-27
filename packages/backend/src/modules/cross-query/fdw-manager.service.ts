@@ -13,6 +13,26 @@ import { ConnectionsService } from '../connections/connections.service';
 import { QueryDefinitionDto } from './dto/query-definition.dto';
 import { v4 as uuidv4 } from 'uuid';
 
+const SAFE_SQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * Validates a plain SQL identifier (schema or table name component).
+ * Foreign/materialized table names are always generated internally as
+ * `ft_<alias>_<timestamp>`, but the alias segment can originate from
+ * user-supplied query definitions, so it is validated before being used
+ * in a DROP/CREATE statement (SEC-05).
+ */
+export function assertSafeSqlIdentifier(identifier: string): string {
+  if (
+    !identifier ||
+    identifier.length > 128 ||
+    !SAFE_SQL_IDENTIFIER.test(identifier)
+  ) {
+    throw new BadRequestException(`Invalid identifier: ${identifier}`);
+  }
+  return identifier;
+}
+
 @Injectable()
 export class FdwManagerService {
   private readonly logger = new Logger(FdwManagerService.name);
@@ -345,14 +365,29 @@ export class FdwManagerService {
       await queryRunner.connect();
 
       for (const tableName of foreignTableMap.values()) {
+        let quotedName: string;
+        try {
+          // tableName is schema-qualified (e.g. `fdw_org_x.ft_<alias>_<ts>`);
+          // validate and quote each component separately (SEC-05).
+          quotedName = this.quoteQualifiedIdent(tableName);
+        } catch (error) {
+          this.logger.warn(
+            `Skipping drop for invalid table identifier ${tableName}`,
+            error,
+          );
+          continue;
+        }
+
         try {
           // Try as a foreign table first (FDW path)
-          await queryRunner.query(`DROP FOREIGN TABLE IF EXISTS ${tableName}`);
+          await queryRunner.query(
+            `DROP FOREIGN TABLE IF EXISTS ${quotedName}`,
+          );
           this.logger.log(`Dropped foreign table: ${tableName}`);
         } catch {
           // Fall back to regular table drop (materialization path)
           try {
-            await queryRunner.query(`DROP TABLE IF EXISTS ${tableName}`);
+            await queryRunner.query(`DROP TABLE IF EXISTS ${quotedName}`);
             this.logger.log(`Dropped materialized table: ${tableName}`);
           } catch (error) {
             this.logger.warn(`Failed to drop table ${tableName}`, error);
@@ -584,6 +619,18 @@ export class FdwManagerService {
    */
   private quoteIdent(identifier: string): string {
     return `"${identifier.replace(/"/g, '""')}"`;
+  }
+
+  /**
+   * Validates and double-quotes a possibly schema-qualified identifier
+   * (e.g. "schema.table"), validating and quoting each component
+   * separately (SEC-05).
+   */
+  private quoteQualifiedIdent(qualifiedName: string): string {
+    return qualifiedName
+      .split('.')
+      .map((part) => this.quoteIdent(assertSafeSqlIdentifier(part)))
+      .join('.');
   }
 
   /**

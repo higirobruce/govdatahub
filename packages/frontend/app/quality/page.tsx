@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
+import { Connection } from '@/types';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -80,7 +81,9 @@ export default function QualityPage() {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [connectionFilter, setConnectionFilter] = useState('');
 
-  const { data: connections } = useSWR('/connections', () => api.connections.list());
+  const { data: connections } = useSWR<Connection[]>('/connections', () =>
+    api.connections.list()
+  );
   const { data: checks, mutate: mutateChecks } = useSWR(
     `/data-quality/checks?connectionId=${connectionFilter}`,
     () => api.dataQuality.listChecks(connectionFilter ? { connectionId: connectionFilter } : undefined),

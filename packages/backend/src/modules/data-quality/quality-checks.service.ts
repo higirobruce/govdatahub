@@ -2,25 +2,35 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsObject,
+  IsIn,
+  MaxLength,
+} from 'class-validator';
 import { QualityCheck, QualityCheckRun } from '../../database/entities';
 import { ConnectionsService } from '../connections/connections.service';
 
 export class CreateQualityCheckDto {
-  connectionId: string;
-  schemaName: string;
-  tableName: string;
-  columnName?: string;
-  name: string;
-  description?: string;
+  @IsString() @IsNotEmpty() connectionId: string;
+  @IsString() @IsNotEmpty() @MaxLength(256) schemaName: string;
+  @IsString() @IsNotEmpty() @MaxLength(256) tableName: string;
+  @IsOptional() @IsString() @MaxLength(256) columnName?: string;
+  @IsString() @IsNotEmpty() @MaxLength(256) name: string;
+  @IsOptional() @IsString() @MaxLength(2000) description?: string;
+  @IsString()
+  @IsIn(['not_null', 'unique', 'min_rows', 'max_rows', 'freshness', 'custom_sql'])
   checkType: string;
-  config: Record<string, any>;
+  @IsObject() config: Record<string, any>;
 }
 
 export class UpdateQualityCheckDto {
-  name?: string;
-  description?: string;
-  config?: Record<string, any>;
-  status?: 'active' | 'inactive';
+  @IsOptional() @IsString() @MaxLength(256) name?: string;
+  @IsOptional() @IsString() @MaxLength(2000) description?: string;
+  @IsOptional() @IsObject() config?: Record<string, any>;
+  @IsOptional() @IsIn(['active', 'inactive']) status?: 'active' | 'inactive';
 }
 
 function quoteId(dbType: string, name: string): string {

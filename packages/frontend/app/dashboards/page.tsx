@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import useSWR from 'swr';
+import Link from 'next/link';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { DashboardGrid } from '@/components/DashboardBuilder/DashboardGrid';
@@ -10,6 +12,8 @@ import { ShareDashboardModal } from '@/components/DashboardBuilder/ShareDashboar
 import { Plus, Save, FolderOpen, Eye, Settings, Bell, Share2, LayoutDashboard } from 'lucide-react';
 import { ChartWidget, DashboardLayout, Dashboard } from '@/components/DashboardBuilder/types';
 import { useToast } from '@/components/ui/toast';
+import { api, type Dashboard as SavedDashboard } from '@/lib/api';
+import { CardSkeleton } from '@/components/ui/skeleton';
 
 export default function DashboardsPage() {
   const { showToast } = useToast();
@@ -23,6 +27,11 @@ export default function DashboardsPage() {
   const [showDashboardList, setShowDashboardList] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [dashboardToShare, setDashboardToShare] = useState<Dashboard | null>(null);
+
+  const { data: savedDashboards, isLoading: savedLoading } = useSWR<SavedDashboard[]>(
+    'saved-dashboards',
+    () => api.dashboards.list(),
+  );
 
   // Load pending charts from query results
   useEffect(() => {
@@ -166,6 +175,45 @@ export default function DashboardsPage() {
         subtitle="Create interactive dashboards with drag-and-drop charts"
         icon={LayoutDashboard}
       />
+
+      {/* Saved dashboards (server-side, filterable) */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-[#1a1a1a]">Saved Dashboards</h2>
+          <span className="text-xs text-[#aaaaaa]">
+            {savedDashboards?.length ?? 0} on server
+          </span>
+        </div>
+        {savedLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
+        ) : !savedDashboards || savedDashboards.length === 0 ? (
+          <p className="text-sm text-[#aaaaaa]">
+            No saved dashboards yet. Dashboards saved to the server appear here with live data and filters.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {savedDashboards.map((d) => (
+              <Link
+                key={d.id}
+                href={`/dashboards/${d.id}`}
+                className="block bg-white rounded-xl border border-[#e8e8e8] shadow-card p-4 hover:border-[#60a5fa] transition-colors"
+              >
+                <h3 className="text-[15px] font-semibold text-[#1a1a1a] mb-1">{d.name}</h3>
+                {d.description && (
+                  <p className="text-xs text-[#aaaaaa] line-clamp-2 mb-2">{d.description}</p>
+                )}
+                <p className="text-xs text-[#aaaaaa]">
+                  {d.widgets?.length ?? 0} widgets · {d.filters?.length ?? 0} filters
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Toolbar */}
       <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card p-4 mb-6">

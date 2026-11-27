@@ -180,6 +180,7 @@ export class PipelinesExecutorService implements OnModuleInit {
         const result = await this.transformationsExecutorService.execute(
           transformationId,
           'scheduled',
+          organizationId,
         );
         return { rowsProcessed: result.rowsProcessed ?? undefined };
       }
@@ -188,7 +189,7 @@ export class PipelinesExecutorService implements OnModuleInit {
         const { savedCrossQueryId } = step.config as { savedCrossQueryId: string };
         if (!savedCrossQueryId) throw new Error('Missing savedCrossQueryId in step config');
         const savedQuery = await this.savedCrossQueryRepository.findOne({
-          where: { id: savedCrossQueryId },
+          where: { id: savedCrossQueryId, organizationId },
         });
         if (!savedQuery) throw new Error(`SavedCrossQuery ${savedCrossQueryId} not found`);
         const result = await this.crossQueryExecutorService.executeCrossQuery(

@@ -1,3 +1,13 @@
+import type {
+  Connection,
+  SchemaInfo,
+  TableInfo,
+  ColumnInfo,
+  QueryResult,
+  SavedCrossQuery,
+} from '@/types';
+import type { User, AuthResponse } from '@/types/auth';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 class ApiError extends Error {
@@ -81,7 +91,7 @@ async function request<T>(
 export const api = {
   // Auth
   auth: {
-    login: (credentials: { email: string; password: string }) =>
+    login: (credentials: { email: string; password: string }): Promise<AuthResponse> =>
       request('/auth/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
@@ -91,17 +101,17 @@ export const api = {
       password: string;
       firstName: string;
       lastName: string;
-    }) =>
+    }): Promise<AuthResponse> =>
       request('/auth/register', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    me: () => request('/auth/me'),
+    me: (): Promise<User> => request('/auth/me'),
   },
 
   // Connections
   connections: {
-    list: () => request('/connections'),
+    list: (): Promise<Connection[]> => request('/connections'),
     get: (id: string) => request(`/connections/${id}`),
     create: (data: any) =>
       request('/connections', {
@@ -120,20 +130,20 @@ export const api = {
 
   // Schema
   schema: {
-    getSchemas: (connectionId: string) =>
+    getSchemas: (connectionId: string): Promise<SchemaInfo[]> =>
       request(`/connections/${connectionId}/schema/schemas`),
-    getTables: (connectionId: string, schema?: string) => {
+    getTables: (connectionId: string, schema?: string): Promise<TableInfo[]> => {
       const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
       return request(`/connections/${connectionId}/schema/tables${params}`);
     },
-    getColumns: (connectionId: string, table: string, schema?: string) => {
+    getColumns: (connectionId: string, table: string, schema?: string): Promise<ColumnInfo[]> => {
       const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
       return request(
         `/connections/${connectionId}/schema/tables/${encodeURIComponent(table)}/columns${params}`
       );
     },
     // Staging schema endpoints
-    getStagingTables: (): Promise<any> =>
+    getStagingTables: (): Promise<StagingTable[]> =>
       request('/schema/staging/tables'),
     getStagingColumns: (table: string): Promise<any> =>
       request(`/schema/staging/tables/${encodeURIComponent(table)}/columns`),
@@ -141,12 +151,12 @@ export const api = {
 
   // Queries
   queries: {
-    execute: (data: any) =>
+    execute: (data: any): Promise<QueryResult> =>
       request('/query', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    executeStaging: (sqlQuery: string): Promise<any> =>
+    executeStaging: (sqlQuery: string): Promise<QueryResult> =>
       request('/query/staging', {
         method: 'POST',
         body: JSON.stringify({ sqlQuery }),
@@ -164,7 +174,7 @@ export const api = {
 
   // Transformations
   transformations: {
-    list: (status?: string) => {
+    list: (status?: string): Promise<Transformation[]> => {
       const params = status ? `?status=${encodeURIComponent(status)}` : '';
       return request(`/transformations${params}`);
     },
@@ -218,18 +228,13 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    getTablesMetadata: (connectionIds: string[]) =>
-      request('/cross-query/metadata/tables', {
-        method: 'POST',
-        body: JSON.stringify({ connectionIds }),
-      }),
     // Saved queries
     saveQuery: (data: any) =>
       request('/cross-query/saved', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    listSaved: () => request('/cross-query/saved'),
+    listSaved: (): Promise<SavedCrossQuery[]> => request('/cross-query/saved'),
     getSaved: (id: string) => request(`/cross-query/saved/${id}`),
     deleteSaved: (id: string) =>
       request(`/cross-query/saved/${id}`, {
@@ -464,7 +469,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    explainSql: (data: { sql: string; connectionIds?: string[] }): Promise<any> =>
+    explainSql: (data: { sql: string; connectionIds?: string[] }): Promise<ExplainSqlResponse> =>
       request('/nl2sql/explain', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -627,6 +632,187 @@ export const api = {
     getCheckRuns: (id: string): Promise<any[]> =>
       request(`/data-quality/checks/${id}/runs`),
   },
+
+  savedQueries: {
+    list: (): Promise<SavedQuery[]> => request('/saved-queries'),
+    get: (id: string): Promise<SavedQuery> => request(`/saved-queries/${id}`),
+    create: (body: SavedQueryCreatePayload): Promise<SavedQuery> =>
+      request('/saved-queries', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Partial<SavedQueryCreatePayload>): Promise<SavedQuery> =>
+      request(`/saved-queries/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string): Promise<void> =>
+      request(`/saved-queries/${id}`, { method: 'DELETE' }),
+    execute: (
+      id: string,
+      parameters: Record<string, unknown> = {},
+    ): Promise<SavedQueryExecuteResult> =>
+      request(`/saved-queries/${id}/execute`, {
+        method: 'POST',
+        body: JSON.stringify({ parameters }),
+      }),
+  },
+
+  dashboards: {
+    list: (): Promise<Dashboard[]> => request('/dashboards'),
+    get: (id: string): Promise<Dashboard> => request(`/dashboards/${id}`),
+    create: (body: DashboardCreatePayload): Promise<Dashboard> =>
+      request('/dashboards', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Partial<DashboardCreatePayload>): Promise<Dashboard> =>
+      request(`/dashboards/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string): Promise<void> =>
+      request(`/dashboards/${id}`, { method: 'DELETE' }),
+  },
 };
+
+// ============================================================================
+// Types for endpoints with no shared type in '@/types' yet
+// ============================================================================
+
+export interface Transformation {
+  id: string;
+  name: string;
+  description: string;
+  sourceConnectionId: string;
+  sqlQuery: string;
+  outputConfig: {
+    mode: 'cache';
+    maxRows?: number;
+  };
+  status: 'active' | 'paused';
+  createdAt: string;
+  lastRunAt: string | null;
+}
+
+export interface StagingTable {
+  name: string;
+  schema: string;
+  rowCount: number | null;
+  sizeBytes: number;
+}
+
+// ============================================================================
+// Types for the new namespaces (M1-01 / M1-02 backends)
+// ============================================================================
+
+export type SavedQueryParamType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'date'
+  | 'date_range'
+  | 'select'
+  | 'multi_select';
+
+export interface SavedQueryParamDef {
+  name: string;
+  type: SavedQueryParamType;
+  required: boolean;
+  default?: unknown;
+}
+
+export interface SavedQuery {
+  id: string;
+  organizationId: string;
+  createdBy: string;
+  connectionId: string;
+  name: string;
+  description: string | null;
+  sql: string;
+  parameters: SavedQueryParamDef[];
+  cacheTtlSeconds: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedQueryCreatePayload {
+  name: string;
+  description?: string;
+  connectionId: string;
+  sql: string;
+  parameters?: SavedQueryParamDef[];
+  cacheTtlSeconds?: number;
+}
+
+export interface SavedQueryExecuteResult {
+  id: string;
+  rows: Record<string, unknown>[];
+  rowCount: number;
+  fields: { name: string; type?: string }[];
+  executionTimeMs: number;
+  status: 'success' | 'error';
+}
+
+export type DashboardFilterType =
+  | 'date_range'
+  | 'date'
+  | 'select'
+  | 'multi_select'
+  | 'text'
+  | 'number';
+
+export interface DashboardFilterDef {
+  name: string;
+  type: DashboardFilterType;
+  label?: string;
+  default?: unknown;
+  options?: string[];
+}
+
+export interface DashboardWidget {
+  id: string;
+  type: string;
+  title?: string;
+  savedQueryId?: string;
+  parameterBindings?: Record<string, string>;
+  config?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface DashboardLayoutItem {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface Dashboard {
+  id: string;
+  organizationId: string;
+  createdBy: string;
+  name: string;
+  description: string | null;
+  widgets: DashboardWidget[];
+  layout: DashboardLayoutItem[];
+  filters: DashboardFilterDef[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DashboardCreatePayload {
+  name: string;
+  description?: string;
+  widgets?: DashboardWidget[];
+  layout?: DashboardLayoutItem[];
+  filters?: DashboardFilterDef[];
+}
+
+export interface ExplainSqlResponse {
+  explanation: string;
+  tables: string[];
+  operations: string[];
+}
 
 export { ApiError };

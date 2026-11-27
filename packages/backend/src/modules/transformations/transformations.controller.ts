@@ -19,20 +19,22 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { TransformationsService } from './transformations.service';
 import { TransformationsExecutorService } from './transformations-executor.service';
 import { CreateTransformationDto } from './dto/create-transformation.dto';
 import { UpdateTransformationDto } from './dto/update-transformation.dto';
 import { TransformationResponseDto } from './dto/transformation-response.dto';
 import { TransformationRunResponseDto } from './dto/transformation-run-response.dto';
+import { ValidateSqlDto } from './dto/validate-sql.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User } from '../../database/entities';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { User, UserRole } from '../../database/entities';
 
 @ApiTags('transformations')
 @Controller('transformations')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class TransformationsController {
   constructor(
@@ -41,6 +43,7 @@ export class TransformationsController {
   ) {}
 
   @Post()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @Throttle({ default: { ttl: 60000, limit: 20 } })
   @ApiOperation({
     summary: 'Create transformation',
@@ -121,6 +124,7 @@ export class TransformationsController {
   }
 
   @Patch(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiParam({
     name: 'id',
     description: 'Transformation ID',
@@ -151,6 +155,7 @@ export class TransformationsController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiParam({
     name: 'id',
@@ -177,6 +182,7 @@ export class TransformationsController {
   }
 
   @Post(':id/execute')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiParam({
     name: 'id',
@@ -200,11 +206,15 @@ export class TransformationsController {
     status: 429,
     description: 'Rate limit exceeded',
   })
-  executeNow(@Param('id') id: string): Promise<TransformationRunResponseDto> {
-    return this.executorService.execute(id, 'manual');
+  executeNow(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ): Promise<TransformationRunResponseDto> {
+    return this.executorService.execute(id, 'manual', user.organizationId);
   }
 
   @Post(':id/pause')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiParam({
     name: 'id',
     description: 'Transformation ID',
@@ -231,6 +241,7 @@ export class TransformationsController {
   }
 
   @Post(':id/resume')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiParam({
     name: 'id',
     description: 'Transformation ID',
@@ -351,6 +362,7 @@ export class TransformationsController {
   }
 
   @Post('validate')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.EDITOR)
   @ApiOperation({
     summary: 'Validate SQL',
     description: 'Validate SQL query before creating transformation',
@@ -360,7 +372,7 @@ export class TransformationsController {
     description: 'Validation result',
   })
   validateSql(
-    @Body() dto: { sqlQuery: string },
+    @Body() dto: ValidateSqlDto,
   ): Promise<{ valid: boolean; error?: string }> {
     return this.transformationsService.validateSql(dto.sqlQuery);
   }
