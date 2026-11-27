@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Improvement Review — DataGate Docs</title>
+<style>
+  /* =========================================================
+     TOKENS — Paper & Ink, azure accent.
+     ========================================================= */
+  :root {
+    --paper:        #EEF2F7;
+    --paper-2:      #E3EAF3;
+    --paper-3:      #D2DCE8;
+    --ink:          #16181D;
+    --ink-2:        #353A43;
+    --ink-3:        #626973;
+    --ink-4:        #939AA5;
+
+    --azure:        #2E5FA8;
+    --azure-soft:   #C5D5EC;
+    --azure-deep:   #14355F;
+
+    --line:         #D3DCE7;
+    --line-strong:  #B5C2D2;
+    --highlight:    #DCE7F5;
+
+    --font-display: "Tiempos", "Iowan Old Style", "Georgia", serif;
+    --font-sans:    "Söhne", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    --font-mono:    "JetBrains Mono", "SF Mono", "Menlo", monospace;
+
+    --t-12: 0.75rem;
+    --t-14: 0.875rem;
+    --t-16: 1rem;
+    --t-18: 1.125rem;
+    --t-22: 1.375rem;
+    --t-28: 1.75rem;
+    --t-36: 2.25rem;
+    --t-48: 3rem;
+    --t-64: 4rem;
+
+    --s-1: 4px;
+    --s-2: 8px;
+    --s-3: 12px;
+    --s-4: 16px;
+    --s-5: 24px;
+    --s-6: 32px;
+    --s-7: 48px;
+    --s-8: 64px;
+    --s-9: 96px;
+
+    --r-1: 2px;
+    --r-2: 4px;
+    --r-3: 8px;
+
+    --ease:     cubic-bezier(0.2, 0, 0, 1);
+    --dur:      160ms;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--t-16);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .display-1 { font-family: var(--font-display); font-size: var(--t-64); line-height: 1.05; letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  .display-2 { font-family: var(--font-display); font-size: var(--t-48); line-height: 1.1;  letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  h1, .h1   { font-family: var(--font-display); font-size: var(--t-36); line-height: 1.15; letter-spacing: -0.015em; font-weight: 400; margin: 0 0 var(--s-5); }
+  h2, .h2   { font-family: var(--font-sans);    font-size: var(--t-28); line-height: 1.25; letter-spacing: -0.01em;  font-weight: 500; margin: var(--s-8) 0 var(--s-4); }
+  h3, .h3   { font-family: var(--font-sans);    font-size: var(--t-22); line-height: 1.3;  font-weight: 500;         margin: var(--s-7) 0 var(--s-3); }
+  h4, .h4   { font-family: var(--font-sans);    font-size: var(--t-18); line-height: 1.4;  font-weight: 600;         margin: var(--s-6) 0 var(--s-2); }
+  p          { margin: 0 0 var(--s-4); max-width: 68ch; }
+  .lead      { font-size: var(--t-18); color: var(--ink-2); max-width: 64ch; }
+  .eyebrow   { font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 var(--s-3); }
+  small, .caption { font-size: var(--t-14); color: var(--ink-3); }
+
+  a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color var(--dur) var(--ease);
+  }
+  a:hover { text-decoration-color: var(--azure); }
+
+  ::selection { background: var(--azure-soft); color: var(--ink); }
+
+  .page { max-width: 1040px; margin: 0 auto; padding: var(--s-9) var(--s-6); }
+  .section { padding: var(--s-8) 0; border-top: 1px solid var(--line); }
+  .section:first-of-type { border-top: 0; padding-top: var(--s-5); }
+  .grid { display: grid; gap: var(--s-4); }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  @media (max-width: 720px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: minmax(0,1fr); }
+    .page { padding: var(--s-7) var(--s-5); }
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-family: var(--font-sans);
+    font-size: var(--t-14);
+    font-weight: 500;
+    line-height: 1;
+    padding: 10px 16px;
+    border-radius: var(--r-2);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+    text-decoration: none;
+  }
+  .btn-primary   { background: var(--ink);   color: var(--paper); }
+  .btn-primary:hover   { background: var(--ink-2); }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn-secondary:hover { border-color: var(--ink); }
+  .btn-accent    { background: var(--azure);  color: #fff; }
+  .btn-accent:hover    { background: var(--azure-deep); }
+  .btn-ghost     { background: transparent; color: var(--ink-2); }
+  .btn-ghost:hover     { color: var(--ink); background: var(--paper-2); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--paper-2);
+    padding: 2px 6px;
+    border-radius: var(--r-1);
+    border: 1px solid var(--line);
+  }
+  pre {
+    font-family: var(--font-mono);
+    font-size: var(--t-14);
+    line-height: 1.6;
+    background: #1A1A1A;
+    color: #E8E2D4;
+    padding: var(--s-5);
+    border-radius: var(--r-3);
+    overflow-x: auto;
+    margin: var(--s-4) 0;
+  }
+  pre code { background: transparent; border: 0; padding: 0; color: inherit; }
+  .tok-kw  { color: #7AA7E0; }
+  .tok-str { color: #C7B97A; }
+  .tok-com { color: #6B6862; font-style: italic; }
+  .tok-fn  { color: #BBD2EE; }
+
+  .callout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--s-3);
+    padding: var(--s-4) var(--s-5);
+    border-radius: var(--r-3);
+    background: var(--paper-2);
+    border-left: 2px solid var(--ink-3);
+    margin: var(--s-4) 0;
+  }
+  .callout .mark {
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-top: 2px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-note  { border-left-color: var(--ink-3); }
+  .callout-tip   { border-left-color: var(--azure);     background: var(--highlight); }
+  .callout-warn  { border-left-color: #B47B2E; background: #F4E8D0; }
+  .callout-crit  { border-left-color: #A03434; background: #F0DBD8; }
+  .callout-tip .mark  { color: var(--azure-deep); }
+  .callout-warn .mark { color: #8C5A18; }
+  .callout-crit .mark { color: #7C2626; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--t-14);
+    margin: var(--s-4) 0;
+  }
+  th, td {
+    text-align: left;
+    padding: var(--s-3) var(--s-4);
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 500;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  tr:hover td { background: var(--paper-2); }
+  .table-scroll { overflow-x: auto; margin: var(--s-4) 0; }
+  .table-scroll table { margin: 0; min-width: 760px; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: var(--r-1);
+    background: var(--paper-2);
+    color: var(--ink-2);
+    border: 1px solid var(--line);
+  }
+  .tag-accent { background: var(--azure-soft); border-color: var(--azure-soft); color: var(--azure-deep); }
+  .tag-ink    { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .tag-warn   { background: #F4E8D0; border-color: #E3CFA6; color: #8C5A18; }
+
+  .card {
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    background: #fff;
+    padding: var(--s-4) var(--s-5);
+  }
+  .card .card-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: var(--s-2);
+  }
+  .card .card-title { font-weight: 500; margin: 0 0 var(--s-2); }
+  .card p { margin: 0; color: var(--ink-2); font-size: var(--t-14); }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: var(--s-5) 0; }
+  .steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: var(--s-4) 0 var(--s-4) var(--s-7);
+    border-top: 1px solid var(--line);
+  }
+  .steps > li:last-child { border-bottom: 1px solid var(--line); }
+  .steps > li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: var(--s-4);
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+  }
+  .steps .step-title { font-weight: 500; margin: 0 0 var(--s-2); }
+  .steps p { margin: 0; color: var(--ink-2); }
+
+  .hr-rule { border: 0; border-top: 1px solid var(--line); margin: var(--s-7) 0; }
+  .mt-0 { margin-top: 0; }
+  .stack > * + * { margin-top: var(--s-3); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+  .muted { color: var(--ink-3); }
+
+  /* ---- review-specific extensions ---- */
+  .sev {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: var(--r-1);
+    white-space: nowrap;
+  }
+  .sev-crit { background: #A03434; color: #fff; }
+  .sev-high { background: #F4E8D0; color: #8C5A18; border: 1px solid #E3CFA6; }
+  .sev-med  { background: var(--azure-soft); color: var(--azure-deep); }
+  .sev-low  { background: var(--paper-2); color: var(--ink-3); border: 1px solid var(--line); }
+
+  .size {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: var(--r-1);
+    white-space: nowrap;
+  }
+  .size-xs { background: #fff; border: 1px solid var(--line); color: var(--ink-3); }
+  .size-s  { background: var(--paper-2); border: 1px solid var(--line); color: var(--ink-2); }
+  .size-m  { background: var(--azure-soft); color: var(--azure-deep); }
+  .size-l  { background: var(--ink); color: var(--paper); }
+
+  .mtx-yes  { color: var(--azure-deep); font-weight: 600; }
+  .mtx-part { color: #8C5A18; font-weight: 500; }
+  .mtx-no   { color: var(--ink-4); }
+
+  .gap-id { font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-3); white-space: nowrap; }
+
+  .stat { border: 1px solid var(--line); border-radius: var(--r-3); background: #fff; padding: var(--s-4) var(--s-5); }
+  .stat .stat-num { font-family: var(--font-display); font-size: var(--t-36); line-height: 1.1; }
+  .stat .stat-label { font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: var(--s-1); }
+</style>
+</head>
+<body>
+
+<main class="page">
+
+  <!-- HERO -->
+  <section class="section">
+    <p class="eyebrow">DataGate Docs · Improvement Review</p>
+    <h1 class="display-1">Taking stock.</h1>
+    <p class="lead">A full-repo audit of DataGate after the M1 dashboard push: what is solid, what is broken, all 77 gaps in between — and a concrete plan to put your local GPU to work across the whole tool, then plug into the RISA Data Hub ecosystem.</p>
+    <div class="row" style="margin-top: var(--s-5);">
+      <a class="btn btn-primary" href="#gaps">Gap register</a>
+      <a class="btn btn-accent" href="#ai-plan">The AI plan</a>
+      <a class="btn btn-secondary" href="#risa">RISA fit</a>
+      <span class="tag">2026-09-08</span>
+      <span class="tag">branch ft-m1-03</span>
+    </div>
+  </section>
+
+  <!-- VERDICT -->
+  <section class="section" id="verdict">
+    <p class="eyebrow">Verdict</p>
+    <h2 class="mt-0">The short version</h2>
+    <p class="lead">The engineering core is genuinely good — FDW cross-database queries, a hardened query-template engine, nine drivers, profiling, lineage, pipelines. But the platform is currently held back by three walls, and each one is fixable.</p>
+
+    <div class="grid grid-3" style="margin-top: var(--s-5);">
+      <div class="stat"><div class="stat-num">77</div><div class="stat-label">gaps catalogued</div></div>
+      <div class="stat"><div class="stat-num">13</div><div class="stat-label">critical security findings</div></div>
+      <div class="stat"><div class="stat-num">4 / 17</div><div class="stat-label">backend modules with tests</div></div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top: var(--s-5);">
+      <div class="card">
+        <div class="card-eyebrow">Wall 1 · Security</div>
+        <p class="card-title">Not safe to deploy beyond your laptop</p>
+        <p>The entire ingestion API is unauthenticated with a hardcoded tenant ID, the URL importer is an open SSRF, transformations can be executed across organizations, and two SQL-injection paths exist. Until the two-week security sprint in the roadmap lands, DataGate must not face a network.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Wall 2 · Invisible work</div>
+        <p class="card-title">Five commits of M1 dashboards are unreachable</p>
+        <p>The API-backed dashboard viewer (<code>/dashboards/[id]</code>) — filters, URL-synced state, cross-filtering — has <em>no inbound link anywhere in the app</em>. Users only ever see the old localStorage builder with fake sample data. One small PR unlocks all of it.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Wall 3 · AI in name only</div>
+        <p class="card-title">"AI-ready" is currently ~1,500 LOC of latent capability</p>
+        <p>NL2SQL exists but is blind: an argument-order bug feeds the model an <em>empty schema</em>. Three of five advertised providers throw "not implemented". "Explain SQL" is built on both ends but wired on neither. No embeddings, no vector store, no semantic anything. The local GPU changes this story completely.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">The opening</div>
+        <p class="card-title">Timing favors you</p>
+        <p>Rwanda approved its National Data Sharing Policy (May 2025) and RISA is procuring the Shared Government Data Hub under RDAP — ingestion, cataloguing, governance, MDM and analytics layers. DataGate already covers three of those layers, and a fully local GPU-powered AI stack aligns exactly with the National AI Policy's data-sovereignty pillar.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATE -->
+  <section class="section" id="state">
+    <p class="eyebrow">Inventory</p>
+    <h2 class="mt-0">Where the platform stands</h2>
+    <p>~47k lines of TypeScript across a NestJS 11 backend (17 modules, 21 entities, 18 migrations) and a Next.js 14 frontend (24 routes, 18 API namespaces). Maturity assessed from the code, not the docs.</p>
+
+    <h3>Backend modules</h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Module</th><th>What it does</th><th>Maturity</th><th>Biggest issue</th></tr></thead>
+      <tbody>
+        <tr><td><code>auth</code></td><td>JWT register/login, org bootstrap</td><td class="mtx-yes">Complete</td><td>RBAC machinery exists but guards zero endpoints</td></tr>
+        <tr><td><code>encryption</code></td><td>AES-256-GCM credentials at rest</td><td class="mtx-yes">Complete</td><td>Untested</td></tr>
+        <tr><td><code>connections</code></td><td>CRUD + 9 database drivers</td><td class="mtx-yes">Complete</td><td>No update endpoint; any viewer can create/delete</td></tr>
+        <tr><td><code>schema</code></td><td>Schema discovery incl. staging</td><td class="mtx-yes">Complete</td><td>—</td></tr>
+        <tr><td><code>queries</code></td><td>Execution, history, saved queries, template engine</td><td class="mtx-yes">Complete</td><td>Strongest code in the repo; has real tests</td></tr>
+        <tr><td><code>cross-query</code></td><td>FDW cross-database joins</td><td class="mtx-yes">Complete</td><td>595-line FDW manager, zero tests</td></tr>
+        <tr><td><code>dashboard</code></td><td>Dashboards, sharing, analytics stats</td><td class="mtx-yes">Complete</td><td>Public API unthrottled; tokens stored plaintext</td></tr>
+        <tr><td><code>transformations</code></td><td>Scheduled SQL transforms + retention</td><td class="mtx-part">Complete but insecure</td><td>Executor ignores organization — cross-tenant IDOR</td></tr>
+        <tr><td><code>ingestion</code></td><td>File / URL / DB imports, staging</td><td class="mtx-part">Partial</td><td>Entire controller unauthenticated; SSRF; FTP/SFTP/API/Parquet declared, unimplemented</td></tr>
+        <tr><td><code>pipelines</code></td><td>DAG executor + cron scheduling</td><td class="mtx-part">Partial</td><td>Export step throws; cross-tenant reads in steps</td></tr>
+        <tr><td><code>data-quality</code></td><td>Profiling + 6 check types</td><td class="mtx-part">Partial</td><td>Create/update endpoints likely 400 (undecorated DTOs); no scheduling, no alerting</td></tr>
+        <tr><td><code>lineage</code></td><td>Table-level metadata graph</td><td class="mtx-part">Partial</td><td>No column-level lineage, no SQL parsing</td></tr>
+        <tr><td><code>catalog</code></td><td>OpenMetadata push sync</td><td class="mtx-yes">Complete</td><td>Lineage sync sends synthetic IDs OpenMetadata can't resolve</td></tr>
+        <tr><td><code>notebooks</code></td><td>SQL/markdown cells</td><td class="mtx-yes">Complete</td><td>Thin but sound</td></tr>
+        <tr><td><code>settings</code></td><td>Org settings, AI config, key encryption</td><td class="mtx-yes">Complete</td><td>Advertises providers the backend can't use</td></tr>
+        <tr><td><code>ai</code></td><td>Provider registry + local/custom providers</td><td class="mtx-no">Stub</td><td>OpenAI/Anthropic/Azure all throw "not implemented"</td></tr>
+        <tr><td><code>nl2sql</code></td><td>NL→SQL orchestration + validation</td><td class="mtx-no">Latently broken</td><td>Schema context bug feeds the model zero columns</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Milestone state</h3>
+    <p>Against the 24-week visualization plan (<a href="visualization-implementation-plan.html">docs/visualization-implementation-plan.html</a>): <strong>F-01, F-03, M1-01, M1-02 and M1-03 are shipped</strong> across the last six commits. F-02 (Redis cache), M1-04 → M1-08, and all of M2/M3 are unstarted. M1-03 also isn't fully done against its own acceptance criteria — see PROD-03 below.</p>
+
+    <div class="callout callout-warn">
+      <span class="mark">Reality check</span>
+      <div><p>The shipped M1 work is invisible: no page calls <code>api.dashboards.list()</code> and nothing links to <code>/dashboards/[id]</code>. The sidebar's "Dashboard Builder" opens the old localStorage-only builder seeded with fake <code>[120, 200, 150, 80, 70]</code> data. Reconciling the two dashboard implementations is the single highest-leverage fix in this review.</p></div>
+    </div>
+  </section>
+
+  <!-- GAP REGISTER -->
+  <section class="section" id="gaps">
+    <p class="eyebrow">Gap register · 77 items</p>
+    <h2 class="mt-0">Every gap, however small</h2>
+    <p>Grouped by nature, each with evidence and an effort estimate (<span class="size size-xs">XS</span> hours · <span class="size size-s">S</span> a day · <span class="size size-m">M</span> days · <span class="size size-l">L</span> a week+). Severity reflects impact if unaddressed.</p>
+
+    <h3>Security — 13 findings <span class="sev sev-crit">act before any shared deployment</span></h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Gap</th><th>Evidence</th><th>Sev</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td class="gap-id">SEC-01</td><td>Entire ingestion API is unauthenticated. A fake no-op <code>@CurrentUser</code> decorator stands in for auth, and every one of 11 handlers falls back to a hardcoded organization UUID. Anyone on the network can upload files, read/delete any org's staged data, and trigger DB imports.</td><td><code>ingestion.controller.ts:23–47, 86, 164, 199, 227, 254, 273, 298, 312, 332, 345, 359</code></td><td><span class="sev sev-crit">Crit</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">SEC-02</td><td>Open SSRF: URL import validates protocol only — no block on localhost, RFC1918, link-local, or cloud metadata IPs; redirects followed; attacker headers forwarded; 500&nbsp;MB budget. Combined with SEC-01, this is unauthenticated SSRF.</td><td><code>url-importer.service.ts:81–141</code></td><td><span class="sev sev-crit">Crit</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">SEC-03</td><td>Cross-tenant IDOR: transformation execution takes an ID with no org check — any authenticated user can run any org's transformation against its connection.</td><td><code>transformations.controller.ts:203</code>, <code>transformations-executor.service.ts:118</code></td><td><span class="sev sev-crit">Crit</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">SEC-04</td><td>Cross-tenant reads in pipeline steps: saved cross-queries and transformations looked up by bare ID inside the executor, so a pipeline definition can reference another org's assets.</td><td><code>pipelines-executor.service.ts:180, 190</code></td><td><span class="sev sev-crit">Crit</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">SEC-05</td><td>SQL injection via table name: <code>DROP TABLE IF EXISTS ${tableName}</code> where the name derives from user input (also reaches a private member via <code>['dataSource']</code>).</td><td><code>ingestion.service.ts:406–408</code></td><td><span class="sev sev-crit">Crit</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">SEC-06</td><td>SQL injection via error strings: remote OpenMetadata error messages interpolated raw into a <code>jsonb_set(...)</code> statement.</td><td><code>catalog.service.ts:108–113</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">SEC-07</td><td>Public dataset API has no rate limiting or guard, while its own Swagger docs claim "rate limiting applied" and document a 429. Throttling is never registered globally (<code>APP_GUARD</code> absent).</td><td><code>public-dataset.controller.ts</code>, grep <code>APP_GUARD</code> = 0 hits</td><td><span class="sev sev-high">High</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">SEC-08</td><td>Three divergent SQL denylists (query validator, class-validator constraint, public sharing path) — the weakest one protects the public endpoint.</td><td><code>dataset-sharing.service.ts:589</code> vs <code>sql-validator.service.ts</code> vs <code>safe-sql.validator.ts</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">SEC-09</td><td>Share tokens and API keys stored and compared in plaintext; import-job auth secrets (tokens, passwords) in plaintext JSONB. Any DB read leaks live credentials.</td><td><code>dataset-share.entity.ts:45–49</code>, <code>import-job.entity.ts:122–140</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">SEC-10</td><td>RBAC is dead code: <code>RolesGuard</code> and <code>@Roles</code> exist, are exported, and guard zero endpoints. A viewer can create connections, rotate API keys, and create public shares.</td><td><code>auth.module.ts:29–30</code>, grep <code>@Roles(</code> = 0 controller hits</td><td><span class="sev sev-high">High</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">SEC-11</td><td>Weak config defaults: <code>DB_PASSWORD</code> falls back to <code>admin123</code> in code; the backend's own <code>.env.example</code> has no <code>JWT_SECRET</code> at all; no helmet, no CSRF hardening.</td><td><code>app.module.ts:65</code>, <code>data-source.ts:28</code>, <code>packages/backend/.env.example</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">SEC-12</td><td><code>xlsx</code> (SheetJS npm line) carries known unpatched prototype-pollution/ReDoS advisories and parses untrusted uploads — on the unauthenticated endpoint from SEC-01.</td><td><code>packages/backend/package.json</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">SEC-13</td><td>Loose <code>.env.bak</code> secret-bearing file at repo root (gitignored, but on disk and easy to sync accidentally).</td><td><code>/.env.bak</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-xs">XS</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Correctness — 11 findings</h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Gap</th><th>Evidence</th><th>Sev</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td class="gap-id">COR-01</td><td>NL2SQL is blind: <code>getColumns(connectionId, organizationId, table, schema)</code> is called as <code>getColumns(connection.id, table.schema, table.name)</code> — the schema lands in the org slot, the lookup 404s, the catch swallows it, and every table reaches the model with <strong>zero columns</strong>.</td><td><code>schema-context-builder.service.ts:111–115, 170–174</code>; correct call at <code>catalog.service.ts:189</code></td><td><span class="sev sev-crit">Crit</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">COR-02</td><td><code>req.user.userId</code> is always undefined (JWT strategy returns a <code>User</code> whose field is <code>id</code>); the value is threaded into NL2SQL and never used — a dead parameter masking a live bug.</td><td><code>nl2sql.controller.ts:45</code> vs <code>jwt.strategy.ts:24</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">COR-03</td><td>Quality-check create/update DTOs have no class-validator decorators while the global pipe runs <code>forbidNonWhitelisted</code> — every submitted property is rejected, so these endpoints are very likely dead on arrival.</td><td><code>quality-checks.service.ts:8–24</code>, <code>main.ts:22–28</code>, <code>data-quality.controller.ts:76, 89</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">COR-04</td><td>Four inline <code>@Body()</code> object literals bypass validation entirely (Nest skips <code>Object</code> metatypes), including the cross-query definition.</td><td><code>queries.controller.ts:159</code>, <code>transformations.controller.ts:363</code>, <code>cross-query.controller.ts:48</code>, <code>data-quality.controller.ts:49</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">COR-05</td><td>Frontend calls a route that doesn't exist: <code>/cross-query/metadata/tables</code> has no backend handler.</td><td><code>lib/api.ts:222</code> vs <code>cross-query.controller.ts</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">COR-06</td><td><code>explainSql</code> in the local provider ignores the org's configured endpoint and model — hardcodes <code>localhost:11434</code> and <code>llama2</code>, and swallows every error into a canned string.</td><td><code>local-provider.service.ts:66–87</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">COR-07</td><td>Public dataset querying works only for connection shares: staged datasets always throw ("simplified implementation" stub) and transformation shares are explicitly rejected.</td><td><code>dataset-sharing.service.ts:456–459, 571–578</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">COR-08</td><td>Pipeline export steps are configurable in the UI but throw "not yet supported" at execution.</td><td><code>pipelines-executor.service.ts:225</code>, <code>StepConfigPanel.tsx:172</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">COR-09</td><td>AI confidence scores are fabricated constants (0.8 / 0.7 / 0.6 / 0.3 by response shape or string length), presented to callers as if measured.</td><td><code>local-provider.service.ts:326</code>, <code>custom-provider.service.ts:164+</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">COR-10</td><td>Profiling "sample" is <code>LIMIT n</code> with no <code>ORDER BY</code> — non-deterministic and biased toward physical row order.</td><td><code>profiling.service.ts:42–81</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">COR-11</td><td><code>conversationHistory</code> is accepted by the NL2SQL request interface and passed by the service, but no provider ever reads it.</td><td><code>base-provider.interface.ts:62</code>, <code>nl2sql.service.ts:82</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Product &amp; UX — 21 findings</h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Gap</th><th>Evidence</th><th>Sev</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td class="gap-id">PROD-01</td><td>The API-backed dashboard viewer is orphaned: nothing links to <code>/dashboards/[id]</code>, and <code>api.dashboards.list()</code> has no caller. All shipped M1 value is unreachable.</td><td>grep across <code>app/</code> + <code>components/</code></td><td><span class="sev sev-crit">Crit</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">PROD-02</td><td>Two unreconciled dashboard products: localStorage builder (editable, fake data, in sidebar) vs API viewer (real data, filters, view-only, hidden) — with two competing type definitions.</td><td><code>app/dashboards/page.tsx:133</code> vs <code>app/dashboards/[id]/page.tsx</code>; <code>DashboardBuilder/types.ts</code> vs <code>lib/api.ts</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">PROD-03</td><td>M1-03 incomplete against its own acceptance criteria: no "cross-filter from this widget" toggle in any config UI; <code>onValueClick</code> drops the <code>field</code>; only 4 of 10 chart types wired; no visual indicator of an active cross-filter.</td><td><code>SavedQueryWidget.tsx:47–50</code>, <code>ChartConfigPanel.tsx</code>, <code>BaseChart.tsx</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">PROD-04</td><td>M1-04→M1-08 unbuilt: KPI tile, pivot table, markdown widget (XS — react-markdown already installed), auto-refresh, annotations.</td><td>plan doc vs component tree</td><td><span class="sev sev-med">Med</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">PROD-05</td><td>Sidebar "Support" links to <code>/support</code> — a route that does not exist. A permanent 404 in primary navigation.</td><td><code>components/Sidebar.tsx:87</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">PROD-06</td><td><code>/catalog</code> and <code>/dashboard-analytics</code> are functional but absent from the sidebar — reachable only by typed URL.</td><td><code>components/Sidebar.tsx</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">PROD-07</td><td><code>/charts</code> is a demo with entirely fake data; "saved" charts live in component state and vanish on navigation; the page was commented out of the sidebar rather than fixed or removed.</td><td><code>app/charts/page.tsx</code>, <code>Sidebar.tsx:70</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">PROD-08</td><td>NL2SQL is undiscoverable: off by default, and the disabled tab's only affordance is a <code>title</code> attribute ("Enable in Settings") — invisible on touch, no link.</td><td><code>app/query/page.tsx:419</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">PROD-09</td><td>"Explain SQL" is fully built on the API client and backend but has zero UI callers — the cheapest AI feature in the codebase is unshipped.</td><td><code>lib/api.ts:468</code>, grep = 0 callers</td><td><span class="sev sev-high">High</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">PROD-10</td><td>Connections cannot be edited — no update endpoint or UI; delete-and-recreate is the only path, which also breaks anything referencing the connection.</td><td><code>lib/api.ts:103–121</code>, <code>connections.controller.ts</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">PROD-11</td><td>No user management: no invite flow, no member list, no way to add a colleague to your org. Registration is open self-signup.</td><td>no users page; <code>app/register/page.tsx</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">PROD-12</td><td>Roles are display-only: a badge renders in the user menu, but no route, button, or field is gated on role anywhere in the frontend.</td><td><code>components/UserMenu.tsx:29–44</code>, <code>ProtectedRoute.tsx</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">PROD-13</td><td>Dashboard filter options are a static <code>string[]</code> — select filters cannot be populated from a query, so they drift from live data.</td><td><code>lib/api.ts</code> <code>DashboardFilterDef</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">PROD-14</td><td>New chart widgets seed with fake "Sample Data" fixtures indistinguishable from real data — misleading to any new user.</td><td><code>app/dashboards/page.tsx:80</code>, <code>ChartConfigPanel.tsx:68–101</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">PROD-15</td><td>No onboarding of any kind: no tour, no demo mode, no seeded sample dataset, no getting-started flow. First-run experience is an empty app.</td><td>grep onboard/tour/demo = 0</td><td><span class="sev sev-high">High</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">PROD-16</td><td>No in-product help: the tooltip primitive has zero importers (its Radix dependency is dead weight), and there are no documentation links anywhere.</td><td><code>components/ui/tooltip.tsx</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">PROD-17</td><td>No i18n: <code>lang="en"</code> hardcoded, all strings inline, one file even pins <code>toLocaleDateString('en-US')</code>. No Kinyarwanda, no French — and retrofitting gets costlier with every sprint.</td><td><code>app/layout.tsx:68</code>, <code>app/notebooks/page.tsx:53</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">PROD-18</td><td>Accessibility is poor: 9 files total with any ARIA, custom tab bars without tab semantics, color-only status encoding, and a pixel-fixed 13px/11px/10px type scale that defeats browser zoom.</td><td><code>tailwind.config.ts</code>, <code>app/query/page.tsx:400–425</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">PROD-19</td><td>Mobile support is the sidebar drawer and nothing else: dashboard grid hardcodes <code>width={1200}</code>; canvases and wide tables have no small-screen treatment.</td><td><code>app/dashboards/[id]/page.tsx:111</code>; 17/~120 files with breakpoints</td><td><span class="sev sev-low">Low</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">PROD-20</td><td>Landing copy targets engineers ("Foreign Data Wrappers", "AES-256-GCM"), not the analysts and institutions who would adopt the product.</td><td><code>app/(public)/landing/page.tsx</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">PROD-21</td><td>Dashboard widgets render only bar/line/area/pie; six other chart types show an error placeholder. Loading/empty states are absent on <code>/cross-query</code>, <code>/quality</code>, <code>/notebooks</code>, <code>/dashboards</code> despite unused <code>skeleton</code> and <code>empty-state</code> primitives.</td><td><code>SavedQueryWidget.tsx:112</code>; <code>components/ui/</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Hygiene &amp; consistency — 19 findings</h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Gap</th><th>Evidence</th><th>Sev</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td class="gap-id">HYG-01</td><td>Rebrand unfinished: localStorage key is still <code>govdatahub_token</code>; "GovDataHub" survives in setup scripts, docker-compose comments, the URL-import User-Agent, the ingestion mockup, and the repo directory name. The rebrand doc's own checklist item is unchecked.</td><td><code>lib/api.ts:17</code>, <code>scripts/*.sh</code>, <code>REBRANDING_SUMMARY.md</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">HYG-02</td><td>The two <code>.env.example</code> files disagree: backend one still says <code>govdatahub</code>, lacks <code>JWT_SECRET</code>, and carries different cross-query limits plus three keys the root file lacks.</td><td><code>/.env.example</code> vs <code>packages/backend/.env.example</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">HYG-03</td><td>Two competing lockfiles: root <code>pnpm-lock.yaml</code> plus a stale <code>packages/frontend/package-lock.json</code>.</td><td>filesystem</td><td><span class="sev sev-med">Med</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">HYG-04</td><td><code>react-resizable</code> is imported but undeclared — resolves only as a transitive of react-grid-layout; a strict pnpm install can break it any time.</td><td><code>app/dashboards/[id]/page.tsx:8</code>, <code>DashboardGrid.tsx:8</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">HYG-05</td><td>Committed junk: <code>tsconfig.tsbuildinfo</code> (build artifact), <code>app/temp.html</code> (stray prototype), and <code>app/ingestion/page-mockup.tsx</code> — at 812 lines, the largest file in the frontend is a mockup.</td><td>git ls-files</td><td><span class="sev sev-low">Low</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">HYG-06</td><td>Dead frontend code: <code>lib/design-tokens.ts</code> and four UI primitives (<code>empty-state</code>, <code>skeleton</code>, <code>tooltip</code>, <code>filter-button</code>) have zero importers — each one the intended cure for a gap listed above.</td><td>grep importers = 0</td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">HYG-07</td><td>Two design systems in one app: 1,200+ raw hex literals (<code>#1a1a1a</code> ×346…) in older pages vs Tailwind semantic tokens in the M1 components.</td><td>grep counts across <code>app/</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">HYG-08</td><td><code>PageHeader</code> on only 13 of 24 pages; siblings render visibly different chrome.</td><td>7 pages listed in audit</td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">HYG-09</td><td>Two confirmation patterns: native <code>confirm()</code> on quality and pipelines pages while a proper confirm dialog exists and is used elsewhere.</td><td><code>app/quality/page.tsx:114</code>, <code>app/pipelines/page.tsx:96</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">HYG-10</td><td>Two data-fetching patterns: SWR in 27 files vs hand-rolled useState/useEffect on <code>/staged</code> and <code>/pipelines</code>.</td><td><code>app/staged/page.tsx</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">HYG-11</td><td>12 leftover <code>console.*</code> calls in the frontend; backend <code>settings.service.ts</code> uses bare <code>console.error</code> instead of the Nest Logger.</td><td><code>CatalogTab.tsx</code> ×5 etc.; <code>settings.service.ts:122</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">HYG-12</td><td>API naming drift: <code>dashboard</code> vs <code>dashboards</code> namespaces collide conceptually; <code>savedQueries.remove</code> vs every other namespace's <code>delete</code>.</td><td><code>lib/api.ts:241, 631, 656</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">HYG-13</td><td>Root layout is <code>'use client'</code>, forcing hand-written head tags, disabling the Metadata API, and client-rendering the entire tree — including the public landing page.</td><td><code>app/layout.tsx:1, 12–14</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">HYG-14</td><td>Type coverage: 16 of 18 API namespaces return <code>Promise&lt;any&gt;</code>; only the new M1 namespaces are typed.</td><td><code>lib/api.ts</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">HYG-15</td><td>README drift: never mentions dashboards or visualization — the last three months of work are absent from the front door.</td><td><code>README.md</code> module/route tables</td><td><span class="sev sev-low">Low</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">HYG-16</td><td>Dead backend code: <code>AiService.isProviderAvailable/getAvailableProviders</code>, <code>buildSimplifiedContext</code>, <code>ensureFdwExtensions</code>, cleanup <code>triggerCleanup</code> (no endpoint), the "Hello World!" app controller, and four unimplemented <code>ImportSourceType</code> values.</td><td>per-file refs in audit</td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">HYG-17</td><td>12 <code>as any</code> escape hatches and 7 silent <code>catch {}</code> blocks — one of which (<code>schema-context-builder.service.ts:130</code>) is what hid COR-01.</td><td>site list in audit</td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">HYG-18</td><td><code>diagnose-and-fix.sh</code> lacks its executable bit; Swagger tags are declared for only 3 modules, so most of the API is untagged in the docs UI.</td><td><code>scripts/</code>, <code>main.ts:35–42</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">HYG-19</td><td>Half-integrated drivers: MongoDB is excluded from profiling, quality checks, and cross-query; several other drivers exist only for basic query paths — the driver matrix is undocumented.</td><td><code>profiling.service.ts:133</code>, <code>fdw-manager.service.ts:82</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Operations &amp; delivery — 13 findings</h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Gap</th><th>Evidence</th><th>Sev</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td class="gap-id">OPS-01</td><td>No deployment story at all: zero Dockerfiles, no CI (no GitHub Actions, no GitLab CI), no prod compose, no reverse-proxy or TLS config. Nobody but you can install DataGate — the single biggest adoption blocker.</td><td>find = 0 hits</td><td><span class="sev sev-crit">Crit</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">OPS-02</td><td>No health check: <code>GET /api</code> returns "Hello World!"; nothing probes DB liveness; app containers (if they existed) would have nothing to probe.</td><td><code>app.service.ts:6</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td class="gap-id">OPS-03</td><td>No metrics, no structured logging, no correlation IDs, no global exception filter, no error tracking. Domain audit tables are good; operational observability is absent.</td><td>grep APP_FILTER/prom/pino = 0</td><td><span class="sev sev-high">High</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">OPS-04</td><td>No security audit log: logins, failed logins, credential access, key rotation, and public-share access-by-token leave no auditable trail beyond a counter — a hard requirement for any government deployment.</td><td>schema review</td><td><span class="sev sev-high">High</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">OPS-05</td><td>Fire-and-forget async: imports run in-process with <code>.catch(log)</code>; a restart strands PROCESSING jobs forever (no reaper, no queue).</td><td><code>ingestion.service.ts:140</code></td><td><span class="sev sev-high">High</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">OPS-06</td><td>No Redis — blocks the planned F-02 result cache and any proper job queue; M2-01's Puppeteer renderer also has no infrastructure plan.</td><td><code>docker-compose.yml</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">OPS-07</td><td>Quality checks compute pass/fail that nothing reads: no scheduler (unlike transformations), no notification transport of any kind in the dependency tree.</td><td><code>package.json</code> — no nodemailer/transport</td><td><span class="sev sev-high">High</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">OPS-08</td><td>Tests: 4 spec files across 17 modules. Auth, encryption, all three SQL validators, FDW, ingestion, and every org-isolation path are untested. No coverage threshold.</td><td><code>*.spec.ts</code> census</td><td><span class="sev sev-high">High</span></td><td><span class="size size-l">L</span></td></tr>
+        <tr><td class="gap-id">OPS-09</td><td>N+1 connections: the NL2SQL context builder and catalog sync open and close a full driver connection per <code>getColumns</code> call — up to 20 connect cycles per request per connection.</td><td><code>schema-context-builder.service.ts</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">OPS-10</td><td>Raw driver error messages surface to clients — leaking DB topology and credential-shaped strings.</td><td><code>queries.service.ts:93</code>, <code>connections.service.ts:117</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">OPS-11</td><td>No transactions on multi-write flows (staging import writes, check runs) — partial-failure states are reachable.</td><td><code>ingestion.service.ts</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-m">M</span></td></tr>
+        <tr><td class="gap-id">OPS-12</td><td>Silent caps: lineage loads at most 500 import jobs, catalog sync 500 entities, unbounded parallel check fan-out with one connection each — none surfaced to the user.</td><td><code>lineage-builder.service.ts:57</code>, <code>quality-checks.service.ts:158</code></td><td><span class="sev sev-low">Low</span></td><td><span class="size size-s">S</span></td></tr>
+        <tr><td class="gap-id">OPS-13</td><td>The frontend build gate is known-broken on pre-existing lint errors (unescaped entities in DataIngestion), so "does it build" can't be used as a check.</td><td><code>DataIngestion/ColumnMapping.tsx</code></td><td><span class="sev sev-med">Med</span></td><td><span class="size size-xs">XS</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- AI TODAY -->
+  <section class="section" id="ai-today">
+    <p class="eyebrow">AI · current state</p>
+    <h2 class="mt-0">What "AI-ready" means today</h2>
+    <p class="lead">There is real plumbing — about 1,500 lines across the <code>ai</code> and <code>nl2sql</code> modules — but almost none of it currently delivers value to a user. That is mostly good news: the skeleton is right, and the fixes are small.</p>
+
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Asset</th><th>State</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td>NL2SQL pipeline (settings → schema context → provider → validate → auto-LIMIT → execute)</td><td class="mtx-part">Built, blind</td><td>Architecture is sound; COR-01 means the model sees zero columns, so output quality is currently noise. Cross-database generation is a TODO; auto-execute only uses the first connection.</td></tr>
+        <tr><td>SQL safety validator</td><td class="mtx-yes">Built</td><td>11 dangerous-pattern checks, allowed-operations policy, LIMIT enforcement, multi-statement blocking. Good bones; silently disabled if the org toggle is off.</td></tr>
+        <tr><td>Local provider (Ollama / LM Studio)</td><td class="mtx-part">Works, fragile</td><td>The only functioning provider. Endpoint dialect guessed via string sniffing; response parsed with line heuristics; no streaming, no retries; <code>explainSql</code> ignores configured settings (COR-06).</td></tr>
+        <tr><td>OpenAI / Anthropic / Azure providers</td><td class="mtx-no">Stubs</td><td>All three throw "not yet implemented" — while the settings UI advertises their model catalogues. No official SDK is installed; all calls are raw axios.</td></tr>
+        <tr><td>Custom provider</td><td class="mtx-part">Built</td><td>Generic POST with bearer auth; guesses at 6 response shapes; explain is a hardcoded string.</td></tr>
+        <tr><td>Schema context builder</td><td class="mtx-part">Built, incomplete</td><td><code>RelationshipSchema</code> (foreign keys) and <code>sampleData</code> are declared in the interface and never populated — the two things that most improve text-to-SQL accuracy.</td></tr>
+        <tr><td>Frontend NL2SQL surface</td><td class="mtx-part">Built, hidden</td><td>A "Natural Language" tab on the query page, off by default with no path to enable it from where you see it (PROD-08). Explain-SQL has no UI at all (PROD-09).</td></tr>
+        <tr><td>Embeddings / vector search / semantic layer</td><td class="mtx-no">Absent</td><td>Zero hits for embeddings, pgvector, vectors, or similarity anywhere in the repo.</td></tr>
+        <tr><td>AI observability</td><td class="mtx-no">Absent</td><td>No prompt/response logging, no latency/token/cost tracking, no record of who generated what SQL — a governance gap, not just an ops one.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="callout callout-crit">
+      <span class="mark">Fix first</span>
+      <div><p>Before any new AI work: fix COR-01 (one argument-order change), wire the org's configured model into <code>explainSql</code> (COR-06), and put an "Explain this query" button next to results (PROD-09). Half a day of work turns the AI story from "advertised" to "demonstrable".</p></div>
+    </div>
+  </section>
+
+  <!-- AI PLAN -->
+  <section class="section" id="ai-plan">
+    <p class="eyebrow">AI · the GPU plan</p>
+    <h2 class="mt-0">AI across the whole tool</h2>
+    <p class="lead">A local GPU changes the constraint that shaped the current design: inference is now free, private, and always available. Every byte stays on your machine — which is not just convenient, it is the posture Rwanda's National AI Policy and Data Sharing Policy actually call for in government data systems.</p>
+
+    <h3>Foundation first (AI-1)</h3>
+    <ol class="steps">
+      <li>
+        <p class="step-title">Stand up local serving <span class="size size-s">S</span></p>
+        <p>Keep Ollama for development; adopt vLLM (OpenAI-compatible) when concurrent org users arrive. Add <code>ollama</code> as an optional docker-compose service with GPU passthrough so setup is reproducible, and replace the endpoint string-sniffing in the local provider with an explicit <code>apiFormat</code> setting.</p>
+      </li>
+      <li>
+        <p class="step-title">Rebuild the provider layer <span class="size size-m">M</span></p>
+        <p>One OpenAI-compatible client with streaming, timeouts, retries and structured (JSON-mode) output — this makes the fragile line-scanning response parser and the fabricated confidence scores (COR-09) obsolete, and gets Anthropic/OpenAI/Azure support nearly for free as remote fallbacks where policy allows.</p>
+      </li>
+      <li>
+        <p class="step-title">Feed the model a real schema <span class="size size-m">M</span></p>
+        <p>Fix COR-01, then populate the already-declared <code>RelationshipSchema</code> (foreign keys from information_schema) and <code>sampleData</code> (3 rows via the existing profiler). Relationships plus sample values are the two highest-impact inputs for text-to-SQL accuracy — the interfaces were designed for this and never filled.</p>
+      </li>
+      <li>
+        <p class="step-title">Add the semantic layer: pgvector + embeddings <span class="size size-s">S</span></p>
+        <p>One migration (<code>CREATE EXTENSION vector</code>) on the existing Postgres 15 metadata DB — no new infrastructure. An <code>EmbeddingService</code> batch-embeds table names, column names, descriptions and profile summaries on the GPU. This single index powers semantic catalog search, NL2SQL table selection, and join suggestions.</p>
+      </li>
+      <li>
+        <p class="step-title">AI audit table <span class="size size-s">S</span></p>
+        <p>Log every generation: user, org, prompt, model, latency, generated SQL, and whether it was executed. This is the governance record a government deployment will be asked for on day one, and it doubles as your evaluation dataset for improving prompts.</p>
+      </li>
+    </ol>
+
+    <h3>Model menu by GPU tier</h3>
+    <p>All runnable via Ollama/vLLM with quantized weights; pick the row matching your VRAM. Multilingual embedding matters here — <code>bge-m3</code> handles English and French well (Kinyarwanda coverage is thinner but usable for retrieval).</p>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Task</th><th>~8 GB VRAM</th><th>~16 GB VRAM</th><th>24 GB+ VRAM</th></tr></thead>
+      <tbody>
+        <tr><td>SQL generation / repair / explain</td><td>Qwen2.5-Coder-7B (Q4)</td><td>Qwen2.5-Coder-14B (Q4/Q5)</td><td>Qwen2.5-Coder-32B (Q4) — near-frontier on SQL</td></tr>
+        <tr><td>General assistant (descriptions, summaries, diagnosis)</td><td>Llama-3.1-8B-Instruct</td><td>Qwen2.5-14B-Instruct</td><td>Qwen2.5-32B / Llama-3.3-70B (Q4, tight)</td></tr>
+        <tr><td>Embeddings</td><td colspan="3">bge-m3 (multilingual) or nomic-embed-text — a few hundred MB; runs alongside any of the above</td></tr>
+        <tr><td>Reranking (search quality)</td><td colspan="3">bge-reranker-v2-m3 — optional, cheap, large quality lift on catalog search</td></tr>
+        <tr><td>PII / entity detection</td><td colspan="3">GLiNER (small, fast) with LLM confirmation for ambiguous hits</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Capability catalogue — where AI lands in each module</h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Module</th><th>Capability</th><th>How it works</th><th>Phase</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td>Query</td><td><strong>Working NL2SQL</strong></td><td>COR-01 fix + relationships + sample rows + Qwen-Coder. The existing validation/auto-LIMIT pipeline already handles the safety side.</td><td>AI-0/1</td><td><span class="size size-s">S</span></td></tr>
+        <tr><td>Query</td><td>Explain this query</td><td>Ship the existing <code>explainSql</code> to the UI; also explain <em>results</em> ("what does this output say?").</td><td>AI-0</td><td><span class="size size-xs">XS</span></td></tr>
+        <tr><td>Query</td><td>Error doctor</td><td>On query failure, send SQL + driver error + schema slice → plain-language diagnosis and a corrected query. Highest-frequency pain point for SQL learners.</td><td>AI-2</td><td><span class="size size-s">S</span></td></tr>
+        <tr><td>Query</td><td>Schema-aware autocomplete</td><td>Monaco <code>registerCompletionItemProvider</code> fed by cached schema (deterministic), with optional LLM completion for full clauses.</td><td>AI-2</td><td><span class="size size-m">M</span></td></tr>
+        <tr><td>Catalog</td><td><strong>Semantic search</strong></td><td>"where is health facility enrollment data?" → embedding search over tables/columns/descriptions across every connection. The flagship discovery feature for a data hub.</td><td>AI-1</td><td><span class="size size-m">M</span></td></tr>
+        <tr><td>Catalog</td><td>Auto-documentation</td><td>Nightly GPU batch job writes table/column descriptions from names, profiles and sample values; human-approves; pushes to OpenMetadata via the existing catalog sync.</td><td>AI-2</td><td><span class="size size-s">S</span></td></tr>
+        <tr><td>Catalog</td><td>PII &amp; sensitivity classification</td><td>GLiNER + LLM over profile samples tags columns (national ID, phone, name…). Directly serves Data Sharing Policy compliance and feeds row-level-security planning (M3-02).</td><td>AI-2</td><td><span class="size size-m">M</span></td></tr>
+        <tr><td>Cross-query</td><td>Join-key suggestions</td><td>Embedding similarity of column names + profile stats (types, cardinality, value overlap) across connections proposes join edges in the visual editor.</td><td>AI-2</td><td><span class="size size-m">M</span></td></tr>
+        <tr><td>Ingestion</td><td>Smart import mapping</td><td>LLM maps source columns to targets, infers types and date formats, flags header anomalies — replacing manual ColumnMapping for the common case.</td><td>AI-2</td><td><span class="size size-s">S</span></td></tr>
+        <tr><td>Data quality</td><td>Suggested checks</td><td>From an existing table profile: "amount is 99.8% non-null → add not_null", "national_id is unique → add unique", freshness from update cadence. One click to accept.</td><td>AI-2</td><td><span class="size size-s">S</span></td></tr>
+        <tr><td>Data quality</td><td>Profile-drift narrative</td><td>Compare successive profiles statistically; LLM writes the "what changed and why it matters" summary. (The plan doc's explicit non-goal was ML anomaly <em>detection</em>; this is detection by statistics, narration by LLM.)</td><td>AI-3</td><td><span class="size size-m">M</span></td></tr>
+        <tr><td>Dashboards</td><td><strong>Ask a question → widget</strong></td><td>NL question → NL2SQL → saved query → suggested chart type → widget on the dashboard. This *is* M3-06's "question builder", reached through language instead of forms — the single biggest audience-expander in the plan.</td><td>AI-3</td><td><span class="size size-l">L</span></td></tr>
+        <tr><td>Dashboards</td><td>Dashboard insights</td><td>Summarize a dashboard's current state and notable changes since last view; pairs with M2-02 subscriptions to make emails worth opening.</td><td>AI-3</td><td><span class="size size-m">M</span></td></tr>
+        <tr><td>Notebooks</td><td>Cell copilot</td><td>Generate/fix/explain the SQL of a cell with the notebook's prior cells as context — the natural home for <code>conversationHistory</code> (COR-11).</td><td>AI-2</td><td><span class="size size-s">S</span></td></tr>
+        <tr><td>Transformations / pipelines</td><td>Failure diagnosis</td><td>Run logs + step SQL + error → root cause and suggested fix, attached to the run record.</td><td>AI-2</td><td><span class="size size-s">S</span></td></tr>
+        <tr><td>Lineage</td><td>Column-level lineage</td><td>Parse transformation and saved-query SQL deterministically (sqlglot) with LLM fallback for dynamic SQL; upgrades the lineage graph from table-level to column-level and fixes the OpenMetadata sync mismatch.</td><td>AI-3</td><td><span class="size size-l">L</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="mark">Sequencing logic</span>
+      <div><p>AI-0 (fixes) proves the story in a demo. AI-1 (foundation) is what everything else stands on — provider layer, real schema context, pgvector, audit. AI-2 features are each small once AI-1 exists, so ship them in whatever order users pull. AI-3 items are the differentiators worth showing RISA: ask-a-question dashboards and column-level lineage are exactly the "analytics layer" capabilities the Data Hub tender describes.</p></div>
+    </div>
+  </section>
+
+  <!-- ADOPTION -->
+  <section class="section" id="adoption">
+    <p class="eyebrow">Adoption</p>
+    <h2 class="mt-0">From working software to adopted software</h2>
+    <p class="lead">DataGate's adoption surface is nearly zero today: a first-run user lands in an empty app with no tour, no sample data, no help, English-only, and no way to invite a colleague. The features exist; the on-ramp doesn't.</p>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-eyebrow">Make it findable</div>
+        <p class="card-title">Surface what's already built</p>
+        <p>Wire the M1 dashboards into navigation (PROD-01), restore <code>/catalog</code> and <code>/dashboard-analytics</code> to the sidebar, fix the <code>/support</code> 404, link the NL2SQL tab to settings, ship Explain-SQL. A week of small PRs makes the product feel twice as big — because it is.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">First-run experience</div>
+        <p class="card-title">Demo mode with a Rwandan dataset</p>
+        <p>Seed a demo connection with realistic public-sector-shaped data (districts, facilities, enrollment), a pre-built dashboard, and a 5-step guided tour ending on "ask a question in natural language". A demo mode is also your RISA pitch, packaged.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Language</div>
+        <p class="card-title">Decide on i18n now</p>
+        <p>Kinyarwanda and French are hard requirements for broad government use, and the retrofit cost grows with every inline string (PROD-17). Adopt <code>next-intl</code>, extract strings incrementally starting with navigation and the query/dashboard pages. LLM-assisted first-pass translation (reviewed by a human) makes this cheaper than it used to be.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Teams</div>
+        <p class="card-title">Invites, roles, and real multi-user</p>
+        <p>Adoption inside an institution means "add my colleague": build the invite flow, apply the existing-but-unused RolesGuard to mutating endpoints (SEC-10), and gate the destructive UI by role (PROD-12). Without this, every deployment is a single-user tool.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Installability</div>
+        <p class="card-title">Deployment is an adoption feature</p>
+        <p>Nobody can run DataGate today without your laptop's setup (OPS-01). Two Dockerfiles, a prod compose profile (app + Postgres + Ollama), a health endpoint, and a CI pipeline running the existing tests turn "come look at my screen" into "here's the compose file".</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Positioning</div>
+        <p class="card-title">Speak to analysts, not engineers</p>
+        <p>The landing page sells FDW and AES-256-GCM (PROD-20). The buyer is a director of planning or an M&amp;E lead; the message is "ask questions across all your institution's databases, in your language, on your own servers". Rewrite the landing copy around outcomes, keep the engineering under the hood.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- RISA -->
+  <section class="section" id="risa">
+    <p class="eyebrow">Ecosystem</p>
+    <h2 class="mt-0">The RISA Data Hub fit</h2>
+    <p class="lead">The context is unusually favorable. Rwanda's National Data Sharing Policy was approved in May 2025 (MINICT lead; NISR governs, RISA builds the platform). Under the World Bank-financed RDAP, RISA has been procuring the <strong>Shared Government Data Hub and Data Interoperability Platform</strong> — a 24-month implementation with layers for data ingestion, cataloguing, governance, master data management and analytics, plus X-Road-style secure API exchange between agencies.</p>
+
+    <p>An interesting historical note: this project literally began life as <em>GovDataHub</em> and was deliberately de-governmentalized in the rebrand. The ecosystem has now come back around to exactly that original thesis — and the tender's proposal deadline (May 2026) has passed, meaning an implementing firm is being or has been selected. DataGate's play is therefore <strong>not to be the Data Hub, but to be the best thing plugged into it</strong> — and, internally, the working demonstrator of what the analytics layer should feel like.</p>
+
+    <h3>Layer-by-layer mapping</h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Data Hub layer (per RDAP scope)</th><th>DataGate today</th><th>What closes the gap</th></tr></thead>
+      <tbody>
+        <tr><td>Data ingestion</td><td class="mtx-part">Partial</td><td>File/URL/DB import works; needs auth fixed (SEC-01), scheduled imports, API/SFTP sources (declared, unbuilt), and a queue (OPS-05)</td></tr>
+        <tr><td>Cataloguing</td><td class="mtx-part">Partial</td><td>Schema browser + OpenMetadata push exist; semantic search and auto-documentation (AI plan) make it a real catalog; fix the lineage-sync ID mismatch</td></tr>
+        <tr><td>Governance</td><td class="mtx-no">Weak</td><td>RBAC enforcement (SEC-10), security audit log (OPS-04), PII classification (AI plan), token hashing (SEC-09) — governance is DataGate's thinnest layer and the policy's strongest demand</td></tr>
+        <tr><td>Master data management</td><td class="mtx-no">Absent</td><td>Out of scope for DataGate — leave to the Hub; consume its golden records via API instead</td></tr>
+        <tr><td>Analytics</td><td class="mtx-yes">Strong</td><td>Cross-database queries, dashboards, notebooks, profiling — DataGate's differentiator. The AI plan (NL2SQL, ask-a-question dashboards) is precisely the analytics-layer capability the tender leaves unspecified</td></tr>
+        <tr><td>Interoperability (API exchange)</td><td class="mtx-part">Partial</td><td>Public dataset API + API keys exist but are the weakest-secured surface (SEC-07/08/09, COR-07); to consume Hub APIs, build the REST-API ingestion source; to publish, harden shares and add signed embed (M3-01)</td></tr>
+        <tr><td>Access control, audit, disclosure</td><td class="mtx-no">Weak</td><td>Same items as governance; these are named tender requirements, so they double as the ecosystem-readiness checklist</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Three positioning moves</h3>
+    <ol class="steps">
+      <li>
+        <p class="step-title">The self-service analytics workbench on top of the Hub</p>
+        <p>The Hub centralizes and governs; DataGate is where a ministry analyst actually connects, joins, asks questions and builds dashboards — in Kinyarwanda or French, on government infrastructure, with a local model. This is the durable role no interoperability platform fills.</p>
+      </li>
+      <li>
+        <p class="step-title">The internal demonstrator</p>
+        <p>As the Data Hub implementation ramps up, a working, GPU-powered, fully local demo of "ingest → catalog → cross-query → ask in natural language → dashboard" is the most concrete artifact anyone at RISA can put in front of stakeholders to define what the analytics layer must achieve. Demo mode (adoption plan) is this, packaged.</p>
+      </li>
+      <li>
+        <p class="step-title">The sovereignty proof point</p>
+        <p>Rwanda's National AI Policy pillars include compute infrastructure, public-sector adoption, and trustworthy AI. Every AI feature in this review runs on a local GPU with zero data egress — a compliance answer most vendor tools cannot give. Say so, explicitly, in the product and the pitch.</p>
+      </li>
+    </ol>
+
+    <div class="callout callout-note">
+      <span class="mark">Prerequisite</span>
+      <div><p>None of these moves survive a security review in DataGate's current state. Phase 0 of the roadmap is not optional housekeeping — it is the entry ticket to any government conversation.</p></div>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section class="section" id="roadmap">
+    <p class="eyebrow">Roadmap</p>
+    <h2 class="mt-0">Sequenced plan</h2>
+    <p>Four phases, each independently valuable, ordered so that every later phase stands on the one before it.</p>
+
+    <ol class="steps">
+      <li>
+        <p class="step-title">Phase 0 — Security sprint <span class="tag">~2 weeks</span></p>
+        <p>SEC-01 through SEC-11 plus COR-03/04: guard ingestion, kill the hardcoded UUID, SSRF protection, org-scope the executors, register global guards, hash tokens, apply RolesGuard, fix the dead DTOs. Add tests for exactly these paths (starts OPS-08). Exit criterion: the app can face a shared network.</p>
+      </li>
+      <li>
+        <p class="step-title">Phase 1 — Unblock what's built <span class="tag">~1 week</span></p>
+        <p>PROD-01/05/06/08/09 + COR-01/06: dashboards list page linking to the API viewer, sidebar fixes, NL2SQL discoverable, Explain-SQL shipped, NL2SQL un-blinded. Plus the XS hygiene batch (lockfile, react-resizable, dead files, env drift). Exit criterion: everything that exists is reachable and demoable.</p>
+      </li>
+      <li>
+        <p class="step-title">Phase 2 — AI foundation + first features <span class="tag">~3–4 weeks</span></p>
+        <p>AI-1 in full (serving, provider layer, schema context, pgvector, audit table), then the three cheapest high-visibility AI-2 features: semantic catalog search, error doctor, suggested quality checks. In parallel: M1-04 KPI tile and M1-06 markdown widget (both small) so dashboards round out.</p>
+      </li>
+      <li>
+        <p class="step-title">Phase 3 — Adoption &amp; ecosystem <span class="tag">ongoing</span></p>
+        <p>Dockerfiles + CI + health checks; demo mode with Rwandan sample data; i18n rollout (rw/fr); invite flow; landing rewrite; then the AI-3 differentiators (ask-a-question dashboards, column-level lineage) and the RISA demonstrator pitch. M2 delivery features (subscriptions, alerts) slot in as pull demands.</p>
+      </li>
+    </ol>
+  </section>
+
+  <!-- METHOD -->
+  <section class="section" id="method">
+    <p class="eyebrow">Method &amp; sources</p>
+    <h2 class="mt-0">How this review was grounded</h2>
+    <p>Three parallel code audits (backend modules and security, frontend routes and UX, project/docs/ops state) read the actual source — every module's main service, every route, all 18 API namespaces — with findings cited to file and line. The three highest-impact claims (unauthenticated ingestion, the NL2SQL schema bug, the orphaned dashboard route) were independently re-verified against the working tree on <code>ft-m1-03-cross-filter-on-click</code>. Ecosystem context from public sources:</p>
+    <ul>
+      <li><a href="https://www.risa.gov.rw/news-detail/national-data-sharing-policy-approved">RISA — National Data Sharing Policy approved (May 2025)</a></li>
+      <li><a href="https://allbusiness.africa/tenders/risa-rdap-data-hub-interop-platform-2026">RDAP tender — Shared Government Data Hub &amp; Data Interoperability Platform</a></li>
+      <li><a href="https://www.risa.gov.rw/projects/rdap">RISA — Rwanda Digital Acceleration Project (RDAP)</a></li>
+      <li><a href="https://cenfri.org/articles/introduction-to-the-rwanda-national-data-sharing-policy-2/">Cenfri — Introduction to the Rwanda National Data Sharing Policy</a></li>
+      <li><a href="https://www.ictworks.org/national-artificial-intelligence-policy-rwanda/">Rwanda National AI Policy (approved April 2023)</a></li>
+    </ul>
+    <p class="muted">Companion docs: <a href="visualization-benchmark.html">Visualization Benchmark</a> · <a href="visualization-implementation-plan.html">Visualization Implementation Plan</a> · <a href="data-visualization.html">Dashboards &amp; Charts</a>.</p>
+  </section>
+
+  <!-- FOOTER -->
+  <section class="section">
+    <hr class="hr-rule" />
+    <p class="caption">DataGate · Improvement Review · v0.1 · 2026-09-08</p>
+  </section>
+
+</main>
+
+</body>
+</html>

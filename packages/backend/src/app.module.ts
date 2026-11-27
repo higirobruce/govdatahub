@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
+import { validateEnv } from './config/env.validation';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from './modules/auth/guards/roles.guard';
 import {
   Connection,
   QueryHistory,
@@ -52,6 +56,7 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validate: validateEnv,
     }),
 
     // Database
@@ -62,7 +67,7 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module';
         host: configService.get('DB_HOST', 'localhost'),
         port: configService.get<number>('DB_PORT', 5432),
         username: configService.get('DB_USERNAME', 'admin'),
-        password: configService.get('DB_PASSWORD', 'admin123'),
+        password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE', 'govdatahub'),
         entities: [
           Connection,
@@ -128,6 +133,12 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module';
     DataQualityModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Order matters: authenticate first, then role-check, then throttle.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

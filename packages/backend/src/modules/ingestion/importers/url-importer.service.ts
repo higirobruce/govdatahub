@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import axios from 'axios';
 import { ImportSourceType } from '../../../database/entities';
+import { assertSafeUrl } from './url-guard';
 
 export interface AuthConfig {
   type: 'none' | 'bearer' | 'basic' | 'api_key';
@@ -39,7 +40,7 @@ export class UrlImporterService {
 
     try {
       // 1. Validate URL
-      this.validateUrl(url);
+      await assertSafeUrl(url);
 
       // 2. Download file with authentication
       const response = await this.downloadFile(url, config);
@@ -115,7 +116,8 @@ export class UrlImporterService {
         maxContentLength: this.MAX_FILE_SIZE,
         maxBodyLength: this.MAX_FILE_SIZE,
         timeout: 60000, // 60 seconds
-        validateStatus: (status) => status < 400, // Accept 2xx and 3xx
+        maxRedirects: 0, // SSRF guard: a redirect could point at an internal address
+        validateStatus: (status) => status >= 200 && status < 300,
       });
 
       return response;
@@ -134,24 +136,6 @@ export class UrlImporterService {
         }
       }
       throw error;
-    }
-  }
-
-  /**
-   * Validate URL format and protocol
-   */
-  private validateUrl(url: string): void {
-    try {
-      const parsed = new URL(url);
-
-      // Only allow HTTP and HTTPS
-      if (!['http:', 'https:'].includes(parsed.protocol)) {
-        throw new Error(
-          `Invalid protocol: ${parsed.protocol}. Only HTTP and HTTPS are supported.`
-        );
-      }
-    } catch (error) {
-      throw new BadRequestException(`Invalid URL format: ${error.message}`);
     }
   }
 

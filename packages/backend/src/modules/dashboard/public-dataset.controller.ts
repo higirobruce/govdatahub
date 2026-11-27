@@ -15,6 +15,8 @@ import {
   ApiBody,
   ApiResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { Public } from '../auth/decorators/public.decorator';
 import { DatasetSharingService } from './dataset-sharing.service';
 
 /**
@@ -30,6 +32,8 @@ import { DatasetSharingService } from './dataset-sharing.service';
  * - connection: Database connections (requires query execution)
  * - transformation: Transformation pipeline results
  */
+@Public()
+@Throttle({ default: { ttl: 60000, limit: 30 } })
 @ApiTags('public')
 @Controller('public')
 export class PublicDatasetController {
