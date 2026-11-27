@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Visualization Benchmark — DataGate Docs</title>
+<style>
+  /* =========================================================
+     TOKENS — Paper & Ink, azure accent.
+     ========================================================= */
+  :root {
+    --paper:        #EEF2F7;
+    --paper-2:      #E3EAF3;
+    --paper-3:      #D2DCE8;
+    --ink:          #16181D;
+    --ink-2:        #353A43;
+    --ink-3:        #626973;
+    --ink-4:        #939AA5;
+
+    --azure:        #2E5FA8;
+    --azure-soft:   #C5D5EC;
+    --azure-deep:   #14355F;
+
+    --line:         #D3DCE7;
+    --line-strong:  #B5C2D2;
+    --highlight:    #DCE7F5;
+
+    --font-display: "Tiempos", "Iowan Old Style", "Georgia", serif;
+    --font-sans:    "Söhne", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    --font-mono:    "JetBrains Mono", "SF Mono", "Menlo", monospace;
+
+    --t-12: 0.75rem;
+    --t-14: 0.875rem;
+    --t-16: 1rem;
+    --t-18: 1.125rem;
+    --t-22: 1.375rem;
+    --t-28: 1.75rem;
+    --t-36: 2.25rem;
+    --t-48: 3rem;
+    --t-64: 4rem;
+
+    --s-1: 4px;
+    --s-2: 8px;
+    --s-3: 12px;
+    --s-4: 16px;
+    --s-5: 24px;
+    --s-6: 32px;
+    --s-7: 48px;
+    --s-8: 64px;
+    --s-9: 96px;
+
+    --r-1: 2px;
+    --r-2: 4px;
+    --r-3: 8px;
+
+    --ease:     cubic-bezier(0.2, 0, 0, 1);
+    --dur:      160ms;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--t-16);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .display-1 { font-family: var(--font-display); font-size: var(--t-64); line-height: 1.05; letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  .display-2 { font-family: var(--font-display); font-size: var(--t-48); line-height: 1.1;  letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  h1, .h1   { font-family: var(--font-display); font-size: var(--t-36); line-height: 1.15; letter-spacing: -0.015em; font-weight: 400; margin: 0 0 var(--s-5); }
+  h2, .h2   { font-family: var(--font-sans);    font-size: var(--t-28); line-height: 1.25; letter-spacing: -0.01em;  font-weight: 500; margin: var(--s-8) 0 var(--s-4); }
+  h3, .h3   { font-family: var(--font-sans);    font-size: var(--t-22); line-height: 1.3;  font-weight: 500;         margin: var(--s-7) 0 var(--s-3); }
+  h4, .h4   { font-family: var(--font-sans);    font-size: var(--t-18); line-height: 1.4;  font-weight: 600;         margin: var(--s-6) 0 var(--s-2); }
+  p          { margin: 0 0 var(--s-4); max-width: 68ch; }
+  .lead      { font-size: var(--t-18); color: var(--ink-2); max-width: 64ch; }
+  .eyebrow   { font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 var(--s-3); }
+  small, .caption { font-size: var(--t-14); color: var(--ink-3); }
+
+  a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color var(--dur) var(--ease);
+  }
+  a:hover { text-decoration-color: var(--azure); }
+  ::selection { background: var(--azure-soft); color: var(--ink); }
+
+  .page { max-width: 1040px; margin: 0 auto; padding: var(--s-9) var(--s-6); }
+  .section { padding: var(--s-8) 0; border-top: 1px solid var(--line); }
+  .section:first-of-type { border-top: 0; padding-top: var(--s-5); }
+  .grid { display: grid; gap: var(--s-4); }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  @media (max-width: 720px) {
+    .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .page { padding: var(--s-7) var(--s-5); }
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    font-family: var(--font-sans); font-size: var(--t-14); font-weight: 500; line-height: 1;
+    padding: 10px 16px; border-radius: var(--r-2);
+    border: 1px solid transparent; cursor: pointer;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+    text-decoration: none;
+  }
+  .btn-primary   { background: var(--ink);   color: var(--paper); }
+  .btn-primary:hover   { background: var(--ink-2); }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn-secondary:hover { border-color: var(--ink); }
+  .btn-accent    { background: var(--azure);  color: #fff; }
+  .btn-accent:hover    { background: var(--azure-deep); }
+
+  code {
+    font-family: var(--font-mono); font-size: 0.9em;
+    background: var(--paper-2); padding: 2px 6px;
+    border-radius: var(--r-1); border: 1px solid var(--line);
+  }
+  pre {
+    font-family: var(--font-mono); font-size: var(--t-14); line-height: 1.6;
+    background: #1A1A1A; color: #E8E2D4;
+    padding: var(--s-5); border-radius: var(--r-3);
+    overflow-x: auto; margin: var(--s-4) 0;
+  }
+  pre code { background: transparent; border: 0; padding: 0; color: inherit; }
+  .tok-kw  { color: #7AA7E0; }
+  .tok-str { color: #C7B97A; }
+  .tok-com { color: #6B6862; font-style: italic; }
+
+  .callout {
+    display: grid; grid-template-columns: auto 1fr; gap: var(--s-3);
+    padding: var(--s-4) var(--s-5); border-radius: var(--r-3);
+    background: var(--paper-2); border-left: 2px solid var(--ink-3);
+    margin: var(--s-4) 0;
+  }
+  .callout .mark {
+    font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ink-3); padding-top: 2px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-note { border-left-color: var(--ink-3); }
+  .callout-tip  { border-left-color: var(--azure); background: var(--highlight); }
+  .callout-tip .mark { color: var(--azure-deep); }
+  .callout-warn { border-left-color: #B47B2E; background: #F4E8D0; }
+  .callout-warn .mark { color: #8C5A18; }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: var(--t-14); margin: var(--s-4) 0;
+  }
+  th, td {
+    text-align: left; padding: var(--s-3) var(--s-4);
+    border-bottom: 1px solid var(--line); vertical-align: top;
+  }
+  th {
+    font-weight: 500; color: var(--ink-3);
+    font-family: var(--font-mono); font-size: var(--t-12);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  tr:hover td { background: var(--paper-2); }
+
+  /* Comparison matrix cell symbols */
+  .mtx { text-align: center; font-family: var(--font-mono); font-size: var(--t-14); }
+  .mtx-yes  { color: var(--azure-deep); font-weight: 500; }
+  .mtx-part { color: #8C5A18; }
+  .mtx-no   { color: var(--ink-4); }
+
+  .tag {
+    display: inline-flex; align-items: center;
+    font-family: var(--font-mono); font-size: var(--t-12);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 4px 8px; border-radius: var(--r-1);
+    background: var(--paper-2); color: var(--ink-2);
+    border: 1px solid var(--line);
+  }
+  .tag-accent { background: var(--azure-soft); border-color: var(--azure-soft); color: var(--azure-deep); }
+  .tag-ink    { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .tag-warn   { background: #F4E8D0; border-color: #E5D6B3; color: #8C5A18; }
+
+  .card {
+    border: 1px solid var(--line); border-radius: var(--r-3);
+    background: #fff; padding: var(--s-4) var(--s-5);
+  }
+  .card .card-eyebrow {
+    font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: var(--s-2);
+  }
+  .card .card-title { font-weight: 500; margin: 0 0 var(--s-2); }
+  .card p { margin: 0; color: var(--ink-2); font-size: var(--t-14); }
+
+  /* Priority pill */
+  .pri {
+    display: inline-block; font-family: var(--font-mono);
+    font-size: var(--t-12); letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: var(--r-1); margin-right: var(--s-2);
+  }
+  .pri-0 { background: var(--ink); color: var(--paper); }
+  .pri-1 { background: var(--azure-soft); color: var(--azure-deep); }
+  .pri-2 { background: var(--paper-2); color: var(--ink-3); border: 1px solid var(--line); }
+
+  .opp { padding: var(--s-4) 0; border-top: 1px solid var(--line); }
+  .opp:last-of-type { border-bottom: 1px solid var(--line); }
+  .opp h4 { margin: 0 0 var(--s-2); display: flex; align-items: center; gap: var(--s-2); }
+  .opp p { margin: 0 0 var(--s-2); color: var(--ink-2); }
+  .opp .opp-meta {
+    font-family: var(--font-mono); font-size: var(--t-12);
+    color: var(--ink-3); letter-spacing: 0.05em;
+  }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: var(--s-4);
+    font-family: var(--font-mono); font-size: var(--t-12);
+    color: var(--ink-3); margin: var(--s-3) 0 var(--s-5);
+  }
+  .legend span b { font-weight: 500; }
+
+  .hr-rule { border: 0; border-top: 1px solid var(--line); margin: var(--s-7) 0; }
+  .mt-0 { margin-top: 0; }
+  .stack > * + * { margin-top: var(--s-3); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+  .muted { color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<main class="page">
+
+  <!-- HERO -->
+  <section class="section">
+    <p class="eyebrow">DataGate Docs · Benchmark</p>
+    <h1 class="display-1">Where we stand.</h1>
+    <p class="lead">A side-by-side reading of DataGate's dashboarding against three reference tools — Kibana, Apache Superset, and Metabase — followed by a prioritized list of opportunities to close the gap.</p>
+    <div class="row" style="margin-top: var(--s-5);">
+      <a class="btn btn-primary" href="#matrix">Feature matrix</a>
+      <a class="btn btn-secondary" href="#opportunities">Opportunities</a>
+      <a class="btn btn-secondary" href="#roadmap">Suggested roadmap</a>
+      <span class="tag tag-accent">v0.1 · 2026-05-27</span>
+    </div>
+  </section>
+
+  <!-- METHODOLOGY -->
+  <section class="section" id="methodology">
+    <p class="eyebrow">Methodology</p>
+    <h2 class="mt-0">How we compared</h2>
+    <p>The benchmark covers the visualization and dashboarding surface — not connectors, governance, or ML. Each tool was scored on the same nine capability axes drawn from current customer expectations for an analytics product:</p>
+
+    <ol>
+      <li>Chart catalogue — breadth and depth of chart types.</li>
+      <li>Authoring UX — how a non-engineer goes from data to chart.</li>
+      <li>Dashboard interactivity — filters, cross-filters, drill-down, tabs.</li>
+      <li>Sharing &amp; embedding — links, signed embeds, public access.</li>
+      <li>Scheduled delivery &amp; alerting — push reports, threshold alerts.</li>
+      <li>Permissions &amp; multi-tenancy — row-level security, org isolation.</li>
+      <li>Semantic layer — saved metrics, models, calculated columns.</li>
+      <li>Performance — query caching, async execution, row limits.</li>
+      <li>Extensibility — custom charts, plugins, API surface.</li>
+    </ol>
+
+    <div class="callout callout-note">
+      <span class="mark">Note</span>
+      <p>Comparisons are based on each project's documented capabilities as of May 2026. Feature support evolves quickly — verify against the latest release before relying on a specific row.</p>
+    </div>
+  </section>
+
+  <!-- SUMMARY -->
+  <section class="section" id="summary">
+    <p class="eyebrow">Headline</p>
+    <h2 class="mt-0">In one paragraph</h2>
+    <p>DataGate ships a focused, modern dashboard surface — nine chart types, a 12-column responsive grid, link/JSON/email sharing, PNG export — and is the only tool in this group with native cross-database joins via PostgreSQL FDW. Where it lags is in the layer above charts: dashboard filters, scheduled email/Slack delivery, signed embeds, a semantic layer, and a no-SQL question builder. The reference tools all ship those, and most users expect at least three of them by default.</p>
+
+    <div class="grid grid-3" style="margin-top: var(--s-5);">
+      <div class="card">
+        <div class="card-eyebrow">DataGate strength</div>
+        <p class="card-title">Cross-database joins</p>
+        <p>Native FDW-backed joins across heterogeneous sources. Kibana is Elastic-only; Superset/Metabase need a warehouse to join across.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Closest gap</div>
+        <p class="card-title">Dashboard filters</p>
+        <p>None of DataGate's widgets share a date range or dropdown today. All three reference tools ship cascading filters out of the box.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Biggest opportunity</div>
+        <p class="card-title">Scheduled delivery</p>
+        <p>Existing pipeline cron infra makes weekly PDF/email/Slack delivery a high-leverage, low-cost addition.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MATRIX -->
+  <section class="section" id="matrix">
+    <p class="eyebrow">Feature matrix</p>
+    <h2 class="mt-0">At a glance</h2>
+    <p class="muted">A cell-by-cell read across the four tools. Read top-to-bottom by axis, left-to-right by tool.</p>
+
+    <div class="legend">
+      <span><b class="mtx-yes">●</b> shipped</span>
+      <span><b class="mtx-part">◐</b> partial / via workaround</span>
+      <span><b class="mtx-no">○</b> not available</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 32%;">Capability</th>
+          <th>DataGate</th>
+          <th>Kibana</th>
+          <th>Superset</th>
+          <th>Metabase</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="5" style="background: var(--paper-2); font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);">Charting &amp; authoring</td></tr>
+        <tr>
+          <td>Chart types in core</td>
+          <td>9</td>
+          <td>20+ (Lens, TSVB, Vega)</td>
+          <td>50+</td>
+          <td>25+</td>
+        </tr>
+        <tr>
+          <td>No-SQL question builder</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">● (Lens)</td>
+          <td class="mtx mtx-part">◐ (Explore)</td>
+          <td class="mtx mtx-yes">● (flagship)</td>
+        </tr>
+        <tr>
+          <td>SQL editor + history</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-part">◐ (ES|QL)</td>
+          <td class="mtx mtx-yes">● (SQL Lab)</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Pivot table / crosstab</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Big-number / KPI tile with delta</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">● (Metric)</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Geo / map visualization</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">● (Maps)</td>
+          <td class="mtx mtx-yes">● (deck.gl)</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Custom / extensible chart types</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">● (Vega)</td>
+          <td class="mtx mtx-yes">● (plugin)</td>
+          <td class="mtx mtx-part">◐ (visual_tests)</td>
+        </tr>
+
+        <tr><td colspan="5" style="background: var(--paper-2); font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);">Dashboard interactivity</td></tr>
+        <tr>
+          <td>Dashboard-level filters</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">● (native filters)</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Cross-filtering on click</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">● (click behavior)</td>
+        </tr>
+        <tr>
+          <td>Drill-down / drill-to-detail</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Dashboard tabs / pages</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-part">◐ (Canvas)</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Auto-refresh / live data</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Annotations on charts</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-part">◐</td>
+        </tr>
+        <tr>
+          <td>Text / markdown widgets</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+
+        <tr><td colspan="5" style="background: var(--paper-2); font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);">Sharing, embedding &amp; delivery</td></tr>
+        <tr>
+          <td>Shareable link</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Signed-JWT embed (per-user filters)</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">● (Embedded SDK)</td>
+          <td class="mtx mtx-yes">● (signed)</td>
+        </tr>
+        <tr>
+          <td>Public dashboards / iframe</td>
+          <td class="mtx mtx-part">◐ (link only)</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Scheduled email / Slack delivery</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">● (Reporting)</td>
+          <td class="mtx mtx-yes">● (Alerts &amp; Reports)</td>
+          <td class="mtx mtx-yes">● (Subscriptions)</td>
+        </tr>
+        <tr>
+          <td>Threshold alerts</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>PDF / CSV dashboard export</td>
+          <td class="mtx mtx-part">◐ (PNG per chart)</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+
+        <tr><td colspan="5" style="background: var(--paper-2); font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);">Data &amp; semantic layer</td></tr>
+        <tr>
+          <td>Cross-database joins (no warehouse)</td>
+          <td class="mtx mtx-yes">● (FDW)</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-no">○</td>
+        </tr>
+        <tr>
+          <td>Saved metrics / calculated columns</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">● (data views)</td>
+          <td class="mtx mtx-yes">● (datasets)</td>
+          <td class="mtx mtx-yes">● (models)</td>
+        </tr>
+        <tr>
+          <td>Templated / parameterized queries</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">● (KQL vars)</td>
+          <td class="mtx mtx-yes">● (Jinja)</td>
+          <td class="mtx mtx-yes">● (variables)</td>
+        </tr>
+        <tr>
+          <td>Row-level security on shares</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">● (DLS)</td>
+          <td class="mtx mtx-yes">● (RLS)</td>
+          <td class="mtx mtx-yes">● (sandboxes)</td>
+        </tr>
+
+        <tr><td colspan="5" style="background: var(--paper-2); font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);">Performance &amp; ops</td></tr>
+        <tr>
+          <td>Query result caching</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">● (Redis)</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Async / long-query execution</td>
+          <td class="mtx mtx-no">○ (30s cap)</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">● (Celery)</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Multi-tenant org isolation</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">● (spaces)</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+        </tr>
+        <tr>
+          <td>Dashboard version history</td>
+          <td class="mtx mtx-no">○</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-yes">●</td>
+          <td class="mtx mtx-part">◐ (revisions)</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- DEEP DIVES -->
+  <section class="section" id="deep">
+    <p class="eyebrow">Category notes</p>
+    <h2 class="mt-0">Where each tool excels</h2>
+
+    <h3>Charting catalogue</h3>
+    <p>Superset is the broadest, with 50+ chart types including Sankey, treemap, waterfall, mixed-axis, and deck.gl-powered maps. Metabase keeps the core list tight (≈25) but every type ships with smart defaults that "just look right". Kibana's Lens generates suggestions based on the field types you drop in. DataGate's nine ECharts types are competitive for shape coverage but miss the high-value tiles users notice on day one — pivot table, big-number/KPI, and a geographic map.</p>
+
+    <h3>Authoring UX</h3>
+    <p>Metabase's "Ask a question" flow is the gold standard for non-SQL authors: pick a model, summarize by, filter, group. Kibana Lens is the closest peer. Superset's Explore screen is more discoverable than its SQL Lab but still favors users who know what aggregation they want. DataGate today is SQL-only — anyone who can't write a query is locked out of authoring, which excludes most business users.</p>
+
+    <h3>Dashboard interactivity</h3>
+    <p>The three reference tools all ship cascading filters and at least one mode of cross-filtering (click a bar → filter the rest). Metabase's "click behavior" is the most flexible: each click target can be configured to drill, link to another dashboard, or update parameters. DataGate today renders each widget independently — a single date range applied to all widgets requires editing the underlying SQL of each.</p>
+
+    <h3>Sharing &amp; embedding</h3>
+    <p>Metabase and Superset both ship signed-JWT embeds where the host app can inject per-user filters at render time — this is the unlock for white-labeling analytics inside another product. Kibana has Shareable Snapshots and full iframe embeds. DataGate's current sharing is a static link or JSON dump — enough for internal handoff, not enough for embedded analytics.</p>
+
+    <h3>Scheduled delivery &amp; alerts</h3>
+    <p>All three reference tools have a first-class scheduled-delivery story: weekly PDF to a Slack channel, threshold alert when a KPI crosses a line. DataGate has the underlying scheduler infrastructure already (NestJS <code>ScheduleRegistry</code>, cron, and a pipeline runner) — the missing piece is a delivery worker that snapshots a dashboard and pushes it to a destination.</p>
+
+    <h3>Semantic layer</h3>
+    <p>Superset's datasets-with-metrics and Metabase's models are how power users avoid copy-pasting <code>COUNT(DISTINCT user_id)</code> across thirty charts. They also enable reusable calculated columns and percentile metrics. DataGate's current saved query is the unit of reuse — closer to Superset's "virtual dataset" but without metric definitions.</p>
+
+    <h3>Performance</h3>
+    <p>Superset's Redis-backed cache and Celery workers, plus Kibana's index-time aggregations, let dashboards open in under a second even at scale. DataGate caps queries at 30s and 10k rows with no caching layer — fine for crisp ad-hoc work, brittle as soon as a dashboard sits behind a slow remote source.</p>
+
+    <h3>Cross-database — DataGate's lead</h3>
+    <p>This is the genuinely differentiated capability. Superset and Metabase can connect to many sources but cannot join across them without first landing data in a warehouse. Kibana is Elastic-only. DataGate's FDW-backed query path means a join across a Postgres operational store and a MySQL CRM is a first-class feature. Worth protecting and surfacing more prominently in the UI.</p>
+  </section>
+
+  <!-- OPPORTUNITIES -->
+  <section class="section" id="opportunities">
+    <p class="eyebrow">Backlog</p>
+    <h2 class="mt-0">Opportunities to close the gap</h2>
+    <p>Each opportunity is sized as <span class="pri pri-0">P0</span> (must-have for parity), <span class="pri pri-1">P1</span> (strong table-stakes), or <span class="pri pri-2">P2</span> (differentiator or polish). Effort is a rough engineering estimate.</p>
+
+    <!-- P0s -->
+    <div class="opp">
+      <h4><span class="pri pri-0">P0</span> Dashboard-level filters</h4>
+      <p>Add a filter bar above the grid with date range, dropdown, and free-text controls that flow into each widget's underlying query via a parameter substitution layer. Cascading filters (region → city) follow naturally.</p>
+      <div class="opp-meta">Effort: M · Unblocks: cross-filter on click, scheduled delivery with parameters</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-0">P0</span> Scheduled email / Slack delivery</h4>
+      <p>Reuse the existing pipeline cron infra. A delivery job snapshots the dashboard (using the existing PNG export per chart, composed into a PDF), then sends to a configurable list of channels. Use organization SMTP config or a Slack webhook stored on the org.</p>
+      <div class="opp-meta">Effort: M · Reuses: <code>ScheduleRegistry</code>, <code>PipelineRun</code> entity pattern</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-0">P0</span> Big-number / KPI widget</h4>
+      <p>The single most asked-for chart on day one. Pair a number with a sparkline, a percentage delta vs a prior period, and a conditional color band. Trivial to add as a tenth ECharts component.</p>
+      <div class="opp-meta">Effort: S · Reuses: existing chart component pattern</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-0">P0</span> Pivot / crosstab table widget</h4>
+      <p>A two-axis aggregating table. Powered by a simple group-by-and-pivot transformer over query results. Use <code>@tanstack/table</code> or similar — does not need a third-party pivot engine for v1.</p>
+      <div class="opp-meta">Effort: M</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-0">P0</span> Parameterized queries</h4>
+      <p>Allow <code>{{date_range.start}}</code>-style placeholders in saved-query SQL, bound to dashboard filters or share-link parameters. Without this, dashboard filters can't reach the widgets.</p>
+      <div class="opp-meta">Effort: M · Blocks: dashboard filters, signed embeds with row-level filters</div>
+    </div>
+
+    <!-- P1s -->
+    <div class="opp">
+      <h4><span class="pri pri-1">P1</span> Cross-filter on click</h4>
+      <p>Clicking a bar/slice emits a filter to the rest of the dashboard. Sits on top of the dashboard-filter and parameterized-query work — wire ECharts <code>click</code> events to the filter state.</p>
+      <div class="opp-meta">Effort: S (after filters) · Builds on: dashboard filters</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-1">P1</span> Signed-JWT embed mode</h4>
+      <p>Issue a short-lived JWT scoped to <code>{ dashboardId, parameters }</code>. An embedding host app calls a backend endpoint, gets a token, and renders DataGate in an iframe with per-user filters injected. Unlocks white-label analytics.</p>
+      <div class="opp-meta">Effort: M · Depends on: parameterized queries</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-1">P1</span> Query result caching</h4>
+      <p>Redis-backed cache keyed on <code>(query, params, connectionId, orgId)</code> with a configurable TTL per saved query. Lifts dashboard re-open from "rerun all widgets" to "render from cache".</p>
+      <div class="opp-meta">Effort: M · Massive perceived-performance win</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-1">P1</span> Text / markdown widget</h4>
+      <p>A non-chart widget that renders markdown. Essential for executive dashboards where context lives next to the numbers. <code>react-markdown</code> is already a dependency.</p>
+      <div class="opp-meta">Effort: XS</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-1">P1</span> Threshold alerts</h4>
+      <p>"When KPI X crosses Y, email Z". Same scheduled-delivery pipe with a predicate. Aim for the 90% case (compare a single number to a threshold) before adding anomaly detection.</p>
+      <div class="opp-meta">Effort: S · Reuses: scheduled delivery</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-1">P1</span> Auto-refresh interval</h4>
+      <p>Per-dashboard "refresh every N minutes" toggle. Lightweight — a SWR <code>refreshInterval</code> on each widget driven by dashboard-level state. Critical for ops-dashboard use cases.</p>
+      <div class="opp-meta">Effort: XS</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-1">P1</span> Dashboard PDF / CSV export</h4>
+      <p>One-click full-dashboard PDF and per-widget CSV. Server-side render via Puppeteer (a known DataGate dependency for catalog screenshots) or client-side via the existing PNG path.</p>
+      <div class="opp-meta">Effort: S</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-1">P1</span> Geo map widget</h4>
+      <p>A choropleth (country/region shading) and scatter-on-map. ECharts has both built in — add a tenth chart type and a basic geo-column convention (latitude/longitude, ISO country code).</p>
+      <div class="opp-meta">Effort: M</div>
+    </div>
+
+    <!-- P2s -->
+    <div class="opp">
+      <h4><span class="pri pri-2">P2</span> Lightweight "Ask a question" builder</h4>
+      <p>A schema-aware UI that lets users pick a table, summarize by an aggregation, group by a column, and filter — then generate the SQL behind the scenes. Doesn't need to match Metabase's full surface; even a 60% version expands the addressable audience meaningfully.</p>
+      <div class="opp-meta">Effort: L · Major UX investment</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-2">P2</span> Semantic layer (saved metrics)</h4>
+      <p>Allow a saved query to declare named metrics (<code>active_users := COUNT(DISTINCT user_id WHERE active)</code>). Widgets reference the metric, not the SQL — change the definition once, update everywhere. Pairs naturally with the cross-database query feature.</p>
+      <div class="opp-meta">Effort: L</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-2">P2</span> Dashboard tabs / pages</h4>
+      <p>Group widgets into named tabs inside one dashboard. Today each "view" requires a separate dashboard, which fragments navigation.</p>
+      <div class="opp-meta">Effort: M</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-2">P2</span> Row-level security on shares</h4>
+      <p>When sharing, apply an implicit filter derived from the recipient's identity (e.g. <code>WHERE region = $user.region</code>). Strong tie-in with the multi-tenant org model. Needed before DataGate is safe to embed in an external customer-facing product.</p>
+      <div class="opp-meta">Effort: L · Pairs with signed-JWT embed</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-2">P2</span> Drill-to-detail</h4>
+      <p>Click a chart element → open the underlying rows. The SQL transformation is mechanical (add a <code>WHERE</code> for the clicked group); the UI affordance is a modal table.</p>
+      <div class="opp-meta">Effort: M</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-2">P2</span> Custom chart plugin API</h4>
+      <p>Lets teams ship niche visualizations (Sankey, waterfall, custom maps) without forking. A narrow plugin contract — receives query results, returns a React node — keeps the surface small.</p>
+      <div class="opp-meta">Effort: L</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-2">P2</span> Dashboard version history</h4>
+      <p>Snapshot on save, with restore. Cheap once dashboards are stored as JSON in a single column — append-only history table keyed on dashboard id.</p>
+      <div class="opp-meta">Effort: S</div>
+    </div>
+
+    <div class="opp">
+      <h4><span class="pri pri-2">P2</span> Annotations on time-series</h4>
+      <p>Drop a vertical marker on a line chart ("v2 launch", "incident"). Stored per dashboard, rendered as ECharts <code>markLine</code> with a tooltip.</p>
+      <div class="opp-meta">Effort: S</div>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section class="section" id="roadmap">
+    <p class="eyebrow">Sequencing</p>
+    <h2 class="mt-0">Suggested roadmap</h2>
+    <p>Three milestones, each ~6–8 weeks of focused work. The ordering minimizes rework: filters and parameterization land first because they unblock everything downstream.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 18%;">Milestone</th>
+          <th>Goal</th>
+          <th>Scope</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tag tag-ink">M1</span> Interactive dashboards</td>
+          <td>Make dashboards feel alive.</td>
+          <td>Parameterized queries · Dashboard filters · Cross-filter on click · Big-number widget · Pivot table · Text/markdown widget · Auto-refresh · Annotations</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-ink">M2</span> Delivery &amp; performance</td>
+          <td>Get dashboards out of DataGate and in front of people, fast.</td>
+          <td>Query result caching · Scheduled email/Slack delivery · Threshold alerts · Dashboard PDF/CSV export · Async query execution · Dashboard version history</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-ink">M3</span> Embed &amp; semantic layer</td>
+          <td>Open the door to embedded analytics and reusable metrics.</td>
+          <td>Signed-JWT embed mode · Row-level security on shares · Saved metrics &amp; calculated columns · Dashboard tabs · Geo map widget · Lightweight question builder</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-tip">
+      <span class="mark">Tip</span>
+      <p>M1's parameterized-query work is the most leveraged investment on this list — five later items collapse to days of work once it lands. Resist the temptation to ship a filter UI without it.</p>
+    </div>
+
+    <div class="callout callout-warn">
+      <span class="mark">Caveat</span>
+      <p>Effort estimates are calibrated to the current team and codebase. They assume one engineer per milestone working at typical pace, and exclude design and QA.</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <section class="section">
+    <hr class="hr-rule" />
+    <p class="caption">DataGate · Visualization Benchmark · v0.1 · 2026-05-27</p>
+  </section>
+
+</main>
+
+</body>
+</html>

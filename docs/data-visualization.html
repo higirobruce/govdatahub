@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Data Visualization — DataGate Docs</title>
+<style>
+  /* =========================================================
+     TOKENS — Paper & Ink, azure accent.
+     ========================================================= */
+  :root {
+    --paper:        #EEF2F7;
+    --paper-2:      #E3EAF3;
+    --paper-3:      #D2DCE8;
+    --ink:          #16181D;
+    --ink-2:        #353A43;
+    --ink-3:        #626973;
+    --ink-4:        #939AA5;
+
+    --azure:        #2E5FA8;
+    --azure-soft:   #C5D5EC;
+    --azure-deep:   #14355F;
+
+    --line:         #D3DCE7;
+    --line-strong:  #B5C2D2;
+    --highlight:    #DCE7F5;
+
+    --font-display: "Tiempos", "Iowan Old Style", "Georgia", serif;
+    --font-sans:    "Söhne", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    --font-mono:    "JetBrains Mono", "SF Mono", "Menlo", monospace;
+
+    --t-12: 0.75rem;
+    --t-14: 0.875rem;
+    --t-16: 1rem;
+    --t-18: 1.125rem;
+    --t-22: 1.375rem;
+    --t-28: 1.75rem;
+    --t-36: 2.25rem;
+    --t-48: 3rem;
+    --t-64: 4rem;
+
+    --s-1: 4px;
+    --s-2: 8px;
+    --s-3: 12px;
+    --s-4: 16px;
+    --s-5: 24px;
+    --s-6: 32px;
+    --s-7: 48px;
+    --s-8: 64px;
+    --s-9: 96px;
+
+    --r-1: 2px;
+    --r-2: 4px;
+    --r-3: 8px;
+
+    --ease:     cubic-bezier(0.2, 0, 0, 1);
+    --dur:      160ms;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--t-16);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .display-1 { font-family: var(--font-display); font-size: var(--t-64); line-height: 1.05; letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  .display-2 { font-family: var(--font-display); font-size: var(--t-48); line-height: 1.1;  letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  h1, .h1   { font-family: var(--font-display); font-size: var(--t-36); line-height: 1.15; letter-spacing: -0.015em; font-weight: 400; margin: 0 0 var(--s-5); }
+  h2, .h2   { font-family: var(--font-sans);    font-size: var(--t-28); line-height: 1.25; letter-spacing: -0.01em;  font-weight: 500; margin: var(--s-8) 0 var(--s-4); }
+  h3, .h3   { font-family: var(--font-sans);    font-size: var(--t-22); line-height: 1.3;  font-weight: 500;         margin: var(--s-7) 0 var(--s-3); }
+  h4, .h4   { font-family: var(--font-sans);    font-size: var(--t-18); line-height: 1.4;  font-weight: 600;         margin: var(--s-6) 0 var(--s-2); }
+  p          { margin: 0 0 var(--s-4); max-width: 68ch; }
+  .lead      { font-size: var(--t-18); color: var(--ink-2); max-width: 64ch; }
+  .eyebrow   { font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 var(--s-3); }
+  small, .caption { font-size: var(--t-14); color: var(--ink-3); }
+
+  a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color var(--dur) var(--ease);
+  }
+  a:hover { text-decoration-color: var(--azure); }
+
+  ::selection { background: var(--azure-soft); color: var(--ink); }
+
+  .page { max-width: 1040px; margin: 0 auto; padding: var(--s-9) var(--s-6); }
+  .section { padding: var(--s-8) 0; border-top: 1px solid var(--line); }
+  .section:first-of-type { border-top: 0; padding-top: var(--s-5); }
+  .grid { display: grid; gap: var(--s-4); }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  @media (max-width: 720px) {
+    .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .page { padding: var(--s-7) var(--s-5); }
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-family: var(--font-sans);
+    font-size: var(--t-14);
+    font-weight: 500;
+    line-height: 1;
+    padding: 10px 16px;
+    border-radius: var(--r-2);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+    text-decoration: none;
+  }
+  .btn-primary   { background: var(--ink);   color: var(--paper); }
+  .btn-primary:hover   { background: var(--ink-2); }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn-secondary:hover { border-color: var(--ink); }
+  .btn-accent    { background: var(--azure);  color: #fff; }
+  .btn-accent:hover    { background: var(--azure-deep); }
+  .btn-ghost     { background: transparent; color: var(--ink-2); }
+  .btn-ghost:hover     { color: var(--ink); background: var(--paper-2); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--paper-2);
+    padding: 2px 6px;
+    border-radius: var(--r-1);
+    border: 1px solid var(--line);
+  }
+  pre {
+    font-family: var(--font-mono);
+    font-size: var(--t-14);
+    line-height: 1.6;
+    background: #1A1A1A;
+    color: #E8E2D4;
+    padding: var(--s-5);
+    border-radius: var(--r-3);
+    overflow-x: auto;
+    margin: var(--s-4) 0;
+  }
+  pre code {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+  }
+  .tok-kw  { color: #7AA7E0; }
+  .tok-str { color: #C7B97A; }
+  .tok-com { color: #6B6862; font-style: italic; }
+  .tok-fn  { color: #BBD2EE; }
+
+  .callout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--s-3);
+    padding: var(--s-4) var(--s-5);
+    border-radius: var(--r-3);
+    background: var(--paper-2);
+    border-left: 2px solid var(--ink-3);
+    margin: var(--s-4) 0;
+  }
+  .callout .mark {
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-top: 2px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-note  { border-left-color: var(--ink-3); }
+  .callout-tip   { border-left-color: var(--azure);     background: var(--highlight); }
+  .callout-warn  { border-left-color: #B47B2E; background: #F4E8D0; }
+  .callout-tip .mark  { color: var(--azure-deep); }
+  .callout-warn .mark { color: #8C5A18; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--t-14);
+    margin: var(--s-4) 0;
+  }
+  th, td {
+    text-align: left;
+    padding: var(--s-3) var(--s-4);
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 500;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  tr:hover td { background: var(--paper-2); }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: var(--r-1);
+    background: var(--paper-2);
+    color: var(--ink-2);
+    border: 1px solid var(--line);
+  }
+  .tag-accent { background: var(--azure-soft); border-color: var(--azure-soft); color: var(--azure-deep); }
+  .tag-ink    { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  /* Card used for chart-type and step listings */
+  .card {
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    background: #fff;
+    padding: var(--s-4) var(--s-5);
+  }
+  .card .card-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: var(--s-2);
+  }
+  .card .card-title { font-weight: 500; margin: 0 0 var(--s-2); }
+  .card p { margin: 0; color: var(--ink-2); font-size: var(--t-14); }
+
+  /* Numbered step list */
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: var(--s-5) 0; }
+  .steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: var(--s-4) 0 var(--s-4) var(--s-7);
+    border-top: 1px solid var(--line);
+  }
+  .steps > li:last-child { border-bottom: 1px solid var(--line); }
+  .steps > li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: var(--s-4);
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+  }
+  .steps .step-title { font-weight: 500; margin: 0 0 var(--s-2); }
+  .steps p { margin: 0; color: var(--ink-2); }
+
+  .hr-rule { border: 0; border-top: 1px solid var(--line); margin: var(--s-7) 0; }
+  .mt-0 { margin-top: 0; }
+  .stack > * + * { margin-top: var(--s-3); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+  .muted { color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<main class="page">
+
+  <!-- HERO -->
+  <section class="section">
+    <p class="eyebrow">DataGate Docs · Data Visualization</p>
+    <h1 class="display-1">Dashboards &amp; Charts.</h1>
+    <p class="lead">Turn any SQL query result into a chart, arrange charts on a responsive grid, and share the dashboard as a link, JSON export, or embedded widget.</p>
+    <div class="row" style="margin-top: var(--s-5);">
+      <a class="btn btn-primary" href="#workflow">Get started</a>
+      <a class="btn btn-secondary" href="#chart-types">Chart catalogue</a>
+      <span class="tag tag-accent">ECharts</span>
+      <span class="tag">React Grid Layout</span>
+    </div>
+  </section>
+
+  <!-- OVERVIEW -->
+  <section class="section" id="overview">
+    <p class="eyebrow">Overview</p>
+    <h2 class="mt-0">What it does</h2>
+    <p>DataGate's visualization layer sits on top of the query engine. Every chart is fed by a saved query, a cross-database query, or an ad-hoc SQL result. Once charted, widgets live on a dashboard — a freely arranged 12-column grid that survives resizing, reordering, and sharing.</p>
+
+    <div class="grid grid-3" style="margin-top: var(--s-5);">
+      <div class="card">
+        <div class="card-eyebrow">Source</div>
+        <p class="card-title">SQL results</p>
+        <p>Charts are derived from query output. Run a query in the editor, then "Add to Dashboard".</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Render</div>
+        <p class="card-title">Apache ECharts</p>
+        <p>All nine chart types render through ECharts. Each chart can be exported as a PNG from the widget menu.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Layout</div>
+        <p class="card-title">Responsive grid</p>
+        <p>Widgets sit on a 12-column grid. Drag to reposition, drag corners to resize. Lock with Preview mode.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHART TYPES -->
+  <section class="section" id="chart-types">
+    <p class="eyebrow">Reference</p>
+    <h2 class="mt-0">Chart types</h2>
+    <p class="muted">Nine visualization types. Pick by question, not by aesthetic — line for trend, bar for comparison, pie for share of a whole.</p>
+
+    <div class="grid grid-3" style="margin-top: var(--s-5);">
+      <div class="card">
+        <div class="card-eyebrow">Line</div>
+        <p class="card-title">Trends over a continuum</p>
+        <p>Single or multi-series. Toggle area fill for cumulative emphasis.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Bar</div>
+        <p class="card-title">Category comparison</p>
+        <p>Vertical, horizontal, or stacked. Best for discrete groupings.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Pie</div>
+        <p class="card-title">Share of a whole</p>
+        <p>Use sparingly — five slices or fewer. Donut variant available.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Area</div>
+        <p class="card-title">Cumulative trend</p>
+        <p>Stacked area for compositional change over time.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Scatter</div>
+        <p class="card-title">Correlation</p>
+        <p>Two numeric axes. Optional size dimension for a bubble effect.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Radar</div>
+        <p class="card-title">Multi-axis profile</p>
+        <p>Compare entities across 3–8 quantitative dimensions.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Heatmap</div>
+        <p class="card-title">Density grid</p>
+        <p>Two categorical axes, one numeric value mapped to color.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Gauge</div>
+        <p class="card-title">Single metric</p>
+        <p>A KPI against a target. One number, one band.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Funnel</div>
+        <p class="card-title">Sequential conversion</p>
+        <p>Ordered stages with monotonically narrowing values.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="mark">Tip</span>
+      <p>Chart type is configurable after creation. Adding a widget with the wrong type isn't a one-way door — switch it from the widget's <code>ChartConfigPanel</code>.</p>
+    </div>
+  </section>
+
+  <!-- WORKFLOW -->
+  <section class="section" id="workflow">
+    <p class="eyebrow">Guide</p>
+    <h2 class="mt-0">From query to dashboard</h2>
+    <p>The end-to-end flow takes a few minutes. Charts are staged in <code>localStorage</code> between the query page and the dashboard, so you can build up several before committing to a layout.</p>
+
+    <ol class="steps">
+      <li>
+        <p class="step-title">Run a query</p>
+        <p>Open <code>/query</code>, choose a connection, and execute SQL. Results appear in the table below the editor.</p>
+      </li>
+      <li>
+        <p class="step-title">Add the result to a dashboard</p>
+        <p>Click <em>Add to Dashboard</em>. Pick a chart type and map columns to axes. The chart is staged under the <code>pendingDashboardCharts</code> key in localStorage.</p>
+      </li>
+      <li>
+        <p class="step-title">Open the dashboard builder</p>
+        <p>Navigate to <code>/dashboards</code> and either open an existing dashboard or create a new one. Use <em>Load Pending Charts</em> to pull staged widgets in.</p>
+      </li>
+      <li>
+        <p class="step-title">Arrange the layout</p>
+        <p>Drag widgets to reposition; drag the bottom-right corner to resize. The grid is 12 columns wide and reflows on smaller screens.</p>
+      </li>
+      <li>
+        <p class="step-title">Save and share</p>
+        <p>Give the dashboard a name and description, then save. Share via link, JSON export, email, or copy-to-clipboard from the share modal.</p>
+      </li>
+    </ol>
+
+    <div class="callout callout-warn">
+      <span class="mark">Heads up</span>
+      <p>Pending charts live in browser <code>localStorage</code> — clearing site data or switching browsers loses them. Save the dashboard before closing the tab.</p>
+    </div>
+  </section>
+
+  <!-- ACTIONS -->
+  <section class="section" id="actions">
+    <p class="eyebrow">Reference</p>
+    <h2 class="mt-0">User actions</h2>
+
+    <table>
+      <thead>
+        <tr><th>Action</th><th>Where</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Create dashboard</td><td><code>/dashboards</code></td><td>Empty, from pending charts, or duplicated from an existing one.</td></tr>
+        <tr><td>Add widget</td><td>Dashboard builder</td><td>Pick chart type via <code>ChartBuilder</code>. Configure data mapping in <code>ChartConfigPanel</code>.</td></tr>
+        <tr><td>Edit widget</td><td>Widget menu</td><td>Title, chart type, axis mappings, color palette.</td></tr>
+        <tr><td>Arrange widgets</td><td>Dashboard grid</td><td>Drag to move, corner-drag to resize. 12-column responsive grid.</td></tr>
+        <tr><td>Preview mode</td><td>Toolbar toggle</td><td>Locks editing. Use when sharing your screen or screenshotting.</td></tr>
+        <tr><td>Export chart</td><td>Widget menu</td><td>PNG export, powered by ECharts. Resolution matches the rendered size.</td></tr>
+        <tr><td>Share dashboard</td><td>Share modal</td><td>Shareable link, JSON export, email invite, or clipboard copy.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- API -->
+  <section class="section" id="api">
+    <p class="eyebrow">Reference</p>
+    <h2 class="mt-0">API endpoints</h2>
+    <p>The dashboard module is mounted under <code>/dashboard</code>. All endpoints require a JWT and scope to the caller's organization.</p>
+
+    <table>
+      <thead>
+        <tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>GET</code></td><td><code>/dashboard/stats</code></td><td>Aggregate metrics for the org's dashboards.</td></tr>
+        <tr><td><code>GET</code></td><td><code>/dashboard/catalog</code></td><td>Dataset catalog for use in widgets.</td></tr>
+        <tr><td><code>GET</code></td><td><code>/dashboard/shares</code></td><td>List shared dashboards in the org.</td></tr>
+        <tr><td><code>POST</code></td><td><code>/dashboard/shares</code></td><td>Create a shareable link for a dashboard.</td></tr>
+        <tr><td><code>GET</code></td><td><code>/dashboard/analytics/query-performance</code></td><td>Query execution metrics over a time window.</td></tr>
+        <tr><td><code>GET</code></td><td><code>/dashboard/analytics/shared-datasets</code></td><td>Stats on which datasets are shared most.</td></tr>
+        <tr><td><code>GET</code></td><td><code>/dashboard/analytics/data-freshness</code></td><td>Freshness signals per dataset.</td></tr>
+        <tr><td><code>GET</code></td><td><code>/dashboard/analytics/connection-health</code></td><td>Connection status and latency per source.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Example — list dashboard stats</h3>
+<pre><code><span class="tok-com">// All requests must include the JWT in the Authorization header.</span>
+<span class="tok-kw">const</span> <span class="tok-fn">res</span> = <span class="tok-kw">await</span> fetch(<span class="tok-str">"/api/dashboard/stats"</span>, {
+  headers: { Authorization: <span class="tok-str">`Bearer ${token}`</span> },
+});
+<span class="tok-kw">const</span> stats = <span class="tok-kw">await</span> res.json();</code></pre>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section class="section" id="components">
+    <p class="eyebrow">Reference</p>
+    <h2 class="mt-0">Frontend components</h2>
+    <p>Each visual element maps to a component in <code>packages/frontend/components/</code>. Names below match the source files.</p>
+
+    <table>
+      <thead>
+        <tr><th>Component</th><th>Role</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>DashboardGrid</code></td><td>Wraps <code>react-grid-layout</code>. Owns drag/resize.</td></tr>
+        <tr><td><code>WidgetCard</code></td><td>Individual chart cell with menu and resize handles.</td></tr>
+        <tr><td><code>ChartBuilder</code></td><td>Chart type picker with live configuration UI.</td></tr>
+        <tr><td><code>ChartConfigPanel</code></td><td>Edits title, chart type, axis mappings, colors.</td></tr>
+        <tr><td><code>LineChart</code>, <code>BarChart</code>, …</td><td>One component per ECharts chart type, all under <code>components/charts/</code>.</td></tr>
+        <tr><td><code>ShareDashboardModal</code></td><td>Link, JSON, email, and clipboard sharing.</td></tr>
+        <tr><td><code>DashboardList</code></td><td>Browser of saved dashboards on <code>/dashboards</code>.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- TESTING NOTES -->
+  <section class="section" id="testing">
+    <p class="eyebrow">Testing</p>
+    <h2 class="mt-0">Things to verify</h2>
+    <p>When testing the visualization feature end-to-end, walk through these checks. A pass means the user can move through the workflow without rolling back.</p>
+
+    <div class="callout callout-note">
+      <span class="mark">Note</span>
+      <p>Run the app with <code>pnpm dev</code> and exercise the flow against a live connection. Mocked data hides axis-mapping bugs.</p>
+    </div>
+
+    <h3>Smoke checklist</h3>
+    <table>
+      <thead>
+        <tr><th>Step</th><th>Expected</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Run a query that returns rows on <code>/query</code></td><td>Result grid renders. <em>Add to Dashboard</em> is enabled.</td></tr>
+        <tr><td>Pick "Bar" and map x/y columns</td><td>Preview renders the chart. Type can be switched without re-mapping.</td></tr>
+        <tr><td>Open <code>/dashboards</code> &rarr; <em>Load Pending Charts</em></td><td>Staged widget appears on the grid.</td></tr>
+        <tr><td>Drag the widget across two columns</td><td>Position persists after refresh once the dashboard is saved.</td></tr>
+        <tr><td>Resize via the bottom-right corner</td><td>Chart redraws to fit; no clipping.</td></tr>
+        <tr><td>Switch to Preview mode</td><td>Drag/resize handles disappear. Charts still respond to hover/tooltip.</td></tr>
+        <tr><td>Export a chart to PNG</td><td>PNG matches the rendered size, no missing labels.</td></tr>
+        <tr><td>Open the Share modal &rarr; Copy link</td><td>Link opens dashboard in a fresh tab with the same layout.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Edge cases worth poking</h3>
+    <ul>
+      <li>Query returns zero rows — widget should show an empty state, not a crashed chart.</li>
+      <li>Query column is renamed in SQL between staging and load — confirm the axis mapping degrades cleanly.</li>
+      <li>Clear <code>localStorage</code> mid-flow — confirm pending charts are reported as missing rather than silently dropped.</li>
+      <li>Dashboard with 12+ widgets — grid still scrolls; ECharts instances are not double-mounted.</li>
+      <li>Share a dashboard, then revoke the share — the link should 404 cleanly, not leak an empty shell.</li>
+    </ul>
+  </section>
+
+  <!-- FOOTER -->
+  <section class="section">
+    <hr class="hr-rule" />
+    <p class="caption">DataGate · Data Visualization · v0.1</p>
+  </section>
+
+</main>
+
+</body>
+</html>
