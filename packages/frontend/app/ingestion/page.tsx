@@ -378,7 +378,7 @@ export default function DataIngestionPage() {
                         onChange={(e) => setTargetTable(e.target.value)}
                       />
                       <p className="text-sm text-muted-foreground mt-2">
-                        Table will be created if it doesn't exist
+                        Table will be created if it doesn&apos;t exist
                       </p>
                     </div>
                   </>

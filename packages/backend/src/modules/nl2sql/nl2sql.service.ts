@@ -197,7 +197,7 @@ export class Nl2sqlService {
     // 4. Get explanation
     let explanation;
     try {
-      explanation = await provider.explainSql(sql, schemaContext);
+      explanation = await provider.explainSql(sql, schemaContext, settings);
     } catch (error) {
       this.logger.error('AI provider error:', error);
       throw new BadRequestException(

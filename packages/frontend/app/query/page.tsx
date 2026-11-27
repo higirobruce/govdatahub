@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
 import { Connection, QueryResult } from '@/types';
@@ -33,6 +34,9 @@ interface StagingTable {
 
 export default function QueryPage() {
   const { showToast } = useToast();
+  // Relies on this page rendering dynamically (no static prerender) — if the
+  // build ever forces static generation for this route again, this call needs
+  // a Suspense boundary per Next's useSearchParams() prerendering rules.
   const searchParams = useSearchParams();
   const [dataSource, setDataSource] = useState<DataSource>('connections');
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
@@ -50,23 +54,21 @@ export default function QueryPage() {
   const [isGeneratingSql, setIsGeneratingSql] = useState(false);
   const [aiReasoning, setAiReasoning] = useState<string | null>(null);
   const [sqlWarnings, setSqlWarnings] = useState<string[]>([]);
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [isExplaining, setIsExplaining] = useState(false);
 
   // Sidebar state
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['data-sources'])
   );
 
-  const { data: connections } = useSWR<Connection[]>('/connections', async () => {
-    const result = await api.connections.list();
-    return result as Connection[];
-  });
+  const { data: connections } = useSWR<Connection[]>('/connections', () =>
+    api.connections.list()
+  );
 
   const { data: stagingTables } = useSWR<StagingTable[]>(
     dataSource === 'staging' ? '/schema/staging/tables' : null,
-    async () => {
-      const result = await api.schema.getStagingTables();
-      return result as StagingTable[];
-    }
+    () => api.schema.getStagingTables()
   );
 
   // Fetch organization settings for NL2SQL
@@ -238,6 +240,24 @@ export default function QueryPage() {
       );
     } finally {
       setIsGeneratingSql(false);
+    }
+  };
+
+  const handleExplainSql = async () => {
+    if (!sql.trim()) return;
+    setIsExplaining(true);
+    setExplanation(null);
+    try {
+      const connectionIds =
+        dataSource === 'connections' && selectedConnectionId
+          ? [selectedConnectionId]
+          : undefined;
+      const result = await api.nl2sql.explainSql({ sql, connectionIds });
+      setExplanation(result.explanation);
+    } catch (err: any) {
+      showToast(`Explain failed: ${err.message || 'AI provider error'}`, 'error');
+    } finally {
+      setIsExplaining(false);
     }
   };
 
@@ -421,6 +441,14 @@ export default function QueryPage() {
                 <Sparkles className="w-4 h-4" />
                 Natural Language
               </button>
+              {!settings?.nl2sqlEnabled && (
+                <Link
+                  href="/settings"
+                  className="flex items-center px-3 py-3 text-xs text-[#2563eb] underline underline-offset-2"
+                >
+                  Enable AI in Settings →
+                </Link>
+              )}
             </nav>
           </div>
 
@@ -439,30 +467,44 @@ export default function QueryPage() {
                   <span className="text-xs text-[#777777]">Describe your query in plain English</span>
                 )}
               </div>
-              <Button
-                onClick={editorMode === 'sql' ? handleExecute : handleGenerateSql}
-                disabled={
-                  (editorMode === 'sql' ? isExecuting : isGeneratingSql) ||
-                  (dataSource === 'connections' && !selectedConnectionId) ||
-                  (dataSource === 'staging' && !selectedStagingTable)
-                }
-                className="gap-2"
-              >
-                {(editorMode === 'sql' ? isExecuting : isGeneratingSql) ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    {editorMode === 'sql' ? 'Executing...' : 'Generating...'}
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4" />
-                    {editorMode === 'sql' ? 'Run Query' : 'Generate SQL'}
-                  </>
+              <div className="flex items-center gap-2">
+                {editorMode === 'sql' && (
+                  <Button
+                    onClick={handleExplainSql}
+                    disabled={isExplaining || !sql.trim() || isMongoDB}
+                    variant="outline"
+                    className="gap-2"
+                    title={isMongoDB ? 'Explain is not available for MongoDB queries' : 'Explain this query with AI'}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {isExplaining ? 'Explaining…' : 'Explain'}
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  onClick={editorMode === 'sql' ? handleExecute : handleGenerateSql}
+                  disabled={
+                    (editorMode === 'sql' ? isExecuting : isGeneratingSql) ||
+                    (dataSource === 'connections' && !selectedConnectionId) ||
+                    (dataSource === 'staging' && !selectedStagingTable)
+                  }
+                  className="gap-2"
+                >
+                  {(editorMode === 'sql' ? isExecuting : isGeneratingSql) ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      {editorMode === 'sql' ? 'Executing...' : 'Generating...'}
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" />
+                      {editorMode === 'sql' ? 'Run Query' : 'Generate SQL'}
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             {/* Editor */}
@@ -492,6 +534,20 @@ export default function QueryPage() {
                       </p>
                     )}
                   </div>
+                  {explanation && (
+                    <div className="mt-4 bg-[#eff6ff] border border-[#bfdbfe] rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-[#1e40af]">AI Explanation</p>
+                        <button
+                          onClick={() => setExplanation(null)}
+                          className="text-xs text-[#1e40af] underline underline-offset-2"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                      <p className="text-xs text-[#1e40af] whitespace-pre-wrap">{explanation}</p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -610,8 +666,14 @@ export default function QueryPage() {
       {showAddToDashboard && queryResult && (
         <AddToDashboardModal
           queryResult={queryResult}
-          sql={sql}
           onClose={() => setShowAddToDashboard(false)}
+          onAdd={(chartConfig) => {
+            const existingCharts = JSON.parse(localStorage.getItem('pendingDashboardCharts') || '[]');
+            existingCharts.push(chartConfig);
+            localStorage.setItem('pendingDashboardCharts', JSON.stringify(existingCharts));
+            showToast(`Chart "${chartConfig.title}" added! Go to Dashboard Builder to see it.`, 'success');
+            setShowAddToDashboard(false);
+          }}
         />
       )}
     </div>

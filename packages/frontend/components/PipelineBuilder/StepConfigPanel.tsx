@@ -30,7 +30,7 @@ function IngestConfig({
   const [connections, setConnections] = useState<Connection[]>([]);
 
   useEffect(() => {
-    api.connections.list().then(setConnections).catch(() => {});
+    api.connections.list().then((data) => setConnections(data)).catch(() => {});
   }, []);
 
   return (
@@ -92,7 +92,7 @@ function TransformConfig({
   const [transformations, setTransformations] = useState<any[]>([]);
 
   useEffect(() => {
-    api.transformations.list().then(setTransformations).catch(() => {});
+    api.transformations.list().then((data) => setTransformations(data)).catch(() => {});
   }, []);
 
   return (
