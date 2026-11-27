@@ -777,6 +777,16 @@ export const api = {
     listUsersInOrg: (orgId: string): Promise<any[]> =>
       request(`/admin/organizations/${orgId}/users`),
   },
+
+  alerts: {
+    list: () => request('/alerts'),
+    get: (id: string) => request(`/alerts/${id}`),
+    create: (data: any) => request('/alerts', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request(`/alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    remove: (id: string) => request(`/alerts/${id}`, { method: 'DELETE' }),
+    getEvents: (id: string, limit = 50) => request(`/alerts/${id}/events?limit=${limit}`),
+    check: (id: string) => request(`/alerts/${id}/check`, { method: 'POST' }),
+  },
 };
 
 // ============================================================================

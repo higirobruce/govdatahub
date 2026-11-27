@@ -30,6 +30,7 @@ import {
   ChevronDown,
   Building2,
   LayoutGrid,
+  Bell,
 } from 'lucide-react';
 
 interface NavItem {
@@ -99,6 +100,7 @@ export function Sidebar() {
         // { id: 'charts', label: 'Charts', href: '/charts', icon: <BarChart3 /> },
         { id: 'dashboards', label: 'Dashboard Builder', href: '/dashboards', icon: <LayoutDashboard /> },
         { id: 'dashboard-analytics', label: 'Usage Analytics', href: '/dashboard-analytics', icon: <BarChart3 /> },
+        { id: 'alerts', label: 'Alerts', href: '/alerts', icon: <Bell /> },
       ],
     },
     {
