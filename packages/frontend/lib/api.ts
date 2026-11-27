@@ -444,6 +444,12 @@ export const api = {
       request(`/ingestion/staged/${id}`, {
         method: 'DELETE',
       }),
+
+    deleteStagedDataBatch: (ids: string[]): Promise<{ deleted: number; failed: number }> =>
+      request('/ingestion/staged', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids }),
+      }),
   },
 
   // Settings
@@ -673,6 +679,75 @@ export const api = {
       }),
     remove: (id: string): Promise<void> =>
       request(`/dashboards/${id}`, { method: 'DELETE' }),
+  },
+
+  dataProducts: {
+    list: (params?: { status?: string; domain?: string }): Promise<any[]> => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.domain) qs.set('domain', params.domain);
+      const q = qs.toString();
+      return request(`/data-products${q ? `?${q}` : ''}`);
+    },
+
+    stats: (): Promise<Record<string, number>> =>
+      request('/data-products/stats'),
+
+    get: (id: string): Promise<any> =>
+      request(`/data-products/${id}`),
+
+    create: (body: { name: string; domain?: string; description?: string; version?: string }): Promise<any> =>
+      request('/data-products', { method: 'POST', body: JSON.stringify(body) }),
+
+    update: (id: string, body: any): Promise<any> =>
+      request(`/data-products/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+    delete: (id: string): Promise<void> =>
+      request(`/data-products/${id}`, { method: 'DELETE' }),
+
+    transition: (id: string, status: string): Promise<any> =>
+      request(`/data-products/${id}/transition`, { method: 'POST', body: JSON.stringify({ status }) }),
+
+    listPorts: (id: string): Promise<any[]> =>
+      request(`/data-products/${id}/ports`),
+
+    addPort: (id: string, body: any): Promise<any> =>
+      request(`/data-products/${id}/ports`, { method: 'POST', body: JSON.stringify(body) }),
+
+    updatePort: (id: string, portId: string, body: any): Promise<any> =>
+      request(`/data-products/${id}/ports/${portId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+    deletePort: (id: string, portId: string): Promise<void> =>
+      request(`/data-products/${id}/ports/${portId}`, { method: 'DELETE' }),
+  },
+
+  users: {
+    list: (): Promise<any[]> => request('/users'),
+    listInvites: (): Promise<any[]> => request('/users/invites'),
+    invite: (body: { email: string; role: string }): Promise<any> =>
+      request('/users/invites', { method: 'POST', body: JSON.stringify(body) }),
+    revokeInvite: (id: string): Promise<void> =>
+      request(`/users/invites/${id}`, { method: 'DELETE' }),
+    validateInviteToken: (token: string): Promise<{ email: string; role: string; organizationId: string }> =>
+      request(`/users/invites/validate/${token}`),
+    acceptInvite: (body: { token: string; firstName: string; lastName: string; password: string }): Promise<any> =>
+      request('/users/invites/accept', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: { role?: string; isActive?: boolean }): Promise<any> =>
+      request(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string): Promise<void> =>
+      request(`/users/${id}`, { method: 'DELETE' }),
+  },
+
+  admin: {
+    stats: (): Promise<any> => request('/admin/stats'),
+    listOrganizations: (): Promise<any[]> => request('/admin/organizations'),
+    getOrganization: (id: string): Promise<any> => request(`/admin/organizations/${id}`),
+    createOrganization: (body: { name: string; subdomain: string }): Promise<any> =>
+      request('/admin/organizations', { method: 'POST', body: JSON.stringify(body) }),
+    updateOrganization: (id: string, body: { name?: string; isActive?: boolean }): Promise<any> =>
+      request(`/admin/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    listUsersInOrg: (orgId: string): Promise<any[]> =>
+      request(`/admin/organizations/${orgId}/users`),
   },
 };
 
