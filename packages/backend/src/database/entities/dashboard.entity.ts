@@ -29,6 +29,27 @@ export interface DashboardLayoutItem {
   h: number;
 }
 
+export type DashboardFilterType =
+  | 'date_range'
+  | 'date'
+  | 'select'
+  | 'multi_select'
+  | 'text'
+  | 'number';
+
+/**
+ * A dashboard filter is a named control rendered above the grid.
+ * Widgets reference filters by name via `parameterBindings` to flow
+ * the runtime value into their saved-query parameters.
+ */
+export interface DashboardFilterDef {
+  name: string;
+  type: DashboardFilterType;
+  label?: string;
+  default?: unknown;
+  options?: string[];
+}
+
 @Entity('dashboards')
 export class Dashboard {
   @PrimaryColumn('text')
@@ -51,6 +72,9 @@ export class Dashboard {
 
   @Column('jsonb', { default: () => "'[]'::jsonb" })
   layout: DashboardLayoutItem[];
+
+  @Column('jsonb', { default: () => "'[]'::jsonb" })
+  filters: DashboardFilterDef[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

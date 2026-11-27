@@ -10,7 +10,12 @@ export { FdwServer } from './fdw-server.entity';
 export { SavedCrossQuery } from './saved-cross-query.entity';
 export { SavedQuery } from './saved-query.entity';
 export { Dashboard } from './dashboard.entity';
-export type { DashboardWidgetConfig, DashboardLayoutItem } from './dashboard.entity';
+export type {
+  DashboardWidgetConfig,
+  DashboardLayoutItem,
+  DashboardFilterDef,
+  DashboardFilterType,
+} from './dashboard.entity';
 export { ImportJob, ImportJobStatus, ImportSourceType, ImportTargetType } from './import-job.entity';
 export { StagedData } from './staged-data.entity';
 export { DatasetShare } from './dataset-share.entity';
