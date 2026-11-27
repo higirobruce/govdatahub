@@ -35,6 +35,8 @@ import {
   DataProduct,
   DataProductPort,
   SavedDashboard,
+  AlertRule,
+  AlertEvent,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -57,6 +59,7 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module';
 import { DataProductsModule } from './modules/data-products/data-products.module';
 import { UsersModule } from './modules/users/users.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AlertsModule } from './modules/alerts/alerts.module';
 
 @Module({
   imports: [
@@ -103,6 +106,8 @@ import { AdminModule } from './modules/admin/admin.module';
           DataProductPort,
           UserInvite,
           SavedDashboard,
+          AlertRule,
+          AlertEvent,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -149,6 +154,7 @@ import { AdminModule } from './modules/admin/admin.module';
     DataProductsModule,
     UsersModule,
     AdminModule,
+    AlertsModule,
   ],
   controllers: [AppController],
   providers: [
