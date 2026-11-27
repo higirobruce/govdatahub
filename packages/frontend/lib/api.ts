@@ -170,6 +170,8 @@ export const api = {
     },
     getById: (id: string) => request(`/query/${id}`),
     getCachedResults: (id: string) => request(`/query/${id}/results`),
+    chartData: (data: { connectionId: string; sql: string; xColumn?: string; yColumn?: string; groupBy?: string }): Promise<any> =>
+      request('/query/chart-data', { method: 'POST', body: JSON.stringify(data) }),
   },
 
   // Transformations
@@ -240,6 +242,32 @@ export const api = {
       request(`/cross-query/saved/${id}`, {
         method: 'DELETE',
       }),
+  },
+
+  // Saved Dashboards
+  savedDashboards: {
+    list: (): Promise<any[]> =>
+      request('/saved-dashboards'),
+    get: (id: string): Promise<any> =>
+      request(`/saved-dashboards/${id}`),
+    create: (data: { name: string; description?: string; widgets: any[]; layout: any[] }): Promise<any> =>
+      request('/saved-dashboards', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { name?: string; description?: string; widgets?: any[]; layout?: any[] }): Promise<any> =>
+      request(`/saved-dashboards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    remove: (id: string): Promise<void> =>
+      request(`/saved-dashboards/${id}`, { method: 'DELETE' }),
+    share: (id: string): Promise<{ token: string; expiresAt: string; shareUrl: string; embedCode: string }> =>
+      request(`/saved-dashboards/${id}/share`, { method: 'POST' }),
+  },
+
+  // Public Dashboards (no auth)
+  publicDashboards: {
+    get: async (token: string): Promise<any> => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const res = await fetch(`${baseUrl}/public/dashboards/${token}`);
+      if (!res.ok) throw new Error('Dashboard not found or link expired');
+      return res.json();
+    },
   },
 
   // Dashboard
@@ -748,6 +776,16 @@ export const api = {
       request(`/admin/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     listUsersInOrg: (orgId: string): Promise<any[]> =>
       request(`/admin/organizations/${orgId}/users`),
+  },
+
+  alerts: {
+    list: () => request('/alerts'),
+    get: (id: string) => request(`/alerts/${id}`),
+    create: (data: any) => request('/alerts', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request(`/alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    remove: (id: string) => request(`/alerts/${id}`, { method: 'DELETE' }),
+    getEvents: (id: string, limit = 50) => request(`/alerts/${id}/events?limit=${limit}`),
+    check: (id: string) => request(`/alerts/${id}/check`, { method: 'POST' }),
   },
 };
 

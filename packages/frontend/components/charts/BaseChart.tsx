@@ -71,6 +71,7 @@ export function BaseChart({
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
+      chart.off('click');
       chart.dispose();
     };
   }, [option, onChartReady]);

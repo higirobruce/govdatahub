@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { X, Trash2, Eye, Share2, Download, Calendar, BarChart3 } from 'lucide-react';
 import { Dashboard } from './types';
+import { api } from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
 
 interface DashboardListProps {
   onClose: () => void;
@@ -13,27 +15,55 @@ interface DashboardListProps {
 }
 
 export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) {
+  const { showToast } = useToast();
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; index: number | null; name: string | null }>({
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null; name: string | null }>({
     isOpen: false,
-    index: null,
+    id: null,
     name: null,
   });
 
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('dashboards') || '[]');
-    setDashboards(saved);
-  }, []);
-
-  const handleDelete = (index: number, name: string) => {
-    setDeleteConfirm({ isOpen: true, index, name });
+  const loadDashboards = async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const data = await api.savedDashboards.list();
+      setDashboards(data as Dashboard[]);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to load dashboards');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const confirmDelete = () => {
-    if (deleteConfirm.index === null) return;
-    const updated = dashboards.filter((_, i) => i !== deleteConfirm.index);
-    setDashboards(updated);
-    localStorage.setItem('dashboards', JSON.stringify(updated));
+  useEffect(() => {
+    loadDashboards();
+  }, []);
+
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirm({ isOpen: true, id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm.id) return;
+    try {
+      await api.savedDashboards.remove(deleteConfirm.id);
+      await loadDashboards();
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to delete dashboard');
+    }
+  };
+
+  const handleLoad = async (dashboard: Dashboard) => {
+    try {
+      const full = await api.savedDashboards.get(dashboard.id!);
+      onLoad(full as Dashboard);
+      onClose();
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to load dashboard');
+    }
   };
 
   const handleExport = (dashboard: Dashboard) => {
@@ -45,6 +75,20 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
     link.download = `${dashboard.name.replace(/\s+/g, '_')}.json`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleQuickShare = async (dashboard: Dashboard) => {
+    if (!dashboard.id) {
+      showToast('Dashboard must be saved first', 'error');
+      return;
+    }
+    try {
+      const result = await api.savedDashboards.share(dashboard.id);
+      await navigator.clipboard.writeText(result.shareUrl);
+      showToast('Share link copied to clipboard!', 'success');
+    } catch (err) {
+      showToast('Failed to generate share link', 'error');
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -82,7 +126,18 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
 
         {/* Dashboard List */}
         <div className="flex-1 overflow-y-auto p-6">
-          {dashboards.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-8 h-8 border-4 border-[#e8e8e8] border-t-[#60a5fa] rounded-full animate-spin" />
+            </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <div className="text-[#ef4444] text-sm">{fetchError}</div>
+              <Button onClick={loadDashboards} size="sm" variant="outline">
+                Retry
+              </Button>
+            </div>
+          ) : dashboards.length === 0 ? (
             <div className="text-center py-12">
               <BarChart3 className="w-12 h-12 text-[#aaaaaa] mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-[#1a1a1a] mb-2">
@@ -94,16 +149,27 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {dashboards.map((dashboard, index) => (
+              {dashboards.map((dashboard) => (
                 <div
-                  key={index}
+                  key={dashboard.id}
                   className="border-2 border-[#e8e8e8] rounded-lg p-4 hover:border-[#60a5fa] transition-colors"
                 >
                   {/* Dashboard Info */}
                   <div className="mb-3">
-                    <h3 className="text-[16px] font-semibold text-[#1a1a1a] mb-1">
-                      {dashboard.name}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-[16px] font-semibold text-[#1a1a1a]">
+                        {dashboard.name}
+                      </h3>
+                      {(dashboard as any).visibility === 'private' ? (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[#f5f5f5] text-[#555555] border border-[#e8e8e8]">
+                          Private
+                        </span>
+                      ) : (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[#f0fdf4] text-[#16a34a] border border-[#bbf7d0]">
+                          Shared with Org
+                        </span>
+                      )}
+                    </div>
                     {dashboard.description && (
                       <p className="text-sm text-[#aaaaaa] line-clamp-2">
                         {dashboard.description}
@@ -126,10 +192,7 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
                     <Button
-                      onClick={() => {
-                        onLoad(dashboard);
-                        onClose();
-                      }}
+                      onClick={() => handleLoad(dashboard)}
                       size="sm"
                       className="flex-1 gap-2"
                     >
@@ -157,7 +220,7 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
                       <Download className="w-3 h-3" />
                     </Button>
                     <Button
-                      onClick={() => handleDelete(index, dashboard.name)}
+                      onClick={() => handleDelete(dashboard.id!, dashboard.name)}
                       variant="outline"
                       size="sm"
                       className="gap-2 hover:bg-[#fee2e2]"
@@ -183,7 +246,7 @@ export function DashboardList({ onClose, onLoad, onShare }: DashboardListProps) 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
-        onClose={() => setDeleteConfirm({ isOpen: false, index: null, name: null })}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: null, name: null })}
         onConfirm={confirmDelete}
         title="Delete Dashboard"
         message={`Delete dashboard "${deleteConfirm.name}"? This action cannot be undone.`}

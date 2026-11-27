@@ -35,3 +35,7 @@ export { QualityCheckRun } from './quality-check-run.entity';
 export { DataProduct, DataProductPort } from './data-product.entity';
 export type { ProductStatus, PortType, PortTechnology, PortSchema } from './data-product.entity';
 export { UserInvite } from './user-invite.entity';
+export { SavedDashboard } from './saved-dashboard.entity';
+export { AlertRule } from './alert-rule.entity';
+export type { AlertOperator, NotificationChannel } from './alert-rule.entity';
+export { AlertEvent } from './alert-event.entity';

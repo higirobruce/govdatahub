@@ -2,32 +2,52 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Link as LinkIcon, Copy, Check, Mail, Download } from 'lucide-react';
+import { X, Link as LinkIcon, Copy, Check, Mail, Download, Code2 } from 'lucide-react';
 import { Dashboard } from './types';
 import { useToast } from '@/components/ui/toast';
+import { api } from '@/lib/api';
 
 interface ShareDashboardModalProps {
   dashboard: Dashboard;
+  dashboardId?: string; // the saved dashboard's backend ID
   onClose: () => void;
 }
 
-export function ShareDashboardModal({ dashboard, onClose }: ShareDashboardModalProps) {
+export function ShareDashboardModal({ dashboard, dashboardId, onClose }: ShareDashboardModalProps) {
   const { showToast } = useToast();
   const [copied, setCopied] = useState(false);
-  const [shareMethod, setShareMethod] = useState<'link' | 'json' | 'email'>('link');
+  const [shareMethod, setShareMethod] = useState<'link' | 'embed' | 'json' | 'email'>('link');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [shareData, setShareData] = useState<{
+    shareUrl: string;
+    embedCode: string;
+    expiresAt: string;
+  } | null>(null);
 
-  // Generate shareable link (in production, this would be a real URL)
-  const shareUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/dashboards/view/${btoa(dashboard.name)}`
-    : '';
-
-  const handleCopyLink = async () => {
+  const handleGenerateLink = async () => {
+    if (!dashboardId) return;
+    setIsGenerating(true);
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      const result = await api.savedDashboards.share(dashboardId);
+      setShareData({
+        shareUrl: result.shareUrl,
+        embedCode: result.embedCode,
+        expiresAt: result.expiresAt,
+      });
+    } catch (err) {
+      showToast('Failed to generate share link', 'error');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleCopy = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      showToast('Failed to copy link', 'error');
+      showToast(`Failed to copy ${label}`, 'error');
     }
   };
 
@@ -54,6 +74,11 @@ export function ShareDashboardModal({ dashboard, onClose }: ShareDashboardModalP
   };
 
   const handleEmailShare = () => {
+    const shareUrl = shareData?.shareUrl ?? (
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/dashboards/view/${btoa(dashboard.name)}`
+        : ''
+    );
     const subject = encodeURIComponent(`DataGate Dashboard: ${dashboard.name}`);
     const body = encodeURIComponent(
       `I'd like to share this dashboard with you:\n\n` +
@@ -97,6 +122,17 @@ export function ShareDashboardModal({ dashboard, onClose }: ShareDashboardModalP
               <span className="text-sm font-medium">Link</span>
             </button>
             <button
+              onClick={() => setShareMethod('embed')}
+              className={`flex-1 py-2 px-4 rounded-lg border-2 transition-colors ${
+                shareMethod === 'embed'
+                  ? 'border-[#60a5fa] bg-[#eff6ff] text-[#1a1a1a]'
+                  : 'border-[#e8e8e8] text-[#555555] hover:border-[#d0d0d0]'
+              }`}
+            >
+              <Code2 className="w-4 h-4 mx-auto mb-1" />
+              <span className="text-sm font-medium">Embed</span>
+            </button>
+            <button
               onClick={() => setShareMethod('json')}
               className={`flex-1 py-2 px-4 rounded-lg border-2 transition-colors ${
                 shareMethod === 'json'
@@ -126,30 +162,113 @@ export function ShareDashboardModal({ dashboard, onClose }: ShareDashboardModalP
               <label className="block text-sm font-medium text-[#555555] mb-2">
                 Shareable Link
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={shareUrl}
-                  readOnly
-                  className="flex-1 px-3 py-2 border border-[#e8e8e8] rounded-md text-[14px] bg-[#fafafa]"
-                />
-                <Button onClick={handleCopyLink} className="gap-2">
-                  {copied ? (
-                    <>
-                      <Check className="w-4 h-4" />
-                      Copied!
-                    </>
+              {!dashboardId ? (
+                <p className="text-sm text-[#aaaaaa] bg-[#fafafa] border border-[#e8e8e8] rounded-md px-4 py-3">
+                  Save this dashboard first to generate a shareable link
+                </p>
+              ) : !shareData ? (
+                <div>
+                  <Button
+                    onClick={handleGenerateLink}
+                    disabled={isGenerating}
+                    className="gap-2"
+                  >
+                    <LinkIcon className="w-4 h-4" />
+                    {isGenerating ? 'Generating...' : 'Generate Link'}
+                  </Button>
+                  <p className="mt-2 text-xs text-[#aaaaaa]">
+                    Generates a public read-only link with a 30-day expiry
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={shareData.shareUrl}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-[#e8e8e8] rounded-md text-[14px] bg-[#fafafa]"
+                    />
+                    <Button onClick={() => handleCopy(shareData.shareUrl, 'link')} className="gap-2">
+                      {copied ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-[#aaaaaa]">
+                    Link expires: {new Date(shareData.expiresAt).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {shareMethod === 'embed' && (
+            <div>
+              <label className="block text-sm font-medium text-[#555555] mb-2">
+                Embed Code
+              </label>
+              {!shareData ? (
+                <div>
+                  <p className="text-sm text-[#aaaaaa] mb-3">
+                    Generate a share link first to get the embed code
+                  </p>
+                  {dashboardId ? (
+                    <Button
+                      onClick={async () => {
+                        await handleGenerateLink();
+                        setShareMethod('embed');
+                      }}
+                      disabled={isGenerating}
+                      className="gap-2"
+                    >
+                      <LinkIcon className="w-4 h-4" />
+                      {isGenerating ? 'Generating...' : 'Generate Link & Embed Code'}
+                    </Button>
                   ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      Copy
-                    </>
+                    <p className="text-sm text-[#aaaaaa] bg-[#fafafa] border border-[#e8e8e8] rounded-md px-4 py-3">
+                      Save this dashboard first to generate embed code
+                    </p>
                   )}
-                </Button>
-              </div>
-              <p className="mt-2 text-xs text-[#aaaaaa]">
-                Anyone with this link can view the dashboard (view-only mode)
-              </p>
+                </div>
+              ) : (
+                <div>
+                  <pre className="bg-[#fafafa] border border-[#e8e8e8] rounded-md p-4 text-[13px] font-mono text-[#1a1a1a] overflow-x-auto whitespace-pre-wrap break-all">
+                    <code>{shareData.embedCode}</code>
+                  </pre>
+                  <div className="flex items-center justify-between mt-3">
+                    <p className="text-xs text-[#aaaaaa]">
+                      Paste this iframe into any webpage to embed the dashboard
+                    </p>
+                    <Button
+                      onClick={() => handleCopy(shareData.embedCode, 'embed code')}
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

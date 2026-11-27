@@ -9,8 +9,9 @@ import { DashboardGrid } from '@/components/DashboardBuilder/DashboardGrid';
 import { ChartConfigPanel } from '@/components/DashboardBuilder/ChartConfigPanel';
 import { DashboardList } from '@/components/DashboardBuilder/DashboardList';
 import { ShareDashboardModal } from '@/components/DashboardBuilder/ShareDashboardModal';
+import { DashboardFilterBar } from '@/components/DashboardBuilder/DashboardFilterBar';
 import { Plus, Save, FolderOpen, Eye, Settings, Bell, Share2, LayoutDashboard } from 'lucide-react';
-import { ChartWidget, DashboardLayout, Dashboard } from '@/components/DashboardBuilder/types';
+import { ChartWidget, DashboardLayout, Dashboard, CrossFilter } from '@/components/DashboardBuilder/types';
 import { useToast } from '@/components/ui/toast';
 import { api, type Dashboard as SavedDashboard } from '@/lib/api';
 import { CardSkeleton } from '@/components/ui/skeleton';
@@ -27,6 +28,9 @@ export default function DashboardsPage() {
   const [showDashboardList, setShowDashboardList] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [dashboardToShare, setDashboardToShare] = useState<Dashboard | null>(null);
+  const [currentDashboardId, setCurrentDashboardId] = useState<string | null>(null);
+  const [globalFilters, setGlobalFilters] = useState<Record<string, string>>({});
+  const [crossFilter, setCrossFilter] = useState<CrossFilter | null>(null);
 
   const { data: savedDashboards, isLoading: savedLoading } = useSWR<SavedDashboard[]>(
     'saved-dashboards',
@@ -132,25 +136,25 @@ export default function DashboardsPage() {
   }, []);
 
   const handleSaveDashboard = async () => {
-    const dashboard: Dashboard = {
-      name: dashboardName,
-      widgets,
-      layout,
-      createdAt: new Date().toISOString(),
-    };
-
-    // Save to localStorage for now (later: save to backend)
-    const savedDashboards = JSON.parse(localStorage.getItem('dashboards') || '[]');
-    savedDashboards.push(dashboard);
-    localStorage.setItem('dashboards', JSON.stringify(savedDashboards));
-
-    showToast(`Dashboard "${dashboardName}" saved successfully!`, 'success');
+    try {
+      const dashboardData = { name: dashboardName, widgets, layout };
+      if (currentDashboardId) {
+        await api.savedDashboards.update(currentDashboardId, dashboardData);
+      } else {
+        const saved = await api.savedDashboards.create(dashboardData);
+        setCurrentDashboardId((saved as any).id);
+      }
+      showToast('Dashboard saved!', 'success');
+    } catch (err) {
+      showToast('Failed to save dashboard', 'error');
+    }
   };
 
   const handleLoadDashboard = (dashboard: Dashboard) => {
     setDashboardName(dashboard.name);
     setWidgets(dashboard.widgets);
     setLayout(dashboard.layout);
+    setCurrentDashboardId(dashboard.id ?? null);
     showToast(`Dashboard "${dashboard.name}" loaded successfully!`, 'success');
   };
 
@@ -315,6 +319,15 @@ export default function DashboardsPage() {
       <div className="flex gap-6">
         {/* Dashboard Grid */}
         <div className={`flex-1 transition-all duration-300 ${isConfigPanelOpen ? 'mr-0' : ''}`}>
+          <DashboardFilterBar filters={globalFilters} onFiltersChange={setGlobalFilters} />
+
+          {crossFilter && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-[#eff6ff] border border-[#60a5fa] rounded-lg mb-3 text-sm">
+              <span className="text-[#1e40af]">Cross-filtering: <strong>{crossFilter.column}</strong> = <strong>{crossFilter.value}</strong></span>
+              <button onClick={() => setCrossFilter(null)} className="ml-auto text-[#555555] hover:text-[#1a1a1a]">✕ Clear</button>
+            </div>
+          )}
+
           {widgets.length === 0 ? (
             <div className="bg-white rounded-xl border-2 border-dashed border-[#e8e8e8] p-12 text-center">
               <div className="max-w-md mx-auto">
@@ -344,6 +357,9 @@ export default function DashboardsPage() {
               }}
               onDeleteWidget={handleDeleteWidget}
               isPreviewMode={isPreviewMode}
+              globalFilters={globalFilters}
+              crossFilter={crossFilter}
+              onCrossFilter={setCrossFilter}
             />
           )}
         </div>
@@ -374,6 +390,7 @@ export default function DashboardsPage() {
       {showShareModal && dashboardToShare && (
         <ShareDashboardModal
           dashboard={dashboardToShare}
+          dashboardId={currentDashboardId ?? undefined}
           onClose={() => {
             setShowShareModal(false);
             setDashboardToShare(null);
