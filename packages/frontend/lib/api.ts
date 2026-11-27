@@ -283,6 +283,23 @@ export const api = {
       request('/dashboard/analytics/connection-health'),
   },
 
+  // AI / NL2SQL
+  ai: {
+    getConfig: (): Promise<any> => request('/ai/config'),
+    upsertConfig: (data: any): Promise<any> =>
+      request('/ai/config', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    deleteConfig: (): Promise<void> =>
+      request('/ai/config', { method: 'DELETE' }),
+    nl2sql: (data: { question: string; schemaContext: string; dialect?: string }): Promise<any> =>
+      request('/ai/nl2sql', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
+
   // Public datasets (no auth required)
   publicDatasets: {
     getByApiKey: (apiKey: string): Promise<any> =>

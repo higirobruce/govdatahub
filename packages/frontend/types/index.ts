@@ -147,6 +147,36 @@ export interface CrossQueryResult {
   generatedSql: string;
 }
 
+// AI / NL2SQL Types
+export type AiProvider = 'anthropic' | 'openai' | 'ollama';
+
+export interface AiConfig {
+  provider: AiProvider;
+  hasApiKey: boolean;
+  model: string | null;
+  ollamaUrl: string | null;
+  ollamaModel: string | null;
+}
+
+export interface UpsertAiConfigDto {
+  provider: AiProvider;
+  apiKey?: string;
+  model?: string;
+  ollamaUrl?: string;
+  ollamaModel?: string;
+}
+
+export interface Nl2SqlRequest {
+  question: string;
+  schemaContext: string;
+  dialect?: string;
+}
+
+export interface Nl2SqlResponse {
+  sql: string;
+  explanation: string;
+}
+
 export interface SavedCrossQuery {
   id: string;
   name: string;

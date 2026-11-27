@@ -18,6 +18,7 @@ import {
   ImportJob,
   StagedData,
   DatasetShare,
+  AiConfig,
 } from './database/entities';
 import { EncryptionModule } from './modules/encryption/encryption.module';
 import { ConnectionsModule } from './modules/connections/connections.module';
@@ -28,6 +29,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CrossQueryModule } from './modules/cross-query/cross-query.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -60,6 +62,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
           ImportJob,
           StagedData,
           DatasetShare,
+          AiConfig,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -92,6 +95,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     CrossQueryModule,
     IngestionModule,
     DashboardModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -13,6 +13,7 @@ import { Play, AlertCircle, BarChart3, LayoutDashboard } from 'lucide-react';
 import { QueryVisualization } from '@/components/QueryVisualization';
 import { AddToDashboardModal } from '@/components/DashboardBuilder/AddToDashboardModal';
 import { useToast } from '@/components/ui/toast';
+import NL2SQLPanel from '@/components/NL2SQL/NL2SQLPanel';
 
 type DataSource = 'connections' | 'staging';
 
@@ -238,6 +239,11 @@ export default function QueryPage() {
           )}
         </div>
       </div>
+
+      {/* NL2SQL Panel */}
+      <NL2SQLPanel
+        onSqlGenerated={(generatedSql) => setSql(generatedSql)}
+      />
 
       {/* SQL Editor */}
       <div className="bg-white rounded-xl border border-[#e8e8e8] shadow-card">

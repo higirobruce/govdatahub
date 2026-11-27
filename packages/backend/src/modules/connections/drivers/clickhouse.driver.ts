@@ -79,9 +79,9 @@ export class ClickHouseDriver implements DatabaseDriver {
       query: 'SELECT name FROM system.databases ORDER BY name',
       format: 'JSONEachRow',
     });
-    const rows = await result.json<{ name: string }[]>();
+    const rows = await result.json<{ name: string }>();
 
-    return rows
+    return (rows as unknown as Array<{ name: string }>)
       .filter((r) => !['system', 'information_schema', 'INFORMATION_SCHEMA'].includes(r.name))
       .map((r) => ({ name: r.name }));
   }
@@ -102,9 +102,9 @@ export class ClickHouseDriver implements DatabaseDriver {
       format: 'JSONEachRow',
     });
 
-    const rows = await result.json<{ name: string; engine: string }[]>();
+    const rows = await result.json<{ name: string; engine: string }>();
 
-    return rows.map((r) => ({
+    return (rows as unknown as Array<{ name: string; engine: string }>).map((r) => ({
       schema: db,
       name: r.name,
       type: r.engine.toLowerCase().includes('view') ? 'view' : 'table',
@@ -135,9 +135,14 @@ export class ClickHouseDriver implements DatabaseDriver {
       type: string;
       default_expression: string;
       is_in_primary_key: number;
-    }[]>();
+    }>();
 
-    return rows.map((r) => ({
+    return (rows as unknown as Array<{
+      name: string;
+      type: string;
+      default_expression: string;
+      is_in_primary_key: number;
+    }>).map((r) => ({
       name: r.name,
       type: r.type,
       nullable: r.type.startsWith('Nullable('),

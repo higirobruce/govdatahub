@@ -48,16 +48,15 @@ export class BigQueryDriver implements DatabaseDriver {
   async query(sql: string): Promise<QueryResult> {
     if (!this.client) throw new Error('Not connected');
 
-    const [rows, , response] = await this.client.query({
+    const [rows] = await this.client.query({
       query: sql,
       useLegacySql: false,
     });
 
     const fields =
-      (response as any)?.schema?.fields?.map((f: any) => ({
-        name: f.name,
-        type: f.type?.toLowerCase() || 'string',
-      })) || [];
+      rows.length > 0
+        ? Object.keys(rows[0]).map((name) => ({ name, type: typeof (rows[0] as any)[name] }))
+        : [];
 
     return {
       rows,

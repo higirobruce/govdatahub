@@ -119,7 +119,7 @@ export class SnowflakeDriver implements DatabaseDriver {
           if (err) {
             return reject(new Error(`Query execution failed: ${err.message}`));
           }
-          const columns = stmt.getColumns();
+          const columns = stmt.getColumns() ?? [];
           resolve({
             rows: rows || [],
             rowCount: rows?.length || 0,

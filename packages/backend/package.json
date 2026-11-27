@@ -25,6 +25,7 @@
     "migration:revert": "tsx ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0",
     "@clickhouse/client": "^1.17.0",
     "@duckdb/node-api": "1.4.4-r.1",
     "@elastic/elasticsearch": "^9.3.2",
@@ -51,6 +52,7 @@
     "mongodb": "^7.1.0",
     "mssql": "^12.2.0",
     "mysql2": "^3.11.5",
+    "openai": "^7.65.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.13.1",
