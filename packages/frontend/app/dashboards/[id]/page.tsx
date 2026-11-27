@@ -48,6 +48,18 @@ function DashboardView({
 }) {
   const { values, setValue, reset } = useDashboardFilters(dashboard.filters);
 
+  // Cross-filter handler: clicking a data point in a widget with
+  // `config.crossFilter` set updates that filter. Clicking the same value
+  // twice toggles the filter off so the user can return to "no selection".
+  const handleCrossFilter = (filterName: string, value: string) => {
+    const current = values[filterName];
+    if (current === value) {
+      setValue(filterName, undefined);
+    } else {
+      setValue(filterName, value);
+    }
+  };
+
   // react-grid-layout expects a stable layout array; use the dashboard's
   // saved layout, falling back to a one-column stack if none was persisted.
   const layout = useMemo(
@@ -110,7 +122,11 @@ function DashboardView({
                 className="rounded-md border bg-card overflow-hidden"
               >
                 <div className="h-full w-full p-3">
-                  <SavedQueryWidget widget={widget} parameters={params} />
+                  <SavedQueryWidget
+                    widget={widget}
+                    parameters={params}
+                    onCrossFilter={handleCrossFilter}
+                  />
                 </div>
               </div>
             );

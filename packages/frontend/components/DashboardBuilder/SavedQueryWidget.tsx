@@ -10,9 +10,15 @@ import { AreaChart } from '@/components/charts/AreaChart';
 interface Props {
   widget: DashboardWidget;
   parameters: Record<string, unknown>;
+  /**
+   * Fired when the user clicks a data point and the widget has
+   * `config.crossFilter` set. The dashboard route maps this to a
+   * setValue on the filter named `config.crossFilter`.
+   */
+  onCrossFilter?: (filterName: string, value: string) => void;
 }
 
-export function SavedQueryWidget({ widget, parameters }: Props) {
+export function SavedQueryWidget({ widget, parameters, onCrossFilter }: Props) {
   const swrKey = widget.savedQueryId
     ? ['saved-query-execute', widget.savedQueryId, stableKey(parameters)]
     : null;
@@ -38,7 +44,17 @@ export function SavedQueryWidget({ widget, parameters }: Props) {
     return <Placeholder>No rows</Placeholder>;
   }
 
-  return renderChart(widget.type, data, title, widget.config);
+  const crossFilterName =
+    typeof widget.config?.crossFilter === 'string'
+      ? widget.config.crossFilter
+      : undefined;
+
+  const onValueClick =
+    crossFilterName && onCrossFilter
+      ? (value: string) => onCrossFilter(crossFilterName, value)
+      : undefined;
+
+  return renderChart(widget.type, data, title, widget.config, onValueClick);
 }
 
 function renderChart(
@@ -46,6 +62,7 @@ function renderChart(
   result: SavedQueryExecuteResult,
   title: string | undefined,
   config?: Record<string, unknown>,
+  onValueClick?: (name: string) => void,
 ) {
   const { rows, fields } = result;
   const cfg = (config ?? {}) as { xField?: string; yField?: string };
@@ -68,9 +85,9 @@ function renderChart(
           },
         ],
       };
-      if (type === 'bar') return <BarChart data={data} title={title} height="100%" />;
-      if (type === 'line') return <LineChart data={data} title={title} height="100%" />;
-      return <AreaChart data={data} title={title} height="100%" />;
+      if (type === 'bar') return <BarChart data={data} title={title} height="100%" onValueClick={onValueClick} />;
+      if (type === 'line') return <LineChart data={data} title={title} height="100%" onValueClick={onValueClick} />;
+      return <AreaChart data={data} title={title} height="100%" onValueClick={onValueClick} />;
     }
 
     case 'pie': {
@@ -86,7 +103,7 @@ function renderChart(
         name: String(r[nameField] ?? ''),
         value: Number(r[valueField] ?? 0),
       }));
-      return <PieChart data={data} title={title} height="100%" />;
+      return <PieChart data={data} title={title} height="100%" onValueClick={onValueClick} />;
     }
 
     default:
