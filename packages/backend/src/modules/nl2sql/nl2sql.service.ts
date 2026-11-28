@@ -1,12 +1,14 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { AiService } from '../ai/ai.service';
+import { AiAuditService } from '../ai/ai-audit.service';
 import { SettingsService } from '../settings/settings.service';
 import { SchemaContextBuilderService } from './schema-context-builder.service';
 import { SqlValidatorService } from './sql-validator.service';
 import { QueriesService } from '../queries/queries.service';
 import { GenerateSqlDto } from './dto/nl2sql-request.dto';
-import { GenerateSqlResponseDto, ExplainSqlResponseDto } from './dto/nl2sql-response.dto';
-import { NL2SqlRequest } from '../ai/providers/base-provider.interface';
+import { GenerateSqlResponseDto, ExplainSqlResponseDto, DiagnoseSqlResponseDto } from './dto/nl2sql-response.dto';
+import { DiagnoseSqlDto } from './dto/diagnose-sql.dto';
+import { NL2SqlRequest, SchemaContext } from '../ai/providers/base-provider.interface';
 
 /**
  * NL2SQL Service
@@ -25,6 +27,7 @@ export class Nl2sqlService {
 
   constructor(
     private aiService: AiService,
+    private aiAudit: AiAuditService,
     private settingsService: SettingsService,
     private schemaContextBuilder: SchemaContextBuilderService,
     private sqlValidator: SqlValidatorService,
@@ -83,21 +86,49 @@ export class Nl2sqlService {
     };
 
     // 5. Generate SQL using AI
+    const startTime = Date.now();
     let aiResponse;
     try {
       aiResponse = await provider.generateSql(request);
     } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      await this.aiAudit.log({
+        organizationId,
+        userId,
+        feature: 'nl2sql_generate',
+        model: settings.aiModel,
+        promptChars: dto.query.length,
+        responseChars: 0,
+        latencyMs,
+        success: false,
+        errorMessage: error.message || 'AI provider error',
+        executed: false,
+      });
       this.logger.error('AI provider error:', error);
       throw new BadRequestException(
         `Failed to generate SQL: ${error.message || 'AI provider error'}`
       );
     }
+    const latencyMs = Date.now() - startTime;
+    const responseChars = aiResponse.sql?.length || 0;
 
     // 6. Validate generated SQL
     const validationResult = this.sqlValidator.validate(aiResponse.sql, settings);
 
     if (!validationResult.isValid) {
       this.logger.warn('Generated SQL failed validation:', validationResult.errors);
+      await this.aiAudit.log({
+        organizationId,
+        userId,
+        feature: 'nl2sql_generate',
+        model: settings.aiModel,
+        promptChars: dto.query.length,
+        responseChars,
+        latencyMs,
+        success: true,
+        generatedSql: aiResponse.sql,
+        executed: false,
+      });
       return {
         sql: aiResponse.sql,
         reasoning: aiResponse.reasoning,
@@ -142,6 +173,18 @@ export class Nl2sqlService {
         }
       } catch (error) {
         this.logger.error('Query execution error:', error);
+        await this.aiAudit.log({
+          organizationId,
+          userId,
+          feature: 'nl2sql_generate',
+          model: settings.aiModel,
+          promptChars: dto.query.length,
+          responseChars,
+          latencyMs,
+          success: true,
+          generatedSql: finalSql,
+          executed: false,
+        });
         // Don't throw - return the SQL with execution error as warning
         return {
           sql: finalSql,
@@ -156,7 +199,20 @@ export class Nl2sqlService {
       }
     }
 
-    // 9. Return response
+    // 9. Record audit trail and return response
+    await this.aiAudit.log({
+      organizationId,
+      userId,
+      feature: 'nl2sql_generate',
+      model: settings.aiModel,
+      promptChars: dto.query.length,
+      responseChars,
+      latencyMs,
+      success: true,
+      generatedSql: finalSql,
+      executed: Boolean(executionResult),
+    });
+
     return {
       sql: finalSql,
       reasoning: settings.nl2sqlShowReasoning ? aiResponse.reasoning : undefined,
@@ -173,7 +229,8 @@ export class Nl2sqlService {
   async explainSql(
     organizationId: string,
     sql: string,
-    connectionIds?: string[]
+    connectionIds?: string[],
+    userId?: string
   ): Promise<ExplainSqlResponseDto> {
     this.logger.log(`Explaining SQL: ${sql.substring(0, 50)}...`);
 
@@ -195,15 +252,41 @@ export class Nl2sqlService {
     const provider = this.aiService.getProvider(settings.aiProvider);
 
     // 4. Get explanation
+    const startTime = Date.now();
     let explanation;
     try {
       explanation = await provider.explainSql(sql, schemaContext, settings);
     } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      await this.aiAudit.log({
+        organizationId,
+        userId,
+        feature: 'nl2sql_explain',
+        model: settings.aiModel,
+        promptChars: sql.length,
+        responseChars: 0,
+        latencyMs,
+        success: false,
+        errorMessage: error.message || 'AI provider error',
+        executed: false,
+      });
       this.logger.error('AI provider error:', error);
       throw new BadRequestException(
         `Failed to explain SQL: ${error.message || 'AI provider error'}`
       );
     }
+    const latencyMs = Date.now() - startTime;
+    await this.aiAudit.log({
+      organizationId,
+      userId,
+      feature: 'nl2sql_explain',
+      model: settings.aiModel,
+      promptChars: sql.length,
+      responseChars: explanation.length || 0,
+      latencyMs,
+      success: true,
+      executed: false,
+    });
 
     // 5. Extract tables and operations from SQL
     const tables = this.extractTablesFromSql(sql);
@@ -214,6 +297,145 @@ export class Nl2sqlService {
       tables,
       operations,
     };
+  }
+
+  /**
+   * Error doctor: diagnose a failing SQL query and, if confident, suggest a fix.
+   *
+   * Builds schema context (no sample data), prompts the AI provider for a JSON
+   * diagnosis + optional suggested SQL, runs the existing SQL validator against
+   * any suggested SQL WITHOUT blocking on validation failures (a suggestion that
+   * fails validation is still returned, with warnings surfaced), and audits the
+   * request under the `error_doctor` feature.
+   */
+  async diagnoseSql(
+    organizationId: string,
+    dto: DiagnoseSqlDto,
+    userId?: string
+  ): Promise<DiagnoseSqlResponseDto> {
+    this.logger.log(`Diagnosing failing SQL: ${dto.sql.substring(0, 50)}...`);
+
+    // 1. Get organization settings
+    const settings = await this.settingsService.getOrganizationSettings(organizationId);
+
+    // 2. Build schema context (no sample data needed for diagnosis)
+    const schemaContext = await this.schemaContextBuilder.buildContext(
+      organizationId,
+      dto.connectionIds,
+      {
+        includeSampleData: false,
+        maxTablesPerConnection: 20,
+        maxColumnsPerTable: 50,
+      }
+    );
+
+    // 3. Get AI provider
+    const provider = this.aiService.getProvider(settings.aiProvider);
+
+    // 4. Build prompt
+    const schemaSummary = this.formatSchemaSummary(schemaContext);
+    const prompt = `You are a SQL expert helping debug a failing query.
+
+FAILING SQL:
+${dto.sql}
+
+DATABASE ERROR:
+${dto.errorMessage}
+
+DATABASE SCHEMA:
+${schemaSummary}
+
+Diagnose the cause of the failure. If you are confident in a corrected version of the SQL, provide it; otherwise set suggestedSql to null.
+Respond as JSON: {"diagnosis": "...", "suggestedSql": "..." }`;
+
+    const promptChars = dto.sql.length + dto.errorMessage.length;
+    const startTime = Date.now();
+    let result: any;
+    try {
+      result = await provider.generateJson(prompt, settings);
+    } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      await this.aiAudit.log({
+        organizationId,
+        userId,
+        feature: 'error_doctor',
+        model: settings.aiModel,
+        promptChars,
+        responseChars: 0,
+        latencyMs,
+        success: false,
+        errorMessage: error.message || 'AI provider error',
+        executed: false,
+      });
+      this.logger.error('AI provider error:', error);
+      throw new BadRequestException(
+        `Failed to diagnose SQL: ${error.message || 'AI provider error'}`
+      );
+    }
+    const latencyMs = Date.now() - startTime;
+
+    const diagnosis = typeof result?.diagnosis === 'string' ? result.diagnosis : '';
+    const suggestedSql =
+      typeof result?.suggestedSql === 'string' && result.suggestedSql.trim().length > 0
+        ? result.suggestedSql
+        : null;
+    const responseChars = diagnosis.length + (suggestedSql?.length || 0);
+
+    // 5. Validate suggested SQL (if any) WITHOUT blocking on failure
+    let validationWarnings: string[] = [];
+    if (suggestedSql) {
+      const validationResult = this.sqlValidator.validate(suggestedSql, settings);
+      validationWarnings = [...validationResult.errors, ...validationResult.warnings];
+    }
+
+    // 6. Record audit trail
+    await this.aiAudit.log({
+      organizationId,
+      userId,
+      feature: 'error_doctor',
+      model: settings.aiModel,
+      promptChars,
+      responseChars,
+      latencyMs,
+      success: true,
+      generatedSql: suggestedSql,
+      executed: false,
+    });
+
+    return {
+      diagnosis,
+      suggestedSql,
+      validationWarnings,
+    };
+  }
+
+  /**
+   * Render a compact, human-readable schema summary (tables + columns) for
+   * inclusion in AI prompts. No sample data is included.
+   */
+  private formatSchemaSummary(schemaContext: SchemaContext): string {
+    let formatted = '';
+
+    for (const connection of schemaContext.connections) {
+      formatted += `\n--- ${connection.connectionName} (${connection.databaseType}) ---\n`;
+
+      for (const table of connection.tables) {
+        formatted += `\nTable: ${table.schema ? table.schema + '.' : ''}${table.name}\n`;
+        formatted += 'Columns:\n';
+
+        for (const column of table.columns) {
+          let columnDesc = `  - ${column.name} (${column.type})`;
+          if (column.primaryKey) columnDesc += ' [PRIMARY KEY]';
+          if (column.foreignKey) {
+            columnDesc += ` [FOREIGN KEY -> ${column.foreignKey.referencedTable}.${column.foreignKey.referencedColumn}]`;
+          }
+          if (!column.nullable) columnDesc += ' [NOT NULL]';
+          formatted += columnDesc + '\n';
+        }
+      }
+    }
+
+    return formatted.trim();
   }
 
   /**

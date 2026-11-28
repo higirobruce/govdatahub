@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
-import { api } from '@/lib/api';
+import { api, SuggestedCheck } from '@/lib/api';
 import { SchemaInfo, TableInfo, ColumnInfo } from '@/types';
 import { TableProfilePanel } from '@/components/quality/TableProfilePanel';
-import { BarChart2, Loader2 } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
+import { BarChart2, Loader2, Sparkles } from 'lucide-react';
 
 interface SchemaTreeProps {
   connectionId: string;
@@ -164,11 +165,16 @@ function TableNode({
 }: TableNodeProps) {
   const [profileData, setProfileData] = useState<any>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<SuggestedCheck[] | null>(null);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [addingIndex, setAddingIndex] = useState<number | null>(null);
+  const { showToast } = useToast();
 
   const handleProfile = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsProfileLoading(true);
     setProfileData(null);
+    setSuggestions(null);
     try {
       const result = await api.dataQuality.profileTable({
         connectionId,
@@ -180,6 +186,45 @@ function TableNode({
       setProfileData({ status: 'error', errorMessage: 'Profiling failed', columnProfiles: [] });
     } finally {
       setIsProfileLoading(false);
+    }
+  };
+
+  const handleSuggestChecks = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsSuggesting(true);
+    setSuggestions(null);
+    try {
+      const result = await api.dataQuality.suggestChecks({
+        connectionId,
+        schemaName: table.schema,
+        tableName: table.name,
+      });
+      setSuggestions(result);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to suggest checks', 'error');
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  const handleAddSuggestion = async (suggestion: SuggestedCheck, idx: number) => {
+    setAddingIndex(idx);
+    try {
+      await api.dataQuality.createCheck({
+        connectionId,
+        schemaName: table.schema,
+        tableName: table.name,
+        columnName: suggestion.columnName,
+        name: `${table.name} — ${suggestion.checkType}${suggestion.columnName ? ` (${suggestion.columnName})` : ''}`,
+        checkType: suggestion.checkType,
+        config: suggestion.config,
+      });
+      showToast('Quality check added', 'success');
+      setSuggestions((prev) => (prev ? prev.filter((_, i) => i !== idx) : prev));
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add check', 'error');
+    } finally {
+      setAddingIndex(null);
     }
   };
 
@@ -252,12 +297,76 @@ function TableNode({
               : <BarChart2 className="h-3 w-3" />}
             Profile
           </button>
+          <button
+            onClick={handleSuggestChecks}
+            disabled={isSuggesting || !profileData || profileData.status !== 'success'}
+            className="text-xs px-2 py-1 text-purple-600 hover:text-purple-800 flex items-center gap-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={profileData?.status === 'success' ? 'Suggest quality checks with AI' : 'Profile the table first'}
+          >
+            {isSuggesting
+              ? <Loader2 className="h-3 w-3 animate-spin" />
+              : <Sparkles className="h-3 w-3" />}
+            Suggest checks
+          </button>
         </div>
       </div>
 
       {(isProfileLoading || profileData) && (
         <div className="ml-6 mt-1">
           <TableProfilePanel profile={profileData} isLoading={isProfileLoading} />
+        </div>
+      )}
+
+      {isSuggesting && (
+        <div className="ml-6 mt-1 flex items-center gap-2 text-xs text-[#aaaaaa] py-2 px-3 bg-[#fafafa] rounded-lg border border-[#f0f0f0]">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Suggesting checks…
+        </div>
+      )}
+
+      {!isSuggesting && suggestions && (
+        <div className="ml-6 mt-2 rounded-lg border border-purple-200 bg-purple-50/40 p-3 space-y-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-purple-700 flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              Suggested checks
+            </span>
+            <button
+              onClick={() => setSuggestions(null)}
+              className="text-[10px] text-purple-700 underline underline-offset-2"
+            >
+              Dismiss
+            </button>
+          </div>
+          {suggestions.length === 0 ? (
+            <p className="text-xs text-[#aaaaaa]">No suggestions — the AI didn&apos;t find anything to flag.</p>
+          ) : (
+            suggestions.map((suggestion, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-md border border-[#f0f0f0] p-2.5 flex items-start justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
+                      {suggestion.checkType}
+                    </span>
+                    {suggestion.columnName && (
+                      <span className="text-[10px] font-mono text-[#aaaaaa]">{suggestion.columnName}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[#555555]">{suggestion.rationale}</p>
+                </div>
+                <button
+                  onClick={() => handleAddSuggestion(suggestion, idx)}
+                  disabled={addingIndex === idx}
+                  className="shrink-0 text-xs px-2 py-1 rounded bg-[#1a1a1a] text-white hover:bg-[#2a2a2a] disabled:opacity-50"
+                >
+                  {addingIndex === idx ? 'Adding…' : 'Add'}
+                </button>
+              </div>
+            ))
+          )}
         </div>
       )}
 

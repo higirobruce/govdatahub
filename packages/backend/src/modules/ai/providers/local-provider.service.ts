@@ -20,7 +20,7 @@ import { OrganizationSettings } from '../../../database/entities/organization-se
 export class LocalProviderService implements IAiProvider {
   private readonly logger = new Logger(LocalProviderService.name);
   private readonly DEFAULT_OLLAMA_ENDPOINT = 'http://localhost:11434';
-  private readonly DEFAULT_TIMEOUT = 120000; // 2 minutes for local inference
+  private readonly aiTimeoutMs = parseInt(process.env.AI_TIMEOUT_MS || '120000', 10);
 
   getName(): string {
     return 'Local (Ollama/LM Studio)';
@@ -138,6 +138,52 @@ export class LocalProviderService implements IAiProvider {
   }
 
   /**
+   * One-shot structured-output call. Requests strict JSON from the provider,
+   * parses it, and retries once on a transient network error or unparseable JSON.
+   */
+  async generateJson(prompt: string, settings: OrganizationSettings): Promise<any> {
+    const endpoint = settings.aiApiEndpoint || this.DEFAULT_OLLAMA_ENDPOINT;
+    const model = settings.aiModel || 'codellama';
+    const isOllama = endpoint.includes('11434') || !endpoint.includes('/v1');
+
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        let raw: string;
+        if (isOllama) {
+          const response = await axios.post(
+            `${endpoint}/api/generate`,
+            { model, prompt, stream: false, format: 'json' },
+            { timeout: this.aiTimeoutMs },
+          );
+          raw = response.data.response;
+        } else {
+          const response = await axios.post(
+            `${endpoint}/chat/completions`,
+            {
+              model,
+              messages: [{ role: 'user', content: prompt }],
+              response_format: { type: 'json_object' },
+            },
+            {
+              timeout: this.aiTimeoutMs,
+              headers: settings.aiApiKey
+                ? { Authorization: `Bearer ${settings.aiApiKey}` }
+                : undefined,
+            },
+          );
+          raw = response.data.choices[0].message.content;
+        }
+        return JSON.parse(raw);
+      } catch (error) {
+        lastError = error as Error;
+        this.logger.warn(`generateJson attempt ${attempt + 1} failed: ${lastError.message}`);
+      }
+    }
+    throw lastError;
+  }
+
+  /**
    * Call Ollama API
    */
   private async callOllamaApi(
@@ -157,7 +203,7 @@ export class LocalProviderService implements IAiProvider {
           num_predict: settings.aiMaxTokens,
         },
       },
-      { timeout: this.DEFAULT_TIMEOUT }
+      { timeout: this.aiTimeoutMs }
     );
 
     return response.data.response;
@@ -189,7 +235,7 @@ export class LocalProviderService implements IAiProvider {
         temperature: settings.aiTemperature,
         max_tokens: settings.aiMaxTokens,
       },
-      { timeout: this.DEFAULT_TIMEOUT }
+      { timeout: this.aiTimeoutMs }
     );
 
     return response.data.choices[0].message.content;
@@ -253,10 +299,21 @@ INSTRUCTIONS:
           formatted += columnDesc + '\n';
         }
 
-        // Add sample data if available
+        // Add foreign-key relationships if available
+        if (table.relationships && table.relationships.length > 0) {
+          formatted += 'Relationships:\n';
+          for (const relationship of table.relationships) {
+            formatted += `  - ${relationship.sourceTable}.${relationship.sourceColumn} -> ${relationship.targetTable}.${relationship.targetColumn} (${relationship.type})\n`;
+          }
+        }
+
+        // Add sample data if available (compact, one line per row)
         if (table.sampleData && table.sampleData.length > 0) {
-          formatted += `Sample data (first ${table.sampleData.length} rows):\n`;
-          formatted += JSON.stringify(table.sampleData, null, 2) + '\n';
+          const rows = table.sampleData.slice(0, 3);
+          formatted += `Sample data (${rows.length} row${rows.length === 1 ? '' : 's'}):\n`;
+          for (const row of rows) {
+            formatted += `  ${JSON.stringify(row)}\n`;
+          }
         }
       }
     }

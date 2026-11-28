@@ -1,0 +1,772 @@
+<title>Entity Matching Design</title>
+<style>
+  /* =========================================================
+     TOKENS — Paper & Ink, azure accent.
+     ========================================================= */
+  :root {
+    --paper:        #EEF2F7;
+    --paper-2:      #E3EAF3;
+    --paper-3:      #D2DCE8;
+    --ink:          #16181D;
+    --ink-2:        #353A43;
+    --ink-3:        #626973;
+    --ink-4:        #939AA5;
+
+    --azure:        #2E5FA8;
+    --azure-soft:   #C5D5EC;
+    --azure-deep:   #14355F;
+
+    --line:         #D3DCE7;
+    --line-strong:  #B5C2D2;
+    --highlight:    #DCE7F5;
+
+    --font-display: "Tiempos", "Iowan Old Style", "Georgia", serif;
+    --font-sans:    "Söhne", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    --font-mono:    "JetBrains Mono", "SF Mono", "Menlo", monospace;
+
+    --t-12: 0.75rem;
+    --t-14: 0.875rem;
+    --t-16: 1rem;
+    --t-18: 1.125rem;
+    --t-22: 1.375rem;
+    --t-28: 1.75rem;
+    --t-36: 2.25rem;
+    --t-48: 3rem;
+    --t-64: 4rem;
+
+    --s-1: 4px;
+    --s-2: 8px;
+    --s-3: 12px;
+    --s-4: 16px;
+    --s-5: 24px;
+    --s-6: 32px;
+    --s-7: 48px;
+    --s-8: 64px;
+    --s-9: 96px;
+
+    --r-1: 2px;
+    --r-2: 4px;
+    --r-3: 8px;
+
+    --ease:     cubic-bezier(0.2, 0, 0, 1);
+    --dur:      160ms;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--t-16);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .display-1 { font-family: var(--font-display); font-size: var(--t-64); line-height: 1.05; letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  .display-2 { font-family: var(--font-display); font-size: var(--t-48); line-height: 1.1;  letter-spacing: -0.02em; font-weight: 400; margin: 0; }
+  h1, .h1   { font-family: var(--font-display); font-size: var(--t-36); line-height: 1.15; letter-spacing: -0.015em; font-weight: 400; margin: 0 0 var(--s-5); }
+  h2, .h2   { font-family: var(--font-sans);    font-size: var(--t-28); line-height: 1.25; letter-spacing: -0.01em;  font-weight: 500; margin: var(--s-8) 0 var(--s-4); }
+  h3, .h3   { font-family: var(--font-sans);    font-size: var(--t-22); line-height: 1.3;  font-weight: 500;         margin: var(--s-7) 0 var(--s-3); }
+  h4, .h4   { font-family: var(--font-sans);    font-size: var(--t-18); line-height: 1.4;  font-weight: 600;         margin: var(--s-6) 0 var(--s-2); }
+  p          { margin: 0 0 var(--s-4); max-width: 68ch; }
+  .lead      { font-size: var(--t-18); color: var(--ink-2); max-width: 64ch; }
+  .eyebrow   { font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 var(--s-3); }
+  small, .caption { font-size: var(--t-14); color: var(--ink-3); }
+
+  a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color var(--dur) var(--ease);
+  }
+  a:hover { text-decoration-color: var(--azure); }
+
+  ::selection { background: var(--azure-soft); color: var(--ink); }
+
+  .page { max-width: 1040px; margin: 0 auto; padding: var(--s-9) var(--s-6); }
+  .section { padding: var(--s-8) 0; border-top: 1px solid var(--line); }
+  .section:first-of-type { border-top: 0; padding-top: var(--s-5); }
+  .grid { display: grid; gap: var(--s-4); }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  @media (max-width: 720px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: minmax(0,1fr); }
+    .page { padding: var(--s-7) var(--s-5); }
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-family: var(--font-sans);
+    font-size: var(--t-14);
+    font-weight: 500;
+    line-height: 1;
+    padding: 10px 16px;
+    border-radius: var(--r-2);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+    text-decoration: none;
+  }
+  .btn-primary   { background: var(--ink);   color: var(--paper); }
+  .btn-primary:hover   { background: var(--ink-2); }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn-secondary:hover { border-color: var(--ink); }
+  .btn-accent    { background: var(--azure);  color: #fff; }
+  .btn-accent:hover    { background: var(--azure-deep); }
+  .btn-ghost     { background: transparent; color: var(--ink-2); }
+  .btn-ghost:hover     { color: var(--ink); background: var(--paper-2); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--paper-2);
+    padding: 2px 6px;
+    border-radius: var(--r-1);
+    border: 1px solid var(--line);
+  }
+  pre {
+    font-family: var(--font-mono);
+    font-size: var(--t-14);
+    line-height: 1.6;
+    background: #1A1A1A;
+    color: #E8E2D4;
+    padding: var(--s-5);
+    border-radius: var(--r-3);
+    overflow-x: auto;
+    margin: var(--s-4) 0;
+  }
+  pre code { background: transparent; border: 0; padding: 0; color: inherit; }
+  .tok-kw  { color: #7AA7E0; }
+  .tok-str { color: #C7B97A; }
+  .tok-com { color: #6B6862; font-style: italic; }
+  .tok-fn  { color: #BBD2EE; }
+
+  .callout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--s-3);
+    padding: var(--s-4) var(--s-5);
+    border-radius: var(--r-3);
+    background: var(--paper-2);
+    border-left: 2px solid var(--ink-3);
+    margin: var(--s-4) 0;
+  }
+  .callout .mark {
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-top: 2px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-note  { border-left-color: var(--ink-3); }
+  .callout-tip   { border-left-color: var(--azure);     background: var(--highlight); }
+  .callout-warn  { border-left-color: #B47B2E; background: #F4E8D0; }
+  .callout-crit  { border-left-color: #A03434; background: #F0DBD8; }
+  .callout-tip .mark  { color: var(--azure-deep); }
+  .callout-warn .mark { color: #8C5A18; }
+  .callout-crit .mark { color: #7C2626; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--t-14);
+    margin: var(--s-4) 0;
+  }
+  th, td {
+    text-align: left;
+    padding: var(--s-3) var(--s-4);
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 500;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  tr:hover td { background: var(--paper-2); }
+  .table-scroll { overflow-x: auto; margin: var(--s-4) 0; }
+  .table-scroll table { margin: 0; min-width: 760px; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: var(--r-1);
+    background: var(--paper-2);
+    color: var(--ink-2);
+    border: 1px solid var(--line);
+  }
+  .tag-accent { background: var(--azure-soft); border-color: var(--azure-soft); color: var(--azure-deep); }
+  .tag-ink    { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .tag-warn   { background: #F4E8D0; border-color: #E3CFA6; color: #8C5A18; }
+
+  .card {
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    background: #fff;
+    padding: var(--s-4) var(--s-5);
+  }
+  .card .card-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: var(--s-2);
+  }
+  .card .card-title { font-weight: 500; margin: 0 0 var(--s-2); }
+  .card p { margin: 0; color: var(--ink-2); font-size: var(--t-14); }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: var(--s-5) 0; }
+  .steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: var(--s-4) 0 var(--s-4) var(--s-7);
+    border-top: 1px solid var(--line);
+  }
+  .steps > li:last-child { border-bottom: 1px solid var(--line); }
+  .steps > li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: var(--s-4);
+    font-family: var(--font-mono);
+    font-size: var(--t-12);
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+  }
+  .steps .step-title { font-weight: 500; margin: 0 0 var(--s-2); }
+  .steps p { margin: 0; color: var(--ink-2); }
+
+  .hr-rule { border: 0; border-top: 1px solid var(--line); margin: var(--s-7) 0; }
+  .mt-0 { margin-top: 0; }
+  .stack > * + * { margin-top: var(--s-3); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+  .muted { color: var(--ink-3); }
+
+  /* ---- review-specific extensions ---- */
+  .sev {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: var(--r-1);
+    white-space: nowrap;
+  }
+  .sev-crit { background: #A03434; color: #fff; }
+  .sev-high { background: #F4E8D0; color: #8C5A18; border: 1px solid #E3CFA6; }
+  .sev-med  { background: var(--azure-soft); color: var(--azure-deep); }
+  .sev-low  { background: var(--paper-2); color: var(--ink-3); border: 1px solid var(--line); }
+
+  .size {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: var(--r-1);
+    white-space: nowrap;
+  }
+  .size-xs { background: #fff; border: 1px solid var(--line); color: var(--ink-3); }
+  .size-s  { background: var(--paper-2); border: 1px solid var(--line); color: var(--ink-2); }
+  .size-m  { background: var(--azure-soft); color: var(--azure-deep); }
+  .size-l  { background: var(--ink); color: var(--paper); }
+
+  .mtx-yes  { color: var(--azure-deep); font-weight: 600; }
+  .mtx-part { color: #8C5A18; font-weight: 500; }
+  .mtx-no   { color: var(--ink-4); }
+
+  .gap-id { font-family: var(--font-mono); font-size: var(--t-12); color: var(--ink-3); white-space: nowrap; }
+
+  .stat { border: 1px solid var(--line); border-radius: var(--r-3); background: #fff; padding: var(--s-4) var(--s-5); }
+  .stat .stat-num { font-family: var(--font-display); font-size: var(--t-36); line-height: 1.1; }
+  .stat .stat-label { font-family: var(--font-mono); font-size: var(--t-12); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: var(--s-1); }
+</style>
+
+<style>
+  /* Funnel — the pair-count cascade. Log scale; the caption says so. */
+  .funnel { margin: var(--s-5) 0 var(--s-4); display: flex; flex-direction: column; gap: var(--s-3); }
+  .fn-row { display: grid; grid-template-columns: 11ch 1fr; gap: var(--s-4); align-items: center; }
+  .fn-num {
+    font-family: var(--font-mono); font-size: var(--t-14); color: var(--ink-2);
+    font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap;
+  }
+  .fn-bar { position: relative; height: 34px; background: var(--paper-2); border-radius: var(--r-2); overflow: hidden; }
+  .fn-fill {
+    position: absolute; inset: 0 auto 0 0; background: var(--azure-soft);
+    border-right: 2px solid var(--azure); display: flex; align-items: center;
+  }
+  .fn-label {
+    position: absolute; left: var(--s-4); top: 50%; transform: translateY(-50%);
+    font-size: var(--t-14); color: var(--ink); white-space: nowrap;
+  }
+  .fn-row:last-child .fn-fill { background: var(--ink); border-right-color: var(--ink); }
+  .fn-row:last-child .fn-label { color: var(--ink); }
+  @media (max-width: 720px) {
+    .fn-row { grid-template-columns: 9ch 1fr; gap: var(--s-3); }
+    .fn-label { font-size: var(--t-12); }
+  }
+
+  kbd {
+    font-family: var(--font-mono); font-size: var(--t-12); background: #fff;
+    border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: var(--r-2);
+    padding: 1px 6px; color: var(--ink-2);
+  }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lede-rule { border: 0; border-top: 2px solid var(--ink); width: 64px; margin: var(--s-5) 0; }
+</style>
+
+
+<main class="page">
+
+  <!-- HERO -->
+  <section class="section">
+    <p class="eyebrow">DataGate Docs · Design, awaiting sign-off</p>
+    <h1 class="display-1">One entity, many records.</h1>
+    <p class="lead">A single matching engine with two entry points — deduplicate one dataset, or link the same person or business across two. It publishes a durable <span class="mark">entity_key</span> crosswalk, which is the join key Cross-Query has never had. Small language models run on a 16 GB CPU-only server and sit at the edges of the pipeline, never in the hot path.</p>
+    <div class="row" style="margin-top: var(--s-5);">
+      <a class="btn btn-primary" href="#arithmetic">The arithmetic</a>
+      <a class="btn btn-accent" href="#architecture">Architecture</a>
+      <a class="btn btn-secondary" href="#governance">Governance</a>
+      <a class="btn btn-secondary" href="#phases">Phases</a>
+      <span class="tag">2026-09-16</span>
+      <span class="tag tag-accent">approved in principle</span>
+    </div>
+  </section>
+
+  <!-- DECISION -->
+  <section class="section" id="decision">
+    <p class="eyebrow">What you are signing off</p>
+    <h2 class="mt-0">Four answers shaped this</h2>
+    <p>You set the constraints during the brainstorm. Everything below follows from them, and a change to any one of them changes the design.</p>
+
+    <div class="grid grid-2" style="margin-top: var(--s-5);">
+      <div class="card">
+        <div class="card-eyebrow">Scope</div>
+        <p class="card-title">One engine, deduplication first</p>
+        <p>Build the cascade once. Ship single-dataset deduplication as phase 1, then add cross-dataset linkage on the same foundation.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Sources</div>
+        <p class="card-title">Connections and Staged Data</p>
+        <p>Both, behind one interface. This is what pushed the design toward a materialized workspace rather than per-dialect SQL.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Scale</div>
+        <p class="card-title">10M+ rows per side</p>
+        <p>National-register scale. This single answer is why no model touches the pair set, and why rejected pairs are never stored.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Hardware</div>
+        <p class="card-title">CPU now, GPU later</p>
+        <p>16 GB, no GPU. Every model call stays behind the existing <span class="mark">IAiProvider</span> seam, so a GPU becomes a settings change rather than a rewrite.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-warn" style="margin-top: var(--s-6);">
+      <p><span class="mark">This reverses an earlier call, deliberately.</span> The September improvement review parked master data management as out of scope — "leave it to the Hub, consume golden records via API". The reason to reverse it is narrow and specific: cross-database joins are DataGate's strongest feature, and on government data they are close to unusable, because no two agencies share a join key. A crosswalk is that key. This is not full MDM — no stewardship-of-record, no golden-source arbitration across government. It is the one table the analytics layer needs in order to work at all.</p>
+    </div>
+  </section>
+
+  <!-- ARITHMETIC -->
+  <section class="section" id="arithmetic">
+    <p class="eyebrow">The constraint that shapes everything</p>
+    <h2 class="mt-0">Why the model cannot read the pairs</h2>
+    <p class="lead">Ten million rows against ten million rows is one hundred trillion pairs. A 1.7B instruct model on CPU needs four to six seconds per pair. The gap is not close, and no amount of engineering closes it — so the design routes around it.</p>
+
+    <div class="funnel">
+      <div class="fn-row">
+        <div class="fn-num">10<sup>14</sup></div>
+        <div class="fn-bar"><div class="fn-fill" style="width:100%"></div><div class="fn-label">Every possible pair — nothing runs here</div></div>
+      </div>
+      <div class="fn-row">
+        <div class="fn-num">2 × 10<sup>8</sup></div>
+        <div class="fn-bar"><div class="fn-fill" style="width:59%"></div><div class="fn-label">After blocking — indexed SQL joins, minutes</div></div>
+      </div>
+      <div class="fn-row">
+        <div class="fn-num">~3 × 10<sup>6</sup></div>
+        <div class="fn-bar"><div class="fn-fill" style="width:46%"></div><div class="fn-label">Scored and kept — SQL comparators</div></div>
+      </div>
+      <div class="fn-row">
+        <div class="fn-num">~2 × 10<sup>5</sup></div>
+        <div class="fn-bar"><div class="fn-fill" style="width:38%"></div><div class="fn-label">The grey band — reranker, phase 4</div></div>
+      </div>
+      <div class="fn-row">
+        <div class="fn-num">~10<sup>3</sup></div>
+        <div class="fn-bar"><div class="fn-fill" style="width:21%"></div><div class="fn-label">Opened by a reviewer — the instruct model writes the reason</div></div>
+      </div>
+    </div>
+    <p class="caption">Bar width is proportional to the base-10 logarithm of the pair count. On a linear scale every bar below the first would be invisible.</p>
+
+    <p style="margin-top: var(--s-5);">Three rules fall out of this and are not negotiable inside the design:</p>
+    <ul>
+      <li>Everything up to and including scoring is SQL. No model, and no per-pair work in Node.</li>
+      <li>The instruct model runs only on pairs a person opens, one at a time.</li>
+      <li>No part of the design may assume a model sees a whole run's pairs.</li>
+    </ul>
+
+    <div class="callout callout-tip">
+      <p><span class="mark">What the model is actually for.</span> Its contribution is not accuracy — the SQL comparators are more accurate and a thousand times faster. Its contribution is the written reason attached to a pair. A data steward can defend a sentence in an audit. A similarity score of 0.83 is much harder to defend. So the model explains, and never merges anything on its own.</p>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section class="section" id="architecture">
+    <p class="eyebrow">Architecture</p>
+    <h2 class="mt-0">A materialized match workspace</h2>
+    <p>One source abstraction reads either a live Connection table or a Staged Data dataset, and copies <strong>only the project's allow-listed columns</strong> into per-project tables in a <span class="mark">matching</span> schema inside DataGate's own PostgreSQL. Every stage after that runs there, in one dialect, with full extension access.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:15%">Option</th><th style="width:38%">Approach</th><th>Why not</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="sev sev-low">A</span></td>
+            <td>Push blocking SQL down into each source database</td>
+            <td>Per-dialect blocking SQL across nine drivers, and MySQL has no trigram index. It also asks an agency's production database to run a 200-million-pair join — a political problem as much as a technical one.</td>
+          </tr>
+          <tr>
+            <td><span class="sev sev-low">B</span></td>
+            <td>Stream rows into Node with an on-disk key index</td>
+            <td>One implementation for every source, and the comparators would be pure and easily tested. But 200 million pairs through Node is hours where PostgreSQL is minutes, and it reimplements what the database already does well.</td>
+          </tr>
+          <tr>
+            <td><span class="sev sev-med">C</span></td>
+            <td><strong>Materialize allow-listed columns into a per-project workspace</strong></td>
+            <td><strong>Chosen.</strong> The blocking and scoring SQL is written once; Connections and Staged Data become interchangeable to the engine; source databases only ever serve simple ordered reads.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Two findings from the code that changed the design</h3>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-eyebrow">drivers/database-driver.interface.ts:38</div>
+        <p class="card-title">No cursor, nine drivers</p>
+        <p><span class="mark">DatabaseDriver.query()</span> returns every row in one in-memory array. Adding streaming to nine drivers is out of scope, so the materializer pages by keyset — <span class="mark">WHERE pk &gt; $last ORDER BY pk LIMIT 50000</span>. Ten million rows is 200 round trips, and no driver changes.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">A 40 GB table avoided</div>
+        <p class="card-title">Rejected pairs are never stored</p>
+        <p>At 200 million candidates and ~200 bytes a row, storing every pair is a 40 GB table. One <span class="mark">INSERT ... SELECT</span> per pass scores and writes only rows at or above the reject threshold. Rejects are counted into the run, then dropped. The table stays in the low millions.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-crit">
+      <p><span class="mark">The honest cost of option C.</span> It copies personal data into DataGate's own database. That is a real exposure, not a theoretical one, and it is only acceptable with the controls in the governance section below. Those controls are requirements of the design, not recommendations attached to it.</p>
+    </div>
+  </section>
+
+  <!-- ENGINE -->
+  <section class="section" id="engine">
+    <p class="eyebrow">The engine</p>
+    <h2 class="mt-0">Five stages</h2>
+    <p>A new backend module, <span class="mark">packages/backend/src/modules/matching/</span>, with one orchestrator and a service per stage.</p>
+
+    <ol class="steps">
+      <li>
+        <p class="step-title">Materialize</p>
+        <p>Read via <span class="mark">connectionsService.getDriver()</span> or from Staged Data. Keyset pages of 50,000 rows, written with <span class="mark">COPY</span>. Reads only the allow-listed columns — the single place that rule is enforced. A watermark on the run makes the next run incremental.</p>
+      </li>
+      <li>
+        <p class="step-title">Normalize</p>
+        <p>Deterministic first, as pure functions: case, accents, whitespace, punctuation, ISO dates, phone numbers reduced to their last nine digits. Model normalization is limited to organization names and addresses — those have thousands of distinct values and benefit greatly from parsing. Person names do not need it: a token sort plus a phonetic key handles name-order variation, and a national register holds on the order of a million distinct names, far beyond a CPU model's budget. Everything is cached in <span class="mark">match_norm_cache</span> permanently.</p>
+      </li>
+      <li>
+        <p class="step-title">Block</p>
+        <p>Each pass is one generated key column with an index behind it: surname phonetic plus birth year, last nine phone digits, surname phonetic plus district, a trigram join on the full name, and a pgvector pass over the distinct-value dictionary for organization names and addresses. Passes are joined independently and unioned.</p>
+      </li>
+      <li>
+        <p class="step-title">Score</p>
+        <p>One statement per pass. Comparators run in SQL by role — trigram similarity and bounded edit distance for names, a token-set check for swapped name order, day difference and digit-transposition for dates, last-nine plus edit distance of one for phones and identity numbers. Pairs already carrying a human verdict take that answer and skip scoring.</p>
+      </li>
+      <li>
+        <p class="step-title">Cluster</p>
+        <p>Union-find over pairs above the match threshold plus confirmed pairs, then write the crosswalk. Three rules matter more than the algorithm — they are below.</p>
+      </li>
+    </ol>
+
+    <h3>Two guards inside blocking</h3>
+    <p>Both are part of the stage, not optional extras, because at this scale either one failing turns a one-hour run into a stalled one.</p>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-eyebrow">Guard 1</div>
+        <p class="card-title">Estimate before running</p>
+        <p>Sample the key columns, build a frequency histogram, project the pair count per pass. The wizard shows the projection before anything runs. Above the configured cap it warns; above twice the cap it refuses.</p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Guard 2</div>
+        <p class="card-title">Drop degenerate keys</p>
+        <p>Any key value covering more than 0.5% of rows makes its join quadratic. An empty surname does exactly this. Such values come out of the same histogram and are excluded, and the run records which ones were dropped.</p>
+      </div>
+    </div>
+
+    <h3>Three rules inside clustering</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:22%">Rule</th><th>What it prevents</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Over-merge guard</strong></td><td>After clustering, every pair inside a cluster is checked. If any internal pair falls below the reject threshold, the cluster is flagged and routed to review instead of published. This stops the "A matches B, B matches C, A does not match C" chain that silently merges unrelated people.</td></tr>
+          <tr><td><strong>Stable entity key</strong></td><td>On a re-run, a cluster keeps the key held by the majority of its previous members; a genuinely new cluster gets a fresh one. Without this rule the crosswalk churns on every run and every downstream join breaks.</td></tr>
+          <tr><td><strong>Survivorship with provenance</strong></td><td>Golden-record rules per field — most recent, most complete, source priority, most frequent — and every golden field records the source and key its value came from. The model may write a prose explanation on request; it never chooses the value.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- DATA MODEL -->
+  <section class="section" id="data-model">
+    <p class="eyebrow">Data model</p>
+    <h2 class="mt-0">One migration, four entities, five tables</h2>
+    <p>Migration <span class="mark">1711000000010-AddEntityMatching.ts</span> adds <span class="mark">pg_trgm</span> and <span class="mark">fuzzystrmatch</span> in the same style as the existing <span class="mark">vector</span> and <span class="mark">postgres_fdw</span> migrations, and creates the <span class="mark">matching</span> schema.</p>
+
+    <h3>Entities</h3>
+    <p>All follow repository convention — text primary keys with <span class="mark">uuidv4</span>, JSONB for structured fields, <span class="mark">organization_id</span> on every row.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:20%">Entity</th><th style="width:26%">Purpose</th><th>Notable fields</th></tr></thead>
+        <tbody>
+          <tr><td><strong>MatchProject</strong></td><td>The configuration</td><td><span class="mark">mode</span> (dedupe or link), left and right source, field map with roles and weights, blocking passes, thresholds, <strong>column allow-list</strong>, lawful basis, data owner, retention days</td></tr>
+          <tr><td><strong>MatchRun</strong></td><td>One execution. Mirrors PipelineRun.</td><td>Stage status, counters for every stage, watermarks, duration, error</td></tr>
+          <tr><td><strong>MatchEntity</strong></td><td>One cluster</td><td>Stable <span class="mark">entityKey</span>, members, golden record with per-field provenance, size, flagged</td></tr>
+          <tr><td><strong>MatchDecision</strong></td><td>A person's verdict. Permanent.</td><td>The pair, the verdict, who and when, and the score and model verdict that stood at the time</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-note">
+      <p><span class="mark">Why decisions live apart from candidates.</span> Candidates belong to a run and expire with it. A human verdict is permanent, and it does three separate jobs: it is the audit trail, the next run reuses it instead of asking the same question again, and the accumulated verdicts become the labelled set that threshold tuning and the phase-4 weight model both require.</p>
+    </div>
+
+    <h3>Plain tables, written by SQL</h3>
+    <p>These follow the <span class="mark">catalog_embeddings</span> precedent — raw parameterized SQL, no TypeORM entity — because they are written in bulk by set-based statements.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:24%">Table</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mark">match_candidates</span></td><td>The pair table. <span class="mark">bigserial</span> rather than uuid, because there are millions of rows. Decision takes exactly four values — auto_match, grey, confirmed, rejected. There is no auto_reject, because those pairs are never written.</td></tr>
+          <tr><td><span class="mark">match_crosswalk</span></td><td>The product. Maps source and source key to entity key, unique per project. This is what Cross-Query joins against.</td></tr>
+          <tr><td><span class="mark">match_norm_cache</span></td><td>Normalized values keyed by organization, role and raw value. This is what makes model-based normalization affordable.</td></tr>
+          <tr><td><span class="mark">match_value_vectors</span></td><td>The distinct-value embedding dictionary behind the vector blocking pass. 384 dimensions, HNSW index, organization names and addresses only — never one row per record.</td></tr>
+          <tr><td><span class="mark">match_gold_pairs</span></td><td>Hand-labelled pairs, per project. The evaluation set.</td></tr>
+          <tr><td><span class="mark">matching.p_&lt;id&gt;_left/_right</span></td><td>The workspace. One column per mapped field holding the normalized value, plus a generated column and index per blocking pass. Dropped by retention.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- MODELS -->
+  <section class="section" id="models">
+    <p class="eyebrow">Models and budget</p>
+    <h2 class="mt-0">Three tiers, each cheaper per pair than the last</h2>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:8%">Tier</th><th style="width:34%">What runs</th><th style="width:22%">Pairs it sees</th><th>Speed</th></tr></thead>
+        <tbody>
+          <tr><td><span class="size size-l">1</span></td><td>SQL string metrics — trigram, edit distance, phonetic</td><td class="num">~2 × 10<sup>8</sup></td><td>minutes for the whole set</td></tr>
+          <tr><td><span class="size size-m">2</span></td><td>Cross-encoder reranker <span class="tag tag-warn">phase 4</span></td><td class="num">the grey band</td><td>~100 per second</td></tr>
+          <tr><td><span class="size size-s">3</span></td><td>Small instruct model — writes the reason</td><td class="num">only pairs a person opens</td><td>~5 seconds each</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Tier 3 defaults to <strong>Qwen3-1.7B at Q4</strong> — about 1.1 GB resident, good JSON adherence, multilingual. It is called through the existing <span class="mark">IAiProvider.generateJson()</span> and returns a match flag, a confidence, and a reason. A model failure leaves the pair unannotated rather than failing the run.</p>
+
+    <div class="callout callout-tip">
+      <p><span class="mark">One settings change is needed.</span> <span class="mark">generateJson()</span> reads <span class="mark">settings.aiModel</span>, which on the RISA setup is the 30B chat model. Matching needs a small one, so add <span class="mark">aiSmallModel</span> to organization settings. The error doctor and the check suggester can use it too.</p>
+    </div>
+
+    <h3>Why the reranker waits for phase 4</h3>
+    <p>A cross-encoder is the most specialized small model in this design and the right tool for the grey band: one forward pass, no text generation, roughly a hundred pairs a second, which turns a 200,000-pair band into something a team can finish. But Ollama does not serve rerankers well, so it needs one new container. Version 1 therefore adds <strong>zero</strong> new services, and the adjudication service carries a <span class="mark">scorePairs()</span> seam so the reranker slots in later without a rewrite.</p>
+
+    <h3>What fits in 16 GB</h3>
+    <div class="grid grid-2">
+      <div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Process</th><th style="width:30%">RAM</th></tr></thead>
+            <tbody>
+              <tr><td>PostgreSQL</td><td class="num">5–6 GB</td></tr>
+              <tr><td>Node backend</td><td class="num">1–2 GB</td></tr>
+              <tr><td>Ollama with Qwen3-1.7B Q4</td><td class="num">~1.5 GB</td></tr>
+              <tr><td>Embedding model</td><td class="num">0.3–1.2 GB</td></tr>
+              <tr><td>Next.js</td><td class="num">~0.5 GB</td></tr>
+              <tr><td>OS and headroom</td><td class="num">~2 GB</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="callout callout-warn" style="margin-top: var(--s-4);">
+          <p><span class="mark">It fits, tightly.</span> The 30B chat model must not run on this box — it needs about 20 GB. Disk is roughly 15 to 20 GB per large project once workspace columns, indexes and surviving candidates are counted, so retention has to reclaim it.</p>
+        </div>
+        <p class="caption">Estimated run time for 10M × 10M, to be confirmed on the real hardware: materialize 20–60 minutes, block and score 10–40 minutes, cluster a few minutes. One to two hours, with no model in the hot path.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SURFACE -->
+  <section class="section" id="surface">
+    <p class="eyebrow">What the user sees</p>
+    <h2 class="mt-0">Six pages, and one that matters most</h2>
+    <p>Routes under <span class="mark">app/matching/</span>, an <span class="mark">api.matching</span> namespace in <span class="mark">lib/api.ts</span>, and a sidebar entry labelled "Entity Matching" in the Data Operations section, after Data Quality.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:26%">Route</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mark">/matching</span></td><td>Project list with last-run status.</td></tr>
+          <tr><td><span class="mark">/matching/new</span></td><td>A four-step wizard: sources, field map, blocking, thresholds. The blocking step shows the projected pair count per pass <em>before</em> anything runs. The threshold step runs the evaluator against the gold set, so the sliders show real precision and recall rather than guesses.</td></tr>
+          <tr><td><span class="mark">/matching/[id]</span></td><td>Project detail and run history.</td></tr>
+          <tr><td><span class="mark">/matching/[id]/runs/[runId]</span></td><td>Counters, a cluster-size histogram, and the flagged clusters.</td></tr>
+          <tr><td><span class="mark">/matching/[id]/clusters</span></td><td>Clusters, each with its golden record and the source of every field.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The review queue</h3>
+    <p class="lead">This is where a data steward spends the day, and it is the screen the feature succeeds or fails on.</p>
+    <p>Two record cards side by side, aligned field by field. Each field carries a similarity bar and has its differing characters marked. The overall score and the blocking pass that proposed the pair are both shown, so a reviewer can see <em>why</em> the pair arrived. The model's reason loads when the pair opens — about five seconds, with a skeleton in the meantime.</p>
+    <p>Keys: <kbd>m</kbd> match, <kbd>n</kbd> no match, <kbd>s</kbd> skip, <kbd>u</kbd> undo, <kbd>j</kbd> and <kbd>k</kbd> to move. The queue orders pairs by decision value — nearest the threshold first, where a human answer carries the most information. Every keystroke writes a permanent decision.</p>
+
+    <h3>How it joins the app you already have</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:34%">Place</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td>Staged Data page, catalog table view</td><td>A "Find duplicates" action that creates a deduplication project pre-filled from that table</td></tr>
+          <tr><td><span class="mark">quality-check.entity.ts:13</span></td><td>New check type <span class="mark">no_duplicates</span>, failing when duplicate clusters exceed a configured count</td></tr>
+          <tr><td><span class="mark">pipeline.entity.ts:15</span> and the executor</td><td>New step type <span class="mark">match</span> and its case branch, so linkage runs on a schedule after ingestion</td></tr>
+          <tr><td>Cross-Query table browser</td><td><span class="mark">match_crosswalk</span> becomes selectable, so table A joins the crosswalk joins table B on <span class="mark">entity_key</span></td></tr>
+          <tr><td>Lineage</td><td>Each completed run emits edges from the source tables to the crosswalk</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- GOVERNANCE -->
+  <section class="section" id="governance">
+    <p class="eyebrow">Governance</p>
+    <h2 class="mt-0">Six rules, all requirements</h2>
+    <p class="lead">The data is citizen and business personal data. Rwanda's Law No. 058/2021 on personal data protection and the National Data Sharing Policy of May 2025 both bear on it directly.</p>
+
+    <ol class="steps">
+      <li><p class="step-title">The materializer reads only allow-listed columns</p><p>One rule, one place in the code, covered by a test.</p></li>
+      <li><p class="step-title">A matching project refuses a remote AI provider</p><p>Local, or custom pointed at a private host, only. The code throws on OpenAI, Anthropic and Azure. Personal data never leaves the server — which is the whole reason small local models matter here rather than being a preference.</p></li>
+      <li><p class="step-title">Lawful basis and data owner are required fields</p><p>Non-empty, on every project. Not metadata to fill in later.</p></li>
+      <li><p class="step-title">Roles guard every mutating endpoint</p><p>Review is its own role. The repository audit found <span class="mark">@Roles</span> guarding zero endpoints today, finding SEC-10. Matching must not repeat that.</p></li>
+      <li><p class="step-title">Every model call is audited</p><p>Through the existing audit service, under matching_align, matching_normalize and matching_adjudicate. It stores sizes and metadata, never record values, matching the contract that service already keeps.</p></li>
+      <li><p class="step-title">Workspace data is encrypted at rest and expires</p><p>A daily cleanup job, modelled on the transformations cleanup service, drops workspace tables and candidate rows past their retention. Decisions, clusters, the crosswalk, the gold set and the normalization cache survive — they are results and audit, not working data.</p></li>
+    </ol>
+  </section>
+
+  <!-- EVALUATION -->
+  <section class="section" id="evaluation">
+    <p class="eyebrow">Evaluation</p>
+    <h2 class="mt-0">Thresholds you can defend</h2>
+    <p>An evaluation service reads the hand-labelled gold pairs and reports precision, recall and F1 at the current thresholds, plus a sweep across thresholds so the operating point is chosen deliberately. The wizard's threshold step calls it. Confirmed and rejected pairs from the review queue can be promoted into the gold set, so the measurement improves as the queue is worked.</p>
+    <div class="callout callout-crit">
+      <p><span class="mark">This is part of the feature, not an extra.</span> Without a gold set the thresholds are a guess, and a guess cannot be defended when someone asks why two citizen records were merged.</p>
+    </div>
+  </section>
+
+  <!-- PHASES -->
+  <section class="section" id="phases">
+    <p class="eyebrow">Order of work</p>
+    <h2 class="mt-0">Four phases, and the plan covers the first</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:10%">Phase</th><th>Content</th></tr></thead>
+        <tbody>
+          <tr><td><span class="size size-l">1</span></td><td><strong>Deduplicate one source.</strong> Materialize, deterministic normalize, block, score, cluster, review queue, crosswalk, the no_duplicates check. No model except field alignment. Useful on its own, and it proves the engine before any model is trusted with anything.</td></tr>
+          <tr><td><span class="size size-m">2</span></td><td><strong>The models.</strong> Lazy adjudication with written reasons, model normalization for organization names and addresses, the vector blocking pass and its dictionary, model-suggested field mapping in the wizard.</td></tr>
+          <tr><td><span class="size size-s">3</span></td><td><strong>Linkage across two sources.</strong> Right source, cross-source clusters, golden record and survivorship, Cross-Query integration, lineage edges.</td></tr>
+          <tr><td><span class="size size-xs">4</span></td><td><strong>Quality.</strong> The reranker tier, Fellegi–Sunter weights estimated from the collected labels, incremental re-match, the match pipeline step.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout callout-note">
+      <p><span class="mark">The implementation plan that follows covers phase 1 only.</span> Phases 2 to 4 each get their own plan, written after phase 1 has run on the target box and the timing estimates above have been replaced with measurements.</p>
+    </div>
+  </section>
+
+  <!-- RISKS -->
+  <section class="section" id="risks">
+    <p class="eyebrow">Risks</p>
+    <h2 class="mt-0">What could go wrong, and the answer</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:32%">Risk</th><th>Mitigation</th></tr></thead>
+        <tbody>
+          <tr><td><span class="sev sev-crit">Crit</span> Personal data copied into DataGate's database</td><td>Column allow-list, required lawful basis and owner, encryption at rest, retention, and local-only providers enforced in code</td></tr>
+          <tr><td><span class="sev sev-high">High</span> Model non-determinism in a decision with legal weight</td><td>The model explains and never merges; the deterministic score is the decision signal; every verdict stores its model and timestamp; runs are repeatable</td></tr>
+          <tr><td><span class="sev sev-high">High</span> Name matching performs unevenly across spelling conventions</td><td>Report metrics per source and, where the data allows, per subgroup. The gold set must be sampled deliberately rather than randomly.</td></tr>
+          <tr><td><span class="sev sev-med">Med</span> A grey band larger than a team can review</td><td>Pair-count estimate before the run, threshold sweep against the gold set, the reranker tier in phase 4, and a queue size that is always visible</td></tr>
+          <tr><td><span class="sev sev-med">Med</span> The 10M-scale timings are unverified</td><td>Phase 1 measures a real run on the target box and records the numbers against the estimates in this document</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- GLOSSARY -->
+  <section class="section" id="glossary">
+    <p class="eyebrow">Ubiquitous language</p>
+    <h2 class="mt-0">Words this feature uses</h2>
+    <p>There is no <span class="mark">CONTEXT.md</span> in the repository. This is the vocabulary for the feature, and it should move into one if that file is created.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:24%">Term</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Match project</strong></td><td>The configuration: sources, field map, blocking passes, thresholds, allow-list, lawful basis</td></tr>
+          <tr><td><strong>Match run</strong></td><td>One execution of a match project</td></tr>
+          <tr><td><strong>Source</strong></td><td>A live Connection table, or a Staged Data dataset</td></tr>
+          <tr><td><strong>Workspace</strong></td><td>The per-project tables holding the copied, normalized columns</td></tr>
+          <tr><td><strong>Blocking pass</strong></td><td>One indexed rule that proposes candidate pairs</td></tr>
+          <tr><td><strong>Candidate pair</strong></td><td>Two records a blocking pass proposed</td></tr>
+          <tr><td><strong>Grey band</strong></td><td>Candidate pairs scoring between the reject and match thresholds</td></tr>
+          <tr><td><strong>Adjudication</strong></td><td>A small instruct model writing a reason for one pair</td></tr>
+          <tr><td><strong>Cluster</strong></td><td>A set of records the engine believes are one entity</td></tr>
+          <tr><td><strong>Entity key</strong></td><td>The stable identifier for a cluster, kept across runs</td></tr>
+          <tr><td><strong>Golden record</strong></td><td>One value per field chosen from a cluster by survivorship rules, with provenance</td></tr>
+          <tr><td><strong>Crosswalk</strong></td><td>The published table mapping source and source key to entity key</td></tr>
+          <tr><td><strong>Decision</strong></td><td>A person's permanent verdict on one pair</td></tr>
+          <tr><td><strong>Gold set</strong></td><td>Hand-labelled pairs used to measure precision and recall</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <section class="section" id="next">
+    <p class="eyebrow">Next</p>
+    <h2 class="mt-0">Awaiting your sign-off</h2>
+    <p>The source of record is <span class="mark">docs/superpowers/specs/2026-09-16-entity-matching-design.md</span>, committed on <span class="mark">ft-phase2-ai-foundation</span>. This page is the review surface for the same content.</p>
+    <p>On your approval, the next step is a phase-1 implementation plan: task by task, test first, with the backend and frontend gates this repository already enforces.</p>
+    <hr class="lede-rule" />
+    <p class="caption">DataGate · Entity matching design · 2026-09-16</p>
+  </section>
+
+</main>
