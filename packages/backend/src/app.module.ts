@@ -38,6 +38,11 @@ import {
   AlertRule,
   AlertEvent,
   AiInteraction,
+  MatchProject,
+  MatchRun,
+  MatchEntity,
+  MatchDecision,
+  MatchGoldPair,
 } from './database/entities';
 import { OrganizationSettings } from './database/entities/organization-settings.entity';
 import { EncryptionModule } from './modules/encryption/encryption.module';
@@ -62,6 +67,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { CatalogSearchModule } from './modules/catalog-search/catalog-search.module';
+import { MatchingModule } from './modules/matching/matching.module';
 
 @Module({
   imports: [
@@ -111,6 +117,11 @@ import { CatalogSearchModule } from './modules/catalog-search/catalog-search.mod
           AlertRule,
           AlertEvent,
           AiInteraction,
+          MatchProject,
+          MatchRun,
+          MatchEntity,
+          MatchDecision,
+          MatchGoldPair,
         ],
         synchronize: false, // Use migrations
         logging: configService.get('NODE_ENV') === 'development',
@@ -159,6 +170,7 @@ import { CatalogSearchModule } from './modules/catalog-search/catalog-search.mod
     AdminModule,
     AlertsModule,
     CatalogSearchModule,
+    MatchingModule,
   ],
   controllers: [AppController],
   providers: [

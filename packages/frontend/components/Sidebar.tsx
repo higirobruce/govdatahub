@@ -112,6 +112,7 @@ export function Sidebar() {
         { id: 'pipelines', label: 'Pipelines', href: '/pipelines', icon: <Workflow /> },
         { id: 'quality', label: 'Data Quality', href: '/quality', icon: <ShieldCheck /> },
         { id: 'products', label: 'Data Products', href: '/products', icon: <Package /> },
+        { id: 'matching', label: 'Entity Matching', href: '/matching', icon: <Users /> },
         { id: 'lineage', label: 'Data Lineage', href: '/lineage', icon: <Network /> },
       ],
     },
