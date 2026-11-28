@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddSavedDashboards1712000000000 implements MigrationInterface {
-  name = 'AddSavedDashboards1712000000000';
+export class AddSavedDashboards1712000000002 implements MigrationInterface {
+  name = 'AddSavedDashboards1712000000002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
